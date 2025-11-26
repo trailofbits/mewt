@@ -1,0 +1,27 @@
+# Local storage
+*.sqlite*
+.direnv/
+.env
+
+# Cache
+.cargo
+
+# Compiled output
+target
+result
+
+# IDEs and editors
+*.sw[opq]
+.vscode/
+
+# Logs
+*.log
+*.tmp.*
+
+# OS
+.bash_history
+.DS_Store
+
+# Agent
+PROMPT.md
+.claude/

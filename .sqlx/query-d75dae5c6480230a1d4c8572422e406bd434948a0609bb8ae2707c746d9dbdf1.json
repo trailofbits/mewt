@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT o.mutant_id, o.status, o.output, o.time AS \"time: String\", o.duration_ms\n            FROM outcomes o\n            JOIN mutants m ON o.mutant_id = m.id\n            WHERE m.target_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "mutant_id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "status",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "output",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "time: String",
+        "ordinal": 3,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "duration_ms",
+        "ordinal": 4,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d75dae5c6480230a1d4c8572422e406bd434948a0609bb8ae2707c746d9dbdf1"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                INSERT INTO mutants (target_id, byte_offset, line_offset, old_text, new_text, mutation_slug)\n                VALUES (?, ?, ?, ?, ?, ?)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "fe9d3d51b5ce360872b1c5fc154be2fd8685779e44c74e2e9c18d283b7ed08f7"
+}

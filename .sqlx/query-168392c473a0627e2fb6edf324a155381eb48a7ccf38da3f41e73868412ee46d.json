@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT id, target_id, byte_offset, line_offset, old_text, new_text, mutation_slug\n            FROM mutants\n            WHERE id = ?\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "target_id",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "byte_offset",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "line_offset",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "old_text",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "new_text",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "mutation_slug",
+        "ordinal": 6,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "168392c473a0627e2fb6edf324a155381eb48a7ccf38da3f41e73868412ee46d"
+}

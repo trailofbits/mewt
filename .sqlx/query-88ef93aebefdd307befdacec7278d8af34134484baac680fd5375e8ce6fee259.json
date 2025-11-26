@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                    UPDATE outcomes\n                    SET status = ?, output = ?, time = ?, duration_ms = ?\n                    WHERE mutant_id = ?\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "88ef93aebefdd307befdacec7278d8af34134484baac680fd5375e8ce6fee259"
+}

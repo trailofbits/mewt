@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT id\n            FROM mutants\n            WHERE target_id = ? AND byte_offset = ? AND old_text = ? AND new_text = ? AND mutation_slug = ?\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e77a8694febbd70c3e152f6d7dce1ac555b13055d921432eb700cfd89dc1fb90"
+}

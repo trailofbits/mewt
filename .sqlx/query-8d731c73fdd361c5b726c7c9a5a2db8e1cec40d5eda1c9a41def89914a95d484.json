@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                    INSERT INTO targets (path, file_hash, text, language)\n                    VALUES (?, ?, ?, ?)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "8d731c73fdd361c5b726c7c9a5a2db8e1cec40d5eda1c9a41def89914a95d484"
+}

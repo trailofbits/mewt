@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT m.id, m.target_id, m.byte_offset, m.line_offset, m.old_text, m.new_text, m.mutation_slug\n            FROM mutants m\n            JOIN outcomes o ON m.id = o.mutant_id\n            WHERE o.status = 'Timeout'\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "target_id",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "byte_offset",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "line_offset",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "old_text",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "new_text",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "mutation_slug",
+        "ordinal": 6,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "53e737356677b851d4dcca1aded491577e078487f40c806ceb43963b31bd8f67"
+}

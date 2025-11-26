@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT mutant_id\n            FROM outcomes\n            WHERE mutant_id = ?\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "mutant_id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5a67e24c92f8db00b2680c73b324e1f0e115a74ba93bae164486912aab510481"
+}

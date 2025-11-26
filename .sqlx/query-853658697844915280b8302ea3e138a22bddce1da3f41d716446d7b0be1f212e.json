@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                    INSERT INTO outcomes (mutant_id, status, output, time, duration_ms)\n                    VALUES (?, ?, ?, ?, ?)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "853658697844915280b8302ea3e138a22bddce1da3f41d716446d7b0be1f212e"
+}
