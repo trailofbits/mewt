@@ -24,4 +24,4 @@ result
 
 # Agent
 PROMPT.md
-.claude/
+.claude/settings.local.json
