@@ -113,15 +113,14 @@ cp -r "$TEMP_DIR/$grammar_path/src/"* "grammars/$language/src/"
 cp "$TEMP_DIR/$grammar_path/grammar.js" "grammars/$language/"
 
 # Record vendored metadata for traceability
+cat > "grammars/$language/vendor.json" <<EOF
 {
-  echo "$vendored_commit" > "grammars/$language/VENDORED_COMMIT"
-} >/dev/null 2>&1 || true
-{
-  echo "repo=$repo_url"
-  echo "grammar_path=$grammar_path"
-  echo "commit=$vendored_commit"
-  echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-} > "grammars/$language/VENDORED_METADATA" || true
+  "repo": "$repo_url",
+  "grammar_path": "$grammar_path",
+  "commit": "$vendored_commit",
+  "updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
 
 # Step 5: Clean up temporary directory
 echo "Cleaning up..."
