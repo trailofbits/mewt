@@ -55,4 +55,8 @@ fn main() {
     // Build Rust grammar
     let rust_dir: PathBuf = ["grammars", "rust", "src"].iter().collect();
     build_grammar(&rust_dir, "tree-sitter-rust");
+
+    // Build Go grammar
+    let go_dir: PathBuf = ["grammars", "go", "src"].iter().collect();
+    build_grammar(&go_dir, "tree-sitter-go");
 }

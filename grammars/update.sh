@@ -15,11 +15,13 @@ dry_run="${2:-false}"
 declare -A REPO_URLS=(
   ["rust"]="https://github.com/tree-sitter/tree-sitter-rust"
   ["solidity"]="https://github.com/JoranHonig/tree-sitter-solidity"
+  ["go"]="https://github.com/tree-sitter/tree-sitter-go"
 )
 
 declare -A GRAMMAR_PATHS=(
   ["rust"]="" # repo root
   ["solidity"]="" # repo root
+  ["go"]="" # repo root
 )
 
 # Validate language argument

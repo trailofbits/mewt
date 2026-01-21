@@ -41,6 +41,9 @@ build-all: build build-x86_64-linux build-aarch64-linux build-aarch64-darwin bui
 build: init-db
   cargo build --bin mewt
 
+build-release: init-db
+  cargo build --bin mewt --release
+
 build-nix: init-db
   nix build .#{{project}}
 
