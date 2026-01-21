@@ -69,25 +69,13 @@ if [ -d "grammars/$language/src" ]; then
   fi
 fi
 
-# Step 2: Clone upstream grammar repository  
+# Step 2: Clone upstream grammar repository
 echo "Cloning upstream grammar repository..."
 TEMP_DIR="/tmp/$language-grammar-update"
-if [ "$dry_run" = "false" ]; then
-  rm -rf "$TEMP_DIR"
-  git clone "$repo_url" "$TEMP_DIR"
-  # Capture the vendored commit (latest of default branch)
-  vendored_commit="$(git -C "$TEMP_DIR" rev-parse HEAD)"
-else
-  echo "Would clone: $repo_url → $TEMP_DIR"
-  echo "Would verify files: parser.c and tree_sitter/ headers"
-  echo "Would copy new grammar files to grammars/$language/src/"
-  echo "Would copy grammar.js to grammars/$language/"
-  echo "Would test compilation with: cargo check"
-  echo "Would run parser tests with: cargo test parser"
-  echo "Dry run completed - no changes made"
-  echo "Run 'just update-grammar $language' to perform the actual update"
-  exit 0
-fi
+rm -rf "$TEMP_DIR"
+git clone "$repo_url" "$TEMP_DIR"
+# Capture the vendored commit (latest of default branch)
+vendored_commit="$(git -C "$TEMP_DIR" rev-parse HEAD)"
 
 # Step 3: Verify generated files exist
 echo "Verifying generated files..."
@@ -105,6 +93,25 @@ if [ ! -d "$TEMP_DIR/$grammar_path/src/tree_sitter" ]; then
   exit 1
 fi
 
+# Handle dry run - files verified, show what would happen
+if [ "$dry_run" = "true" ]; then
+  echo ""
+  echo "DRY RUN - Files verified successfully!"
+  echo "Vendored commit would be: $vendored_commit"
+  echo ""
+  echo "Would perform these actions:"
+  echo "  1. Copy $TEMP_DIR/$grammar_path/src/* -> grammars/$language/src/"
+  echo "  2. Copy $TEMP_DIR/$grammar_path/grammar.js -> grammars/$language/"
+  echo "  3. Create grammars/$language/vendor.json with commit: $vendored_commit"
+  echo "  4. Run: cargo check"
+  echo "  5. Run: cargo test parser"
+  echo ""
+  echo "Dry run completed - no changes made to your workspace"
+  echo "Run 'bash grammars/update.sh $language false' to perform the actual update"
+  rm -rf "$TEMP_DIR"
+  exit 0
+fi
+
 # Step 4: Copy new files
 echo "Copying new grammar files..."
 rm -rf "grammars/$language/src"
@@ -116,7 +123,7 @@ cp "$TEMP_DIR/$grammar_path/grammar.js" "grammars/$language/"
 cat > "grammars/$language/vendor.json" <<EOF
 {
   "repo": "$repo_url",
-  "grammar_path": "$grammar_path",
+  "path": "$grammar_path",
   "commit": "$vendored_commit",
   "updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }

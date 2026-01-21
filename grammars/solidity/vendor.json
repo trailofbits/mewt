@@ -1,6 +1,6 @@
 {
   "repo": "https://github.com/JoranHonig/tree-sitter-solidity",
-  "grammar_path": "",
+  "path": "",
   "commit": "4e938a46c7030dd001bc99e1ac0f0c750ac98254",
   "updated": "2026-01-21T21:15:14Z"
 }
