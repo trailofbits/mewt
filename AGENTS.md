@@ -10,6 +10,42 @@ This project has Claude Code skills for specialized tasks:
 
 Invoke skills using the Skill tool when working on related tasks.
 
+## Issue Tracking with `bd`
+- `bd list` - see all open issues
+- `bd show <issue-id>` - get full details (e.g., `bd show mewt-2`)
+- Issue IDs: `mewt-N` format
+
+## Parallel Workflows with `wt`
+
+### When to Use
+Use parallel worktrees when the user requests multiple tasks (especially multiple bd issues).
+
+### Worktree Structure
+- Main: `~/code/mewt`
+- Subtasks: `~/code/mewt.<branch-name>` (e.g., `~/code/mewt.issue-2`)
+- All worktrees share `.git` (commits visible across all worktrees)
+
+### Git Workflow
+- Agents CAN commit to worktree branches
+- Agents CANNOT commit or merge to main (user reviews and merges)
+- Pre-commit hooks (`just check`, `just lint`, `just fmt`) auto-run on commit and must pass
+
+### Example Workflow
+For "fix issues 2 and 3":
+
+1. **Gather context:** `bd show mewt-2 && bd show mewt-3`
+
+2. **Launch parallel agents** (single message, multiple Task tools with `subagent_type="general-purpose"`):
+   ```
+   Fix issue mewt-2. Details: [output from bd show mewt-2]
+
+   1. Run: wt switch --create issue-2
+   2. Implement the fix
+   3. Commit changes
+   4. Report completion (do NOT merge)
+   ```
+   Repeat for issue-3 using branch `issue-3`.
+
 ## Development Commands
 - `just check` - Fast syntax/type checking (prefer over full build)
 - `just build` - Full compilation
@@ -19,13 +55,9 @@ Invoke skills using the Skill tool when working on related tasks.
 - `just run` - Run tool against some simple examples
 
 ## Database Changes
-- Do not change the database schemas as defined in `migrations/` unless explicitly requested
-- If database migrations are required for a given task, halt and ask the user for confirmation
-- Always run `just reset-db` after making schema or SQL query changes
-
-## Git Operations
-- **ONLY use read-only git commands** - Never modify the working tree
-- You can read git history, logs, and status, but do not commit, push, or modify files via git
+- Do not change schemas in `migrations/` unless explicitly requested
+- If migrations required, ask user for confirmation first
+- Always run `just reset-db` after schema/SQL changes
 
 ## Engineering Guidelines
 - Do not write code before stating assumptions.
