@@ -77,12 +77,15 @@ run lang:
 rerun lang: reset-db
   just run {{lang}}
 
+dogfood:
+  cargo run --bin {{project}} -- run src --test-cmd "just test" --db dogfood.sqlite
+
 ########################################
 # Nix Installation
 
 install-nix:
   just build-nix
-  nix profile install ./result
+  nix profile add ./result
 
 uninstall-nix:
   nix profile remove {{project}}
