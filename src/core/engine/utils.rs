@@ -1,4 +1,12 @@
-use tree_sitter::{Node, TreeCursor};
+use tree_sitter::{Language as TsLanguage, Node, Parser, Tree, TreeCursor};
+
+/// Parse source code using a tree-sitter language
+/// Returns None if parsing fails
+pub fn parse_source(source: &str, language: &TsLanguage) -> Option<Tree> {
+    let mut parser = Parser::new();
+    parser.set_language(language).ok()?;
+    parser.parse(source, None)
+}
 
 /// Get text content of a node from source
 pub fn node_text<'a>(node: &Node, source: &'a str) -> &'a str {

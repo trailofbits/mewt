@@ -5,7 +5,7 @@ use crate::LanguageEngine;
 use crate::mutations::COMMON_MUTATIONS;
 use crate::patterns;
 use crate::types::{Mutant, Mutation, Target};
-use crate::utils::node_text;
+use crate::utils::{node_text, parse_source};
 
 use super::mutations::GO_MUTATIONS;
 use super::syntax::{fields, nodes};
@@ -33,12 +33,6 @@ impl GoLanguageEngine {
         mutations.extend_from_slice(GO_MUTATIONS);
         Self { mutations }
     }
-
-    fn parse(&self, source: &str) -> Option<tree_sitter::Tree> {
-        let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&self.tree_sitter_language()).ok()?;
-        parser.parse(source, None)
-    }
 }
 
 impl LanguageEngine for GoLanguageEngine {
@@ -62,7 +56,7 @@ impl LanguageEngine for GoLanguageEngine {
 
     fn apply_all_mutations(&self, target: &Target) -> Vec<Mutant> {
         let source = &target.text;
-        let tree = match self.parse(source) {
+        let tree = match parse_source(source, &self.tree_sitter_language()) {
             Some(t) => t,
             None => return Vec::new(),
         };
