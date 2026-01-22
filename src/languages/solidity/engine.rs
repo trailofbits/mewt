@@ -7,7 +7,7 @@ use crate::patterns;
 use crate::types::{Mutant, Mutation, Target};
 use crate::utils::node_text;
 
-use super::kinds::SOLIDITY_MUTATIONS;
+use super::mutations::SOLIDITY_MUTATIONS;
 use super::syntax::{fields, nodes};
 
 static SOLIDITY_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();

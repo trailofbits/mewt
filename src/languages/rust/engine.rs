@@ -7,7 +7,7 @@ use crate::patterns;
 use crate::types::{Mutant, Mutation, Target};
 use crate::utils::node_text;
 
-use super::kinds::RUST_MUTATIONS;
+use super::mutations::RUST_MUTATIONS;
 use super::syntax::{fields, nodes};
 
 static RUST_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
