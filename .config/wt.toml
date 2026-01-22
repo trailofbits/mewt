@@ -1,0 +1,9 @@
+# Worktrunk Project Configuration for mewt
+# Worktrees are created with default pattern: ~/code/mewt.<branch>
+# They are ephemeral siblings, automatically removed after merge
+
+# Quality check hooks - run before commit
+[pre-commit]
+check = "just check"    # Fast syntax/type checking
+lint = "just lint"      # Run linters, address warnings
+fmt = "just fmt"        # Format code
