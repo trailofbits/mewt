@@ -147,7 +147,7 @@ pub fn init_logging() {
             let prefix = match record.level() {
                 Level::Trace => format!("{}", style("[T]").cyan()),
                 Level::Debug => format!("{}", style("[D]").blue()),
-                Level::Info => format!("{}", style("[*]").green()),
+                Level::Info => "".to_string(),
                 Level::Warn => format!("{}", style("[W]").yellow()),
                 Level::Error => format!("{}", style("[E]").red()),
             };
