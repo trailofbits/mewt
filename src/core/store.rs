@@ -2,7 +2,9 @@ use chrono::{DateTime, Utc};
 use sqlx::sqlite::SqlitePool;
 use std::path::PathBuf;
 
-use crate::types::{Hash, Mutant, Outcome, Status, StoreError, StoreResult, Target};
+use crate::types::{
+    CampaignSummary, Hash, Mutant, Outcome, Status, StoreError, StoreResult, Target,
+};
 
 #[derive(Clone, Debug)]
 pub struct SqlStore {
@@ -406,5 +408,45 @@ impl SqlStore {
         }
 
         Ok((untested_count, retest_count))
+    }
+
+    /// Get campaign-wide statistics about mutation testing results
+    pub async fn get_campaign_summary(&self) -> StoreResult<CampaignSummary> {
+        // Get status counts using a SQL query for efficiency
+        let records = sqlx::query!(
+            r#"
+            SELECT status, COUNT(*) as count
+            FROM outcomes
+            GROUP BY status
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut caught = 0; // TestFail + BuildFail
+        let mut uncaught = 0; // Uncaught
+        let mut skipped = 0; // Skipped
+
+        for record in records {
+            let count = record.count as usize;
+            match record.status.as_str() {
+                "TestFail" | "BuildFail" => caught += count,
+                "Uncaught" => uncaught += count,
+                "Skipped" => skipped += count,
+                "Timeout" => {
+                    // Timeouts are not conclusive, don't count them
+                }
+                _ => {}
+            }
+        }
+
+        let tested = caught + uncaught;
+
+        Ok(CampaignSummary {
+            tested,
+            caught,
+            uncaught,
+            skipped,
+        })
     }
 }

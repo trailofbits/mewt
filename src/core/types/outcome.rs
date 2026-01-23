@@ -39,3 +39,20 @@ pub struct Outcome {
     pub time: DateTime<Utc>,
     pub duration_ms: u32,
 }
+
+/// Summary of a mutation testing campaign
+#[derive(Debug, Clone, Default)]
+pub struct CampaignSummary {
+    /// Total number of mutants tested (not skipped)
+    pub tested: usize,
+    /// Number of mutants caught by tests
+    pub caught: usize,
+    /// Number of mutants not caught by tests (test gap)
+    pub uncaught: usize,
+    /// Number of mutants skipped (due to severity rules)
+    pub skipped: usize,
+}
+
+impl CampaignSummary {
+    // No helper methods needed - uncaught mutants are not errors
+}

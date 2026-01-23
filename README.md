@@ -221,6 +221,7 @@ CLI:
 
 This repo includes example contracts you can try:
 
+- Go: `mewt/tests/go/examples/hello-world.go`
 - Rust: `mewt/tests/rust/examples/hello-world.rs`
 - Solidity: `mewt/tests/solidity/examples/hello-world.sol`
 

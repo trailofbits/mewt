@@ -12,7 +12,7 @@ use indicatif::{HumanDuration, ProgressBar};
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
-use crate::types::{Mutant, MutationSeverity, Outcome, Status, Target};
+use crate::types::{CampaignSummary, Mutant, MutationSeverity, Outcome, Status, Target};
 
 pub struct TestRunner {
     test_cmd: String,
@@ -159,7 +159,7 @@ impl TestRunner {
         &mut self,
         targets: Vec<Target>,
         filter_slugs: Option<String>,
-    ) -> io::Result<()> {
+    ) -> io::Result<CampaignSummary> {
         // Parse mutation slugs if provided
         let allowed_slugs: Option<Vec<String>> = filter_slugs.map(|s| {
             let slugs: Vec<String> = s.split(',').map(|s| s.trim().to_string()).collect();
@@ -253,8 +253,31 @@ impl TestRunner {
             HumanDuration(campaign_duration)
         );
 
-        // Return the original result
-        result
+        // Check the result
+        result?;
+
+        // Get campaign summary from database
+        let summary = self
+            .store
+            .get_campaign_summary()
+            .await
+            .map_err(|e| io::Error::other(format!("Failed to get campaign summary: {}", e)))?;
+
+        // Print summary
+        info!("");
+        info!("Campaign Summary:");
+        info!("  Tested:   {} mutants", summary.tested);
+        info!("  Caught:   {} mutants", summary.caught);
+        info!("  Uncaught: {} mutants", summary.uncaught);
+        info!("  Skipped:  {} mutants", summary.skipped);
+
+        if summary.tested == 0 {
+            info!("No mutants were tested");
+        } else {
+            info!("Mutation testing campaign completed successfully");
+        }
+
+        Ok(summary)
     }
 
     async fn run_mutation_campaign_inner(

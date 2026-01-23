@@ -11,14 +11,14 @@ use crate::SqlStore;
 use crate::core::cli::RunArgs;
 use crate::core::runner::TestRunner;
 use crate::types::config::{config, resolve_test_for_path_with_cli};
-use crate::types::{AppResult, Target};
+use crate::types::{AppResult, CampaignSummary, Target};
 
 pub async fn execute_run(
     args: RunArgs,
     store: SqlStore,
     running: Arc<AtomicBool>,
     registry: Arc<LanguageRegistry>,
-) -> AppResult<()> {
+) -> AppResult<Option<CampaignSummary>> {
     let targets = if let Some(target_path) = &args.target {
         // Generate new mutants for the specified target
         let target = PathBuf::from(target_path)
@@ -47,7 +47,7 @@ pub async fn execute_run(
         let (mutants_to_test, _, _) = store.get_mutants_to_test().await?;
         if mutants_to_test.is_empty() {
             info!("No mutants to test found in database");
-            return Ok(());
+            return Ok(None);
         }
 
         // Get unique targets for these mutants
@@ -101,5 +101,7 @@ pub async fn execute_run(
             .await?;
     }
 
-    Ok(())
+    // Query DB once at the end for final counts
+    let final_summary = store.get_campaign_summary().await?;
+    Ok(Some(final_summary))
 }

@@ -82,74 +82,101 @@ pub async fn run_main(registry: Arc<LanguageRegistry>) -> AppResult<()> {
     .expect("Error creating a Ctrl-C handler");
 
     // Dispatch to appropriate command
-    match args.command {
+    let exit_code = match args.command {
         Commands::Run(run_args) => {
-            cmds::execute_run(run_args, store, running, Arc::clone(&registry)).await?;
+            let summary =
+                cmds::execute_run(run_args, store, Arc::clone(&running), Arc::clone(&registry))
+                    .await?;
+
+            // Determine exit code based on campaign results
+            match summary {
+                Some(_summary) if !running.load(Ordering::SeqCst) => {
+                    // Campaign was interrupted
+                    2
+                }
+                _ => {
+                    // Successful completion (regardless of uncaught mutants)
+                    0
+                }
+            }
         }
         Commands::Mutate(mutate_args) => {
             cmds::execute_mutate(mutate_args, store, Arc::clone(&registry)).await?;
+            0
         }
         Commands::Clean => {
             cmds::execute_clean(store).await?;
+            0
         }
         Commands::Test(test_args) => {
             cmds::execute_test(test_args, store, running, Arc::clone(&registry)).await?;
+            0
         }
         Commands::Purge(purge_args) => {
             cmds::execute_purge(purge_args, store).await?;
+            0
         }
         Commands::Print {
             command: print_args,
-        } => match print_args {
-            PrintArgs::Mutations(args) => {
-                cmds::execute_print(
-                    cmds::print::PrintCommand::Mutations(args.language),
-                    None,
-                    Arc::clone(&registry),
-                )
-                .await?
+        } => {
+            match print_args {
+                PrintArgs::Mutations(args) => {
+                    cmds::execute_print(
+                        cmds::print::PrintCommand::Mutations(args.language),
+                        None,
+                        Arc::clone(&registry),
+                    )
+                    .await?
+                }
+                PrintArgs::Results(args) => {
+                    cmds::execute_print(
+                        cmds::print::PrintCommand::Results(
+                            args.target,
+                            args.verbose,
+                            args.id,
+                            args.all,
+                        ),
+                        Some(store),
+                        Arc::clone(&registry),
+                    )
+                    .await?
+                }
+                PrintArgs::Targets => {
+                    cmds::execute_print(
+                        cmds::print::PrintCommand::Targets,
+                        Some(store),
+                        Arc::clone(&registry),
+                    )
+                    .await?
+                }
+                PrintArgs::Mutant(args) => {
+                    cmds::execute_print(
+                        cmds::print::PrintCommand::Mutant(args.id),
+                        Some(store),
+                        Arc::clone(&registry),
+                    )
+                    .await?
+                }
+                PrintArgs::Mutants(args) => {
+                    cmds::execute_print(
+                        cmds::print::PrintCommand::Mutants(args.target),
+                        Some(store),
+                        Arc::clone(&registry),
+                    )
+                    .await?
+                }
             }
-            PrintArgs::Results(args) => {
-                cmds::execute_print(
-                    cmds::print::PrintCommand::Results(
-                        args.target,
-                        args.verbose,
-                        args.id,
-                        args.all,
-                    ),
-                    Some(store),
-                    Arc::clone(&registry),
-                )
-                .await?
-            }
-            PrintArgs::Targets => {
-                cmds::execute_print(
-                    cmds::print::PrintCommand::Targets,
-                    Some(store),
-                    Arc::clone(&registry),
-                )
-                .await?
-            }
-            PrintArgs::Mutant(args) => {
-                cmds::execute_print(
-                    cmds::print::PrintCommand::Mutant(args.id),
-                    Some(store),
-                    Arc::clone(&registry),
-                )
-                .await?
-            }
-            PrintArgs::Mutants(args) => {
-                cmds::execute_print(
-                    cmds::print::PrintCommand::Mutants(args.target),
-                    Some(store),
-                    Arc::clone(&registry),
-                )
-                .await?
-            }
-        },
+            0
+        }
         Commands::Init => {
             cmds::execute_init().await?;
+            0
         }
+    };
+
+    // Exit with appropriate code
+    if exit_code != 0 {
+        std::process::exit(exit_code);
     }
 
     Ok(())
