@@ -164,6 +164,30 @@ pub struct PrintResultsArgs {
     /// Show all outcomes instead of only uncaught ones
     #[arg(long, default_value = "false")]
     pub all: bool,
+
+    /// Filter by status (e.g., Uncaught, TestFail, Skipped, BuildFail, Timeout)
+    #[arg(long)]
+    pub status: Option<String>,
+
+    /// Filter by language (e.g., rust, python, javascript)
+    #[arg(long)]
+    pub language: Option<String>,
+
+    /// Filter by mutation type slug (e.g., ER, CR, BR)
+    #[arg(long)]
+    pub mutation_type: Option<String>,
+
+    /// Filter by line number
+    #[arg(long)]
+    pub line: Option<u32>,
+
+    /// Filter by file path (substring match)
+    #[arg(long)]
+    pub file: Option<String>,
+
+    /// Output format: "table" (default) or "ids" (just IDs, one per line)
+    #[arg(long, default_value = "table")]
+    pub format: String,
 }
 
 /// Arguments for the print mutants subcommand
@@ -180,6 +204,30 @@ pub struct PrintMutantsArgs {
     /// Filter mutants by target path
     #[arg(long)]
     pub target: Option<String>,
+
+    /// Filter by line number
+    #[arg(long)]
+    pub line: Option<u32>,
+
+    /// Filter by file path (substring match)
+    #[arg(long)]
+    pub file: Option<String>,
+
+    /// Filter by mutation type slug (e.g., ER, CR, BR)
+    #[arg(long)]
+    pub mutation_type: Option<String>,
+
+    /// Show only tested mutants (those with outcomes)
+    #[arg(long)]
+    pub tested: bool,
+
+    /// Show only untested mutants (those without outcomes)
+    #[arg(long)]
+    pub untested: bool,
+
+    /// Output format: "table" (default) or "ids" (just IDs, one per line)
+    #[arg(long, default_value = "table")]
+    pub format: String,
 }
 
 /// Arguments for the test command

@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
-use sqlx::sqlite::SqlitePool;
+use sqlx::sqlite::{Sqlite, SqlitePool};
+use sqlx::{QueryBuilder, Row};
 use std::path::PathBuf;
 
 use crate::types::{
@@ -448,5 +449,224 @@ impl SqlStore {
             uncaught,
             skipped,
         })
+    }
+
+    /// Get mutants with optional filters applied via SQL queries
+    pub async fn get_mutants_filtered(
+        &self,
+        line: Option<u32>,
+        file: Option<String>,
+        mutation_type: Option<String>,
+        tested: bool,
+        untested: bool,
+    ) -> StoreResult<Vec<(Mutant, Target)>> {
+        // Build the SQL query dynamically with proper parameter binding
+        let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+            r#"
+            SELECT
+                m.id, m.target_id, m.byte_offset, m.line_offset, m.old_text, m.new_text, m.mutation_slug,
+                t.id as target_id_dup, t.path, t.file_hash, t.text, t.language
+            FROM mutants m
+            JOIN targets t ON m.target_id = t.id
+            "#,
+        );
+
+        // Add tested/untested filter via LEFT JOIN with outcomes
+        if tested || untested {
+            query_builder.push(" LEFT JOIN outcomes o ON m.id = o.mutant_id ");
+        }
+
+        let mut has_where = false;
+
+        // Helper to add WHERE or AND
+        let add_separator = |qb: &mut QueryBuilder<Sqlite>, has_where: &mut bool| {
+            if !*has_where {
+                qb.push(" WHERE ");
+                *has_where = true;
+            } else {
+                qb.push(" AND ");
+            }
+        };
+
+        // Add tested/untested condition
+        if tested && !untested {
+            add_separator(&mut query_builder, &mut has_where);
+            query_builder.push("o.mutant_id IS NOT NULL");
+        } else if untested && !tested {
+            add_separator(&mut query_builder, &mut has_where);
+            query_builder.push("o.mutant_id IS NULL");
+        }
+
+        // Add line filter (convert 1-indexed user input to 0-indexed storage)
+        if let Some(line_num) = line {
+            add_separator(&mut query_builder, &mut has_where);
+            query_builder
+                .push("m.line_offset = ")
+                .push_bind((line_num.saturating_sub(1)) as i64);
+        }
+
+        // Add file filter (substring match on path)
+        if let Some(file_pattern) = file {
+            add_separator(&mut query_builder, &mut has_where);
+            // Escape LIKE wildcards in user input to treat them literally
+            let escaped_pattern = file_pattern
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_");
+            query_builder
+                .push("t.path LIKE ")
+                .push_bind(format!("%{}%", escaped_pattern))
+                .push(" ESCAPE '\\'");
+        }
+
+        // Add mutation type filter
+        if let Some(mutation_slug) = mutation_type {
+            add_separator(&mut query_builder, &mut has_where);
+            query_builder
+                .push("m.mutation_slug = ")
+                .push_bind(mutation_slug);
+        }
+
+        // Execute the query
+        let query = query_builder.build();
+        let records = query.fetch_all(&self.pool).await?;
+
+        let mut results = Vec::new();
+        for row in records {
+            let mutant = Mutant {
+                id: row.try_get("id")?,
+                target_id: row.try_get("target_id")?,
+                byte_offset: row.try_get::<i64, _>("byte_offset")? as u32,
+                line_offset: row.try_get::<i64, _>("line_offset")? as u32,
+                old_text: row.try_get("old_text")?,
+                new_text: row.try_get("new_text")?,
+                mutation_slug: row.try_get("mutation_slug")?,
+            };
+            let target = Target {
+                id: row.try_get("target_id_dup")?,
+                path: PathBuf::from(row.try_get::<String, _>("path")?),
+                file_hash: Hash::try_from(row.try_get::<String, _>("file_hash")?)?,
+                text: row.try_get("text")?,
+                language: row.try_get("language")?,
+            };
+            results.push((mutant, target));
+        }
+
+        Ok(results)
+    }
+
+    /// Get outcomes with optional filters applied via SQL queries
+    pub async fn get_outcomes_filtered(
+        &self,
+        status: Option<String>,
+        language: Option<String>,
+        mutation_type: Option<String>,
+        line: Option<u32>,
+        file: Option<String>,
+    ) -> StoreResult<Vec<(Mutant, Target, Outcome)>> {
+        // Build the SQL query dynamically with proper parameter binding
+        let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+            r#"
+            SELECT
+                m.id, m.target_id, m.byte_offset, m.line_offset, m.old_text, m.new_text, m.mutation_slug,
+                t.id as target_id_dup, t.path, t.file_hash, t.text, t.language,
+                o.mutant_id, o.status, o.output, o.time, o.duration_ms
+            FROM mutants m
+            JOIN targets t ON m.target_id = t.id
+            JOIN outcomes o ON m.id = o.mutant_id
+            "#,
+        );
+
+        let mut has_where = false;
+
+        // Helper to add WHERE or AND
+        let add_separator = |qb: &mut QueryBuilder<Sqlite>, has_where: &mut bool| {
+            if !*has_where {
+                qb.push(" WHERE ");
+                *has_where = true;
+            } else {
+                qb.push(" AND ");
+            }
+        };
+
+        // Add status filter
+        if let Some(status_str) = status {
+            add_separator(&mut query_builder, &mut has_where);
+            query_builder.push("o.status = ").push_bind(status_str);
+        }
+
+        // Add language filter
+        if let Some(lang) = language {
+            add_separator(&mut query_builder, &mut has_where);
+            query_builder.push("t.language = ").push_bind(lang);
+        }
+
+        // Add mutation type filter
+        if let Some(mutation_slug) = mutation_type {
+            add_separator(&mut query_builder, &mut has_where);
+            query_builder
+                .push("m.mutation_slug = ")
+                .push_bind(mutation_slug);
+        }
+
+        // Add line filter (convert 1-indexed user input to 0-indexed storage)
+        if let Some(line_num) = line {
+            add_separator(&mut query_builder, &mut has_where);
+            query_builder
+                .push("m.line_offset = ")
+                .push_bind((line_num.saturating_sub(1)) as i64);
+        }
+
+        // Add file filter (substring match on path)
+        if let Some(file_pattern) = file {
+            add_separator(&mut query_builder, &mut has_where);
+            // Escape LIKE wildcards in user input to treat them literally
+            let escaped_pattern = file_pattern
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_");
+            query_builder
+                .push("t.path LIKE ")
+                .push_bind(format!("%{}%", escaped_pattern))
+                .push(" ESCAPE '\\'");
+        }
+
+        // Execute the query
+        let query = query_builder.build();
+        let records = query.fetch_all(&self.pool).await?;
+
+        let mut results = Vec::new();
+        for row in records {
+            let mutant = Mutant {
+                id: row.try_get("id")?,
+                target_id: row.try_get("target_id")?,
+                byte_offset: row.try_get::<i64, _>("byte_offset")? as u32,
+                line_offset: row.try_get::<i64, _>("line_offset")? as u32,
+                old_text: row.try_get("old_text")?,
+                new_text: row.try_get("new_text")?,
+                mutation_slug: row.try_get("mutation_slug")?,
+            };
+            let target = Target {
+                id: row.try_get("target_id_dup")?,
+                path: PathBuf::from(row.try_get::<String, _>("path")?),
+                file_hash: Hash::try_from(row.try_get::<String, _>("file_hash")?)?,
+                text: row.try_get("text")?,
+                language: row.try_get("language")?,
+            };
+            let outcome = Outcome {
+                mutant_id: row.try_get("mutant_id")?,
+                status: row
+                    .try_get::<String, _>("status")?
+                    .parse::<Status>()
+                    .map_err(|e| StoreError::InvalidStatus(e.to_string()))?,
+                output: row.try_get("output")?,
+                time: DateTime::parse_from_rfc3339(&row.try_get::<String, _>("time")?)
+                    .map(|dt| dt.with_timezone(&Utc))?,
+                duration_ms: row.try_get::<i64, _>("duration_ms")? as u32,
+            };
+            results.push((mutant, target, outcome));
+        }
+
+        Ok(results)
     }
 }

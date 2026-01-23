@@ -10,12 +10,35 @@ pub mod mutations;
 pub mod outcomes;
 pub mod targets;
 
+pub struct ResultsFilters {
+    pub target: Option<String>,
+    pub verbose: bool,
+    pub id: Option<i64>,
+    pub all: bool,
+    pub status: Option<String>,
+    pub language: Option<String>,
+    pub mutation_type: Option<String>,
+    pub line: Option<u32>,
+    pub file: Option<String>,
+    pub format: String,
+}
+
+pub struct MutantsFilters {
+    pub target: Option<String>,
+    pub line: Option<u32>,
+    pub file: Option<String>,
+    pub mutation_type: Option<String>,
+    pub tested: bool,
+    pub untested: bool,
+    pub format: String,
+}
+
 pub enum PrintCommand {
     Mutations(Option<String>),
-    Results(Option<String>, bool, Option<i64>, bool), // (target_path, verbose, mutant_id, all)
+    Results(ResultsFilters),
     Targets,
     Mutant(i64),
-    Mutants(Option<String>),
+    Mutants(MutantsFilters),
 }
 
 pub async fn execute_print(
@@ -33,9 +56,9 @@ pub async fn execute_print(
                 ))
             }
         }
-        PrintCommand::Mutants(target_path) => {
+        PrintCommand::Mutants(filters) => {
             if let Some(store) = store {
-                mutants::execute(store, target_path).await
+                mutants::execute(store, filters).await
             } else {
                 Err(AppError::Custom(
                     "Store is required for listing mutants".to_string(),
@@ -45,9 +68,9 @@ pub async fn execute_print(
         PrintCommand::Mutations(language) => mutations::execute(language, &registry)
             .await
             .map_err(AppError::Custom),
-        PrintCommand::Results(target_path, verbose, mutant_id, all) => {
+        PrintCommand::Results(filters) => {
             if let Some(store) = store {
-                outcomes::execute(store, target_path, verbose, mutant_id, all, &registry).await
+                outcomes::execute(store, filters, &registry).await
             } else {
                 Err(AppError::Custom(
                     "Store is required for listing outcomes".to_string(),
