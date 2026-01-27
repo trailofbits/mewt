@@ -59,4 +59,8 @@ fn main() {
     // Build Go grammar
     let go_dir: PathBuf = ["grammars", "go", "src"].iter().collect();
     build_grammar(&go_dir, "tree-sitter-go");
+
+    // Build JavaScript grammar
+    let javascript_dir: PathBuf = ["grammars", "javascript", "src"].iter().collect();
+    build_grammar(&javascript_dir, "tree-sitter-javascript");
 }

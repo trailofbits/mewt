@@ -16,12 +16,14 @@ declare -A REPO_URLS=(
   ["rust"]="https://github.com/tree-sitter/tree-sitter-rust"
   ["solidity"]="https://github.com/JoranHonig/tree-sitter-solidity"
   ["go"]="https://github.com/tree-sitter/tree-sitter-go"
+  ["javascript"]="https://github.com/tree-sitter/tree-sitter-javascript"
 )
 
 declare -A GRAMMAR_PATHS=(
   ["rust"]="" # repo root
   ["solidity"]="" # repo root
   ["go"]="" # repo root
+  ["javascript"]="" # repo root
 )
 
 # Validate language argument
