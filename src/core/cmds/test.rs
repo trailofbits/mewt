@@ -1,6 +1,7 @@
 use log::{error, info, warn};
 use std::collections::HashMap;
-use std::io;
+use std::fs;
+use std::io::{self, Read};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -11,17 +12,54 @@ use crate::core::runner::TestRunner;
 use crate::types::AppResult;
 use crate::types::config::{config, resolve_test_for_path_with_cli};
 
+/// Read mutant IDs from --ids-file (file or stdin) or --ids (CLI arg).
+/// --ids-file takes precedence over --ids.
+fn read_mutant_ids(args: &TestArgs) -> io::Result<Vec<i64>> {
+    let input = if let Some(ref path) = args.ids_file {
+        // Read from file or stdin
+        if path == "-" {
+            let mut buffer = String::new();
+            io::stdin().read_to_string(&mut buffer)?;
+            buffer
+        } else {
+            fs::read_to_string(path)?
+        }
+    } else if let Some(ref ids_str) = args.ids {
+        // Use CLI --ids arg (comma-separated for backwards compatibility)
+        ids_str.clone()
+    } else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Either --ids or --ids-file must be provided",
+        ));
+    };
+
+    // Parse IDs from input (supports whitespace, newlines, and commas)
+    let mut ids = Vec::new();
+    for token in input.split(|c: char| c.is_whitespace() || c == ',') {
+        let trimmed = token.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        match trimmed.parse::<i64>() {
+            Ok(id) => ids.push(id),
+            Err(_) => {
+                warn!("Skipping invalid mutant ID: {}", trimmed);
+            }
+        }
+    }
+
+    Ok(ids)
+}
+
 pub async fn execute_test(
     args: TestArgs,
     store: SqlStore,
     running: Arc<AtomicBool>,
     registry: Arc<LanguageRegistry>,
 ) -> AppResult<()> {
-    let ids: Vec<i64> = args
-        .ids
-        .split(',')
-        .filter_map(|s| s.trim().parse().ok())
-        .collect();
+    // Read IDs from file/stdin or CLI arg
+    let ids = read_mutant_ids(&args)?;
 
     if ids.is_empty() {
         return Err(

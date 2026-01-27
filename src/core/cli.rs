@@ -235,7 +235,12 @@ pub struct PrintMutantsArgs {
 pub struct TestArgs {
     /// Comma-separated list of mutation IDs to test
     #[arg(long)]
-    pub ids: String,
+    pub ids: Option<String>,
+
+    /// Read mutant IDs from file (use '-' for stdin). Takes precedence over --ids.
+    /// IDs should be separated by whitespace or newlines.
+    #[arg(long)]
+    pub ids_file: Option<String>,
 
     /// Command to run the tests for the target
     #[arg(
