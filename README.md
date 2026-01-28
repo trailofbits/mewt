@@ -8,7 +8,7 @@
 ### Prebuilt binaries (recommended)
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/trailofbits/mewt/releases/download/v1.0.0/mewt-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/trailofbits/mewt/releases/latest/download/mewt-installer.sh | sh
 ```
 
 ### Build from source (via Nix)
