@@ -1,9 +1,10 @@
 use chrono::DateTime;
 use chrono::Utc;
 use console::{StyledObject, style};
+use serde::Serialize;
 use strum::{Display, EnumString};
 
-#[derive(Clone, Debug, Display, EnumString, PartialEq)]
+#[derive(Clone, Debug, Display, EnumString, PartialEq, Serialize)]
 #[strum(serialize_all = "PascalCase")]
 pub enum Status {
     // bad, mutant is valid
@@ -31,7 +32,7 @@ impl Status {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Outcome {
     pub mutant_id: i64,
     pub status: Status,

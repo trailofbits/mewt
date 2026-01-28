@@ -22,7 +22,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Shared dependencies across all crates
-chrono = "0.4.41"
+chrono = { version = "0.4.41", features = ["serde"] }
 clap = { version = "4.5.37", features = ["derive"] }
 console = "0.16"
 ctrlc = { version = "3.4.6", features = ["termination"] }

@@ -9,6 +9,8 @@ pub enum AppError {
     Io(#[from] io::Error),
     #[error("Store error: {0}")]
     Store(#[from] StoreError),
+    #[error("Serialization error: {0}")]
+    Serialization(#[from] serde_json::Error),
     #[error("{0}")]
     Custom(String),
     #[error("Database error: {0}")]

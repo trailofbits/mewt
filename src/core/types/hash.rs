@@ -1,9 +1,18 @@
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::convert::TryFrom;
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Hash([u8; 32]);
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct Hash(#[serde(serialize_with = "serialize_hash")] [u8; 32]);
+
+fn serialize_hash<S>(hash: &[u8; 32], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&hex::encode(hash))
+}
 
 impl Hash {
     pub fn digest(input: String) -> Self {

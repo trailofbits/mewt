@@ -1,13 +1,26 @@
 use console::style;
 use log::info;
+use serde::Serialize;
 
 use crate::SqlStore;
 use crate::core::cmds::print::MutantsFilters;
-use crate::types::{AppResult, Target};
+use crate::types::{AppResult, Mutant, Target};
+
+#[derive(Serialize)]
+struct JsonMutant {
+    mutant: Mutant,
+    target: Target,
+}
+
+#[derive(Serialize)]
+struct JsonMutants {
+    mutants: Vec<JsonMutant>,
+}
 
 pub async fn execute(store: SqlStore, filters: MutantsFilters) -> AppResult<()> {
-    // Handle format=ids output
+    // Handle format output
     let is_ids_format = filters.format == "ids";
+    let is_json_format = filters.format == "json";
 
     // Use filtered query if any filters are provided
     let use_filters = filters.line.is_some()
@@ -29,9 +42,25 @@ pub async fn execute(store: SqlStore, filters: MutantsFilters) -> AppResult<()> 
             .await?;
 
         if results.is_empty() {
-            if !is_ids_format {
+            if is_json_format {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&JsonMutants { mutants: vec![] })?
+                );
+            } else if !is_ids_format {
                 info!("No mutants found matching the filters");
             }
+            return Ok(());
+        }
+
+        if is_json_format {
+            let json_mutants = JsonMutants {
+                mutants: results
+                    .into_iter()
+                    .map(|(mutant, target)| JsonMutant { mutant, target })
+                    .collect(),
+            };
+            println!("{}", serde_json::to_string_pretty(&json_mutants)?);
             return Ok(());
         }
 
@@ -73,9 +102,33 @@ pub async fn execute(store: SqlStore, filters: MutantsFilters) -> AppResult<()> 
     // Legacy path: no filters, use old logic with target filtering
     let filtered_targets = Target::filter_by_path(&store, filters.target.clone()).await?;
     if filtered_targets.is_empty() {
-        if !is_ids_format {
+        if is_json_format {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&JsonMutants { mutants: vec![] })?
+            );
+        } else if !is_ids_format {
             info!("No targets found");
         }
+        return Ok(());
+    }
+
+    // Collect all mutants for JSON format
+    if is_json_format {
+        let mut all_mutants = Vec::new();
+        for target in filtered_targets {
+            let mutants = store.get_mutants(target.id).await?;
+            for mutant in mutants {
+                all_mutants.push(JsonMutant {
+                    mutant,
+                    target: target.clone(),
+                });
+            }
+        }
+        let json_mutants = JsonMutants {
+            mutants: all_mutants,
+        };
+        println!("{}", serde_json::to_string_pretty(&json_mutants)?);
         return Ok(());
     }
 

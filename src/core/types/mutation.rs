@@ -1,13 +1,14 @@
+use serde::Serialize;
 use strum::{Display, EnumString};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Mutation {
     pub slug: &'static str,
     pub description: &'static str,
     pub severity: MutationSeverity,
 }
 
-#[derive(Clone, Debug, Display, EnumString, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Display, EnumString, PartialEq, Eq, Hash, Serialize)]
 pub enum MutationSeverity {
     High,   // eg revert/throw replacement
     Medium, // eg replace line with a comment

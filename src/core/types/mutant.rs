@@ -1,10 +1,11 @@
 use console::style;
+use serde::Serialize;
 use similar::{ChangeTag, TextDiff};
 
 use crate::types::Target;
 use crate::types::config::colors_enabled;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PartialMutant {
     pub byte_offset: u32,
     pub line_offset: u32,
@@ -12,7 +13,7 @@ pub struct PartialMutant {
     pub new_text: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Mutant {
     pub id: i64,
     pub target_id: i64,

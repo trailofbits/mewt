@@ -119,13 +119,36 @@ pub async fn run_main(registry: Arc<LanguageRegistry>) -> AppResult<()> {
             cmds::execute_status(status_args, store, Arc::clone(&registry)).await?;
             0
         }
+        Commands::Results(args) => {
+            cmds::execute_results(
+                store,
+                cmds::results::ResultsFilters {
+                    target: args.target,
+                    verbose: args.verbose,
+                    id: args.id,
+                    all: args.all,
+                    status: args.status,
+                    language: args.language,
+                    mutation_type: args.mutation_type,
+                    line: args.line,
+                    file: args.file,
+                    format: args.format,
+                },
+                &registry,
+            )
+            .await?;
+            0
+        }
         Commands::Print {
             command: print_args,
         } => {
             match print_args {
                 PrintArgs::Mutations(args) => {
                     cmds::execute_print(
-                        cmds::print::PrintCommand::Mutations(args.language),
+                        cmds::print::PrintCommand::Mutations(cmds::print::MutationsFilters {
+                            language: args.language,
+                            format: args.format,
+                        }),
                         None,
                         Arc::clone(&registry),
                     )
@@ -150,9 +173,9 @@ pub async fn run_main(registry: Arc<LanguageRegistry>) -> AppResult<()> {
                     )
                     .await?
                 }
-                PrintArgs::Targets => {
+                PrintArgs::Targets(args) => {
                     cmds::execute_print(
-                        cmds::print::PrintCommand::Targets,
+                        cmds::print::PrintCommand::Targets(args.format),
                         Some(store),
                         Arc::clone(&registry),
                     )

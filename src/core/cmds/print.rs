@@ -33,10 +33,15 @@ pub struct MutantsFilters {
     pub format: String,
 }
 
+pub struct MutationsFilters {
+    pub language: Option<String>,
+    pub format: String,
+}
+
 pub enum PrintCommand {
-    Mutations(Option<String>),
+    Mutations(MutationsFilters),
     Results(ResultsFilters),
-    Targets,
+    Targets(String),
     Mutant(i64),
     Mutants(MutantsFilters),
 }
@@ -65,7 +70,7 @@ pub async fn execute_print(
                 ))
             }
         }
-        PrintCommand::Mutations(language) => mutations::execute(language, &registry)
+        PrintCommand::Mutations(filters) => mutations::execute(filters, &registry)
             .await
             .map_err(AppError::Custom),
         PrintCommand::Results(filters) => {
@@ -77,9 +82,9 @@ pub async fn execute_print(
                 ))
             }
         }
-        PrintCommand::Targets => {
+        PrintCommand::Targets(format) => {
             if let Some(store) = store {
-                targets::execute(store).await
+                targets::execute(store, format).await
             } else {
                 Err(AppError::Custom(
                     "Store is required for listing targets".to_string(),

@@ -4,17 +4,19 @@ use std::io::Read;
 use std::path::PathBuf;
 
 use log::info;
+use serde::Serialize;
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::types::config::{is_path_excluded, is_slug_enabled};
 use crate::types::{Hash, Mutant};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Target {
     pub id: i64,
     pub path: PathBuf,
     pub file_hash: Hash,
+    #[serde(skip)]
     pub text: String,
     pub language: String,
 }

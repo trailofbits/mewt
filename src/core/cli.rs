@@ -42,6 +42,9 @@ pub enum Commands {
     /// Clean the database of stale targets
     Clean,
 
+    /// Show mutation testing results
+    Results(ResultsArgs),
+
     /// Print various information about mutations and results
     Print {
         #[command(subcommand)]
@@ -132,7 +135,7 @@ pub enum PrintArgs {
     Results(PrintResultsArgs),
 
     /// List all saved targets and their status
-    Targets,
+    Targets(PrintTargetsArgs),
 
     /// print a mutant file
     Mutant(PrintMutantArgs),
@@ -141,12 +144,68 @@ pub enum PrintArgs {
     Mutants(PrintMutantsArgs),
 }
 
+/// Arguments for the print targets subcommand
+#[derive(Parser, Debug)]
+pub struct PrintTargetsArgs {
+    /// Output format: "table" (default) or "json"
+    #[arg(long, default_value = "table")]
+    pub format: String,
+}
+
 /// Arguments for the print mutations subcommand
 #[derive(Parser, Debug)]
 pub struct PrintMutationsArgs {
     /// Target language for mutations (omit to show all)
     #[arg(long)]
     pub language: Option<String>,
+
+    /// Output format: "table" (default) or "json"
+    #[arg(long, default_value = "table")]
+    pub format: String,
+}
+
+/// Arguments for the results command
+#[derive(Parser, Debug)]
+pub struct ResultsArgs {
+    /// Filter outcomes by target path
+    #[arg(long)]
+    pub target: Option<String>,
+
+    /// Show verbose output including test output and timing information
+    #[arg(long, default_value = "false")]
+    pub verbose: bool,
+
+    /// Show only the outcome for a specific mutant ID
+    #[arg(long)]
+    pub id: Option<i64>,
+
+    /// Show all outcomes instead of only uncaught ones
+    #[arg(long, default_value = "false")]
+    pub all: bool,
+
+    /// Filter by status (e.g., Uncaught, TestFail, Skipped, BuildFail, Timeout)
+    #[arg(long)]
+    pub status: Option<String>,
+
+    /// Filter by language (e.g., rust, python, javascript)
+    #[arg(long)]
+    pub language: Option<String>,
+
+    /// Filter by mutation type slug (e.g., ER, CR, BR)
+    #[arg(long)]
+    pub mutation_type: Option<String>,
+
+    /// Filter by line number
+    #[arg(long)]
+    pub line: Option<u32>,
+
+    /// Filter by file path (substring match)
+    #[arg(long)]
+    pub file: Option<String>,
+
+    /// Output format: "table" (default), "ids" (just IDs), "json", or "sarif"
+    #[arg(long, default_value = "table")]
+    pub format: String,
 }
 
 /// Arguments for the print results subcommand
@@ -188,7 +247,7 @@ pub struct PrintResultsArgs {
     #[arg(long)]
     pub file: Option<String>,
 
-    /// Output format: "table" (default) or "ids" (just IDs, one per line)
+    /// Output format: "table" (default), "ids" (just IDs), or "json"
     #[arg(long, default_value = "table")]
     pub format: String,
 }

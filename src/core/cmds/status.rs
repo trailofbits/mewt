@@ -56,9 +56,7 @@ pub async fn execute_status(
 
     match args.format.as_str() {
         "json" => {
-            let json = serde_json::to_string_pretty(&report).map_err(|e| {
-                crate::types::AppError::Custom(format!("JSON serialization error: {}", e))
-            })?;
+            let json = serde_json::to_string_pretty(&report)?;
             println!("{}", json);
         }
         _ => {
