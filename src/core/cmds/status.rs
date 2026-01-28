@@ -184,10 +184,11 @@ async fn generate_status_report(
     campaign_totals.medium_catch_rate = medium_rate;
     campaign_totals.low_catch_rate = low_rate;
 
-    // Calculate progress
-    if campaign_totals.total_mutants > 0 {
+    // Calculate progress (exclude skipped mutants from denominator)
+    let testable_mutants = campaign_totals.total_mutants - campaign_totals.skipped;
+    if testable_mutants > 0 {
         campaign_totals.progress_percent =
-            (campaign_totals.tested as f64 / campaign_totals.total_mutants as f64) * 100.0;
+            (campaign_totals.tested as f64 / testable_mutants as f64) * 100.0;
     }
 
     Ok(StatusReport {
