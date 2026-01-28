@@ -4,6 +4,7 @@ use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::types::{AppError, AppResult};
 
+pub mod config;
 pub mod mutant;
 pub mod mutants;
 pub mod mutations;
@@ -29,6 +30,7 @@ pub enum PrintCommand {
     Targets(String),
     Mutant(i64),
     Mutants(MutantsFilters),
+    Config(String),
 }
 
 pub async fn execute_print(
@@ -67,5 +69,6 @@ pub async fn execute_print(
                 ))
             }
         }
+        PrintCommand::Config(format) => config::execute(format).await,
     }
 }

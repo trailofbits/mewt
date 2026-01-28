@@ -135,6 +135,9 @@ pub enum PrintArgs {
 
     /// List all mutants or filter by target
     Mutants(PrintMutantsArgs),
+
+    /// Print the effective global configuration
+    Config(PrintConfigArgs),
 }
 
 /// Arguments for the print targets subcommand
@@ -152,6 +155,14 @@ pub struct PrintMutationsArgs {
     #[arg(long)]
     pub language: Option<String>,
 
+    /// Output format: "table" (default) or "json"
+    #[arg(long, default_value = "table")]
+    pub format: String,
+}
+
+/// Arguments for the print config subcommand
+#[derive(Parser, Debug)]
+pub struct PrintConfigArgs {
     /// Output format: "table" (default) or "json"
     #[arg(long, default_value = "table")]
     pub format: String,

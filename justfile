@@ -78,7 +78,7 @@ rerun lang: reset-db
   just run {{lang}}
 
 dogfood:
-  cargo run --bin {{project}} -- run src --test-cmd "just test" --db dogfood.sqlite
+  cargo run --bin {{project}} -- run src --test.cmd "just test" --db dogfood.sqlite
 
 ########################################
 # Nix Installation

@@ -196,6 +196,14 @@ pub async fn run_main(
                     )
                     .await?
                 }
+                PrintArgs::Config(args) => {
+                    cmds::execute_print(
+                        cmds::print::PrintCommand::Config(args.format),
+                        None,
+                        Arc::clone(&registry),
+                    )
+                    .await?
+                }
             }
             0
         }
