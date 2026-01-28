@@ -18,6 +18,9 @@ pub async fn execute_run(
     store: SqlStore,
     running: Arc<AtomicBool>,
     registry: Arc<LanguageRegistry>,
+    test_cmd: Option<String>,
+    test_timeout: Option<u32>,
+    mutations: Option<String>,
 ) -> AppResult<Option<CampaignSummary>> {
     let targets = if let Some(target_path) = &args.target {
         // Generate new mutants for the specified target
@@ -66,7 +69,7 @@ pub async fn execute_run(
     let mut groups: HashMap<(String, Option<u32>), Vec<Target>> = HashMap::new();
     for target in targets.into_iter() {
         let (maybe_cmd, timeout) =
-            resolve_test_for_path_with_cli(&target.path, &args.test_cmd, args.timeout);
+            resolve_test_for_path_with_cli(&target.path, &test_cmd, test_timeout);
         if let Some(cmd) = maybe_cmd {
             groups.entry((cmd, timeout)).or_default().push(target);
         } else {
@@ -83,7 +86,7 @@ pub async fn execute_run(
 
         let mut runner = match TestRunner::new_with_baseline(
             cmd,
-            timeout.or(config().test.timeout),
+            timeout.or(config().test().timeout()),
             Arc::clone(&running),
             store.clone(),
             args.comprehensive,
@@ -97,7 +100,7 @@ pub async fn execute_run(
         };
 
         runner
-            .run_mutation_campaign(group_targets, args.mutations.clone())
+            .run_mutation_campaign(group_targets, mutations.clone())
             .await?;
     }
 

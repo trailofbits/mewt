@@ -107,6 +107,5 @@ fn print_mutations_for_language(
             );
         }
     }
-    assert!(false);
     Ok(())
 }

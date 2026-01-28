@@ -1,0 +1,70 @@
+# Mewt Configuration File
+# Documentation: https://github.com/trailofbits/mewt
+#
+# Corresponding CLI flags use dotted notation matching this structure:
+#   db → --db
+#   ignore_targets → --ignore-targets
+#   mutations → --mutations
+#   log.level → --log.level
+#   log.color → --log.color
+#   test.cmd → --test.cmd
+#   test.timeout → --test.timeout
+
+# Database path (relative to this config file or absolute)
+# CLI: --db PATH
+db = "mewt.sqlite"
+
+# Ignore targets matching these substrings (optional)
+# Useful for excluding generated code, test files, or vendored dependencies
+# CLI: --ignore-targets test,vendor,.cargo
+# ignore_targets = ["test", "vendor", ".cargo"]
+
+# Whitelist specific mutation types by slug (optional)
+# Run `mewt print mutations` to see all available mutation types
+# If omitted, all mutation types are enabled
+# CLI: --mutations ER,CR,BR
+# mutations = ["ER", "CR", "BR", "AOD", "AOR"]
+
+[log]
+# Logging level: trace, debug, info, warn, error
+# CLI: --log.level debug
+level = "info"
+
+# Force color output on/off, or omit for auto-detection based on terminal
+# CLI: --log.color on|off
+# color = true
+
+[test]
+# Default test command for all targets
+# This command will be run to verify mutants are caught by your test suite
+# CLI: --test.cmd "cargo test"
+# cmd = "cargo test"
+
+# Default timeout in seconds (optional)
+# If omitted, defaults to 2x the baseline test runtime
+# CLI: --test.timeout 30
+# timeout = 30
+
+# Per-target test rules (optional)
+# Ordered array where first matching glob wins
+# Each entry can override cmd and/or timeout for specific file patterns
+# More specific patterns should come BEFORE general patterns
+# Note: No CLI equivalent - use config file for complex per-target rules
+
+# Example 1: Critical files get extra scrutiny with slower, thorough tests
+# [[test.per_target]]
+# glob = "src/auth/*.rs"
+# cmd = "cargo test --release -- --test-threads=1"
+# timeout = 120
+
+# Example 2: Standard Rust files use default fast tests
+# [[test.per_target]]
+# glob = "*.rs"
+# cmd = "cargo test"
+# timeout = 60
+
+# Example 3: Different language needs different test command
+# [[test.per_target]]
+# glob = "*.go"
+# cmd = "go test ./..."
+# timeout = 30

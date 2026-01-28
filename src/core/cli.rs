@@ -14,16 +14,30 @@ pub struct Args {
     pub db: Option<String>,
 
     /// Logging level (overrides env/config). One of: trace, debug, info, warn, error
-    #[arg(long, global = true)]
+    #[arg(long = "log.level", global = true)]
     pub log_level: Option<String>,
 
     /// Logging color control: "on" to force colors, "off" to disable; omit for auto
-    #[arg(long, global = true)]
+    #[arg(long = "log.color", global = true)]
     pub log_color: Option<String>,
 
     /// Comma-separated substrings; any target path containing any will be ignored
+    #[arg(long = "ignore-targets", global = true)]
+    pub ignore_targets: Option<String>,
+
+    /// Comma-separated list of mutation slugs to test (e.g., "ER,CR").
+    /// Run `mewt print mutations` for a list of slugs.
+    /// If omitted, all mutation types are enabled.
     #[arg(long, global = true)]
-    pub ignore: Option<String>,
+    pub mutations: Option<String>,
+
+    /// Test command for all targets (can be overridden per-command)
+    #[arg(long = "test.cmd", global = true)]
+    pub test_cmd: Option<String>,
+
+    /// Test timeout in seconds (can be overridden per-command)
+    #[arg(long = "test.timeout", global = true)]
+    pub test_timeout: Option<u32>,
 
     #[command(subcommand)]
     pub command: Commands,
@@ -70,24 +84,6 @@ pub struct RunArgs {
     /// If not provided, skip mutation generation and test existing mutants without outcomes.
     #[arg(value_name = "TARGET")]
     pub target: Option<String>,
-
-    /// Command to run the tests for the target
-    #[arg(
-        long,
-        help = "Test command; highest non-empty source wins (CLI > env > file > default)"
-    )]
-    pub test_cmd: Option<String>,
-
-    /// Timeout in seconds after which a given test run will be considered failing.
-    /// Defaults to 2x the baseline test runtime.
-    #[arg(long)]
-    pub timeout: Option<u32>,
-
-    /// Comma-separated list of mutation slugs to test (e.g., "ER,CR").
-    /// Run `mewt print mutations` for a list of slugs.
-    /// Highest non-empty source wins for the whitelist (CLI > env > file > default none).
-    #[arg(long)]
-    pub mutations: Option<String>,
 
     /// Test all mutants even if more severe mutants on the same line were uncaught.
     /// By default, less severe mutants are skipped if more severe ones were uncaught.
@@ -303,18 +299,6 @@ pub struct TestArgs {
     /// IDs should be separated by whitespace or newlines.
     #[arg(long)]
     pub ids_file: Option<String>,
-
-    /// Command to run the tests for the target
-    #[arg(
-        long,
-        help = "Test command; highest non-empty source wins (CLI > env > file > default)"
-    )]
-    pub test_cmd: Option<String>,
-
-    /// Timeout in seconds after which a given test run will be considered failing.
-    /// Defaults to 2x the baseline test runtime.
-    #[arg(long)]
-    pub timeout: Option<u32>,
 
     /// Stream stdout and stderr from baseline test to stdout
     #[arg(long)]

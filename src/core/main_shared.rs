@@ -36,21 +36,10 @@ pub async fn run_main(
         db: args.db.clone(),
         log_level: args.log_level.clone(),
         log_color: args.log_color.clone(),
-        ignore_targets: args.ignore.clone(),
-        mutations_slugs: match &args.command {
-            Commands::Run(run_args) => run_args.mutations.clone(),
-            _ => None,
-        },
-        test_cmd: match &args.command {
-            Commands::Run(run_args) => run_args.test_cmd.clone(),
-            Commands::Test(test_args) => test_args.test_cmd.clone(),
-            _ => None,
-        },
-        test_timeout: match &args.command {
-            Commands::Run(run_args) => run_args.timeout,
-            Commands::Test(test_args) => test_args.timeout,
-            _ => None,
-        },
+        ignore_targets: args.ignore_targets.clone(),
+        mutations: args.mutations.clone(),
+        test_cmd: args.test_cmd.clone(),
+        test_timeout: args.test_timeout,
     };
 
     // Initialize configuration (files, env, then CLI overrides)
@@ -60,7 +49,7 @@ pub async fn run_main(
     init_logging();
 
     // Initialize the database
-    let db_path = &config().general.db;
+    let db_path = config().db();
     let db_file = PathBuf::from(db_path);
 
     if !db_file.exists() {
@@ -89,9 +78,16 @@ pub async fn run_main(
     // Dispatch to appropriate command
     let exit_code = match args.command {
         Commands::Run(run_args) => {
-            let summary =
-                cmds::execute_run(run_args, store, Arc::clone(&running), Arc::clone(&registry))
-                    .await?;
+            let summary = cmds::execute_run(
+                run_args,
+                store,
+                Arc::clone(&running),
+                Arc::clone(&registry),
+                args.test_cmd.clone(),
+                args.test_timeout,
+                args.mutations.clone(),
+            )
+            .await?;
 
             // Determine exit code based on campaign results
             match summary {
@@ -114,7 +110,15 @@ pub async fn run_main(
             0
         }
         Commands::Test(test_args) => {
-            cmds::execute_test(test_args, store, running, Arc::clone(&registry)).await?;
+            cmds::execute_test(
+                test_args,
+                store,
+                running,
+                Arc::clone(&registry),
+                args.test_cmd.clone(),
+                args.test_timeout,
+            )
+            .await?;
             0
         }
         Commands::Purge(purge_args) => {

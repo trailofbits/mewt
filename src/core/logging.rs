@@ -129,9 +129,9 @@ impl Write for BarAwareWriter {
 }
 
 /// Initialize logging with `fern`, using `BarAwareWriter` to coexist with active
-/// progress bars. Level comes from `RUST_LOG`/`MEWT_LOG`, default Info.
+/// progress bars. Level comes from config, default Info.
 pub fn init_logging() {
-    let level = match config().log.level.to_lowercase().as_str() {
+    let level = match config().log().level().to_lowercase().as_str() {
         "trace" => LevelFilter::Trace,
         "debug" => LevelFilter::Debug,
         "info" => LevelFilter::Info,
