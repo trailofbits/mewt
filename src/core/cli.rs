@@ -127,9 +127,6 @@ pub enum PrintArgs {
     /// List all available mutations
     Mutations(PrintMutationsArgs),
 
-    /// List outcomes of mutation tests
-    Results(PrintResultsArgs),
-
     /// List all saved targets and their status
     Targets(PrintTargetsArgs),
 
@@ -200,50 +197,6 @@ pub struct ResultsArgs {
     pub file: Option<String>,
 
     /// Output format: "table" (default), "ids" (just IDs), "json", or "sarif"
-    #[arg(long, default_value = "table")]
-    pub format: String,
-}
-
-/// Arguments for the print results subcommand
-#[derive(Parser, Debug)]
-pub struct PrintResultsArgs {
-    /// Filter outcomes by target path
-    #[arg(long)]
-    pub target: Option<String>,
-
-    /// Show verbose output including test output and timing information
-    #[arg(long, default_value = "false")]
-    pub verbose: bool,
-
-    /// Show only the outcome for a specific mutant ID
-    #[arg(long)]
-    pub id: Option<i64>,
-
-    /// Show all outcomes instead of only uncaught ones
-    #[arg(long, default_value = "false")]
-    pub all: bool,
-
-    /// Filter by status (e.g., Uncaught, TestFail, Skipped, Timeout)
-    #[arg(long)]
-    pub status: Option<String>,
-
-    /// Filter by language (e.g., rust, python, javascript)
-    #[arg(long)]
-    pub language: Option<String>,
-
-    /// Filter by mutation type slug (e.g., ER, CR, BR)
-    #[arg(long)]
-    pub mutation_type: Option<String>,
-
-    /// Filter by line number
-    #[arg(long)]
-    pub line: Option<u32>,
-
-    /// Filter by file path (substring match)
-    #[arg(long)]
-    pub file: Option<String>,
-
-    /// Output format: "table" (default), "ids" (just IDs), or "json"
     #[arg(long, default_value = "table")]
     pub format: String,
 }

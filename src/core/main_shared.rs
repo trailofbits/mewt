@@ -164,25 +164,6 @@ pub async fn run_main(
                     )
                     .await?
                 }
-                PrintArgs::Results(args) => {
-                    cmds::execute_print(
-                        cmds::print::PrintCommand::Results(cmds::print::ResultsFilters {
-                            target: args.target,
-                            verbose: args.verbose,
-                            id: args.id,
-                            all: args.all,
-                            status: args.status,
-                            language: args.language,
-                            mutation_type: args.mutation_type,
-                            line: args.line,
-                            file: args.file,
-                            format: args.format,
-                        }),
-                        Some(store),
-                        Arc::clone(&registry),
-                    )
-                    .await?
-                }
                 PrintArgs::Targets(args) => {
                     cmds::execute_print(
                         cmds::print::PrintCommand::Targets(args.format),

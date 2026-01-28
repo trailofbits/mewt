@@ -95,7 +95,7 @@ mewt print mutants --target path/to/contract.rs
 - Show mutation test results (optionally filtered by target):
 
 ```bash
-mewt print results --target path/to/contract.rs
+mewt results --target path/to/contract.rs
 ```
 
 - Test all mutants even if more severe ones were uncaught (disable skip optimization):
