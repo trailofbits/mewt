@@ -12,9 +12,15 @@ use crate::core::cmds;
 use crate::core::logging::init_logging;
 use crate::core::store::SqlStore;
 use crate::types::AppResult;
-use crate::types::config::{CliOverrides, config, init_with_overrides};
+use crate::types::config::{CliOverrides, config, init_with_overrides, set_config_filename};
 
-pub async fn run_main(registry: Arc<LanguageRegistry>) -> AppResult<()> {
+pub async fn run_main(
+    registry: Arc<LanguageRegistry>,
+    config_filename: Option<&str>,
+) -> AppResult<()> {
+    // Set config filename at start (defaults to "mewt.toml")
+    set_config_filename(config_filename.unwrap_or("mewt.toml"));
+
     let args = Args::parse();
 
     // Handle global arguments

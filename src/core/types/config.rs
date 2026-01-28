@@ -93,18 +93,26 @@ pub struct CliOverrides {
     pub test_timeout: Option<u32>,
 }
 
+static CONFIG_FILENAME: OnceCell<String> = OnceCell::new();
 static CONFIG: OnceCell<GlobalConfig> = OnceCell::new();
+
+pub fn set_config_filename(filename: &str) {
+    let _ = CONFIG_FILENAME.set(filename.to_string());
+}
+
+pub fn get_config_filename() -> &'static str {
+    CONFIG_FILENAME.get().map(|s| s.as_str()).unwrap_or("mewt.toml")
+}
 
 pub fn config() -> &'static GlobalConfig {
     CONFIG.get_or_init(|| {
         let mut cfg = default_global_config();
-        // Apply nearest config file found by walking up from cwd, then env
+        // Apply nearest config file found by walking up from cwd
         if let Some(path) = find_nearest_config_file()
             && let Some(file_cfg) = read_config_file(&path)
         {
             apply_file_config(&mut cfg, &file_cfg);
         }
-        apply_env_overrides(&mut cfg);
         cfg
     })
 }
@@ -112,17 +120,14 @@ pub fn config() -> &'static GlobalConfig {
 pub fn init_with_overrides(overrides: &CliOverrides) {
     let mut cfg = default_global_config();
 
-    // 1) Config file: walk up from cwd and use the first mewt.toml found
+    // 1) Config file: walk up from cwd and use the first config file found
     if let Some(path) = find_nearest_config_file()
         && let Some(file_cfg) = read_config_file(&path)
     {
         apply_file_config(&mut cfg, &file_cfg);
     }
 
-    // 2) Environment variables
-    apply_env_overrides(&mut cfg);
-
-    // 3) CLI arguments (highest priority). Only override if user specified.
+    // 2) CLI arguments (highest priority). Only override if user specified.
     apply_cli_overrides(&mut cfg, overrides);
 
     let _ = CONFIG.set(cfg);
@@ -200,52 +205,6 @@ fn apply_file_config(cfg: &mut GlobalConfig, file: &FileConfig) {
     }
 }
 
-fn apply_env_overrides(cfg: &mut GlobalConfig) {
-    // Logging
-    if let Ok(level) = std::env::var("MEWT_LOG_LEVEL")
-        && !level.trim().is_empty()
-    {
-        cfg.log.level = level.trim().to_string();
-    }
-    if let Ok(color) = std::env::var("MEWT_LOG_COLOR") {
-        match color.to_lowercase().as_str() {
-            "on" => cfg.log.color = Some(true),
-            "off" => cfg.log.color = Some(false),
-            _ => {}
-        }
-    }
-
-    // General
-    if let Ok(db) = std::env::var("MEWT_DB")
-        && !db.trim().is_empty()
-    {
-        cfg.general.db = db;
-    }
-    if let Ok(ignore) = std::env::var("MEWT_IGNORE_TARGETS") {
-        let patterns = parse_csv(&ignore);
-        cfg.general.ignore_targets.extend(patterns);
-    }
-
-    // Mutations whitelist (override)
-    if let Ok(slugs) = std::env::var("MEWT_SLUGS") {
-        let list = parse_csv(&slugs);
-        if !list.is_empty() {
-            cfg.mutations.slugs = Some(list);
-        }
-    }
-
-    // Test
-    if let Ok(cmd) = std::env::var("MEWT_TEST_CMD")
-        && !cmd.trim().is_empty()
-    {
-        cfg.test.cmd = Some(cmd);
-    }
-    if let Ok(timeout) = std::env::var("MEWT_TEST_TIMEOUT")
-        && let Ok(parsed) = timeout.trim().parse::<u32>()
-    {
-        cfg.test.timeout = Some(parsed);
-    }
-}
 
 fn apply_cli_overrides(cfg: &mut GlobalConfig, overrides: &CliOverrides) {
     // Global overrides
@@ -297,8 +256,9 @@ fn parse_csv(input: &str) -> Vec<String> {
 
 fn find_nearest_config_file() -> Option<PathBuf> {
     let cwd = std::env::current_dir().ok()?;
+    let config_filename = get_config_filename();
     for dir in cwd.ancestors() {
-        let candidate = dir.join("mewt.toml");
+        let candidate = dir.join(config_filename);
         if candidate.exists() {
             return Some(candidate);
         }

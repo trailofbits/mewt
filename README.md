@@ -174,9 +174,8 @@ You can also vendor manually by placing generated C sources under `mewt/grammars
 
 Configuration sources (highest to lowest priority):
 1. CLI flags
-2. Environment variables
-3. Nearest `mewt.toml` found by walking up from the current working directory
-4. Built-in defaults
+2. Nearest `mewt.toml` found by walking up from the current working directory
+3. Built-in defaults
 
 Notes:
 - CLI defaults are treated as built-in defaults (lowest); only flags explicitly provided override.
@@ -203,15 +202,6 @@ slugs = ["ER", "CR"]      # global whitelist; overrides other sources if set/non
 cmd = "cargo test"
 timeout = 120
 ```
-
-Environment variables:
-- `MEWT_LOG_LEVEL`: "debug", "info", "warn", etc
-- `MEWT_LOG_COLOR`: "on" or "off" (omit for "auto")
-- `MEWT_DB`: path to sqlite db file
-- `MEWT_IGNORE_TARGETS`: CSV list of target substrings to ignore
-- `MEWT_SLUGS`: CSV whitelist of slugs to mutate
-- `MEWT_TEST_CMD`: command to run to assess mutants
-- `MEWT_TEST_TIMEOUT`: timeout in seconds to use for tests
 
 CLI:
 - `--ignore` (CSV): comma-separated substrings; any target path containing any given value will be ignored.
