@@ -1,5 +1,6 @@
 use log::info;
 use serde::Serialize;
+use std::str::FromStr;
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
@@ -125,6 +126,11 @@ impl OutcomeCounter {
             0.0
         }
     }
+}
+
+// Normalize status string to PascalCase using case-insensitive parsing
+fn normalize_status(status_str: Option<String>) -> Option<String> {
+    status_str.and_then(|s| Status::from_str(&s).ok().map(|status| status.to_string()))
 }
 
 // Print outcome details and verbose information if requested
@@ -278,7 +284,7 @@ async fn get_results_data(
     if use_filters {
         return store
             .get_outcomes_filtered(
-                filters.status.clone(),
+                normalize_status(filters.status.clone()),
                 filters.language.clone(),
                 filters.mutation_type.clone(),
                 filters.line,
