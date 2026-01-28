@@ -10,7 +10,6 @@ pub struct TargetStats {
     pub uncaught: usize,
     pub timeout: usize,
     pub skipped: usize,
-    pub build_fail: usize,
     /// Map from mutation_slug to (eligible_count, caught_count)
     pub severity_stats: HashMap<String, (usize, usize)>,
 }

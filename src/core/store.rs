@@ -426,14 +426,14 @@ impl SqlStore {
         .fetch_all(&self.pool)
         .await?;
 
-        let mut caught = 0; // TestFail + BuildFail
+        let mut caught = 0; // TestFail
         let mut uncaught = 0; // Uncaught
         let mut skipped = 0; // Skipped
 
         for record in records {
             let count = record.count as usize;
             match record.status.as_str() {
-                "TestFail" | "BuildFail" => caught += count,
+                "TestFail" => caught += count,
                 "Uncaught" => uncaught += count,
                 "Skipped" => skipped += count,
                 "Timeout" => {
@@ -687,7 +687,6 @@ impl SqlStore {
         let mut uncaught = 0;
         let mut timeout = 0;
         let mut skipped = 0;
-        let mut build_fail = 0;
 
         // Track severity stats: (eligible, caught) per severity
         let mut severity_stats: HashMap<String, (usize, usize)> = HashMap::new();
@@ -704,11 +703,10 @@ impl SqlStore {
                 }
                 Status::Timeout => timeout += 1,
                 Status::Skipped => skipped += 1,
-                Status::BuildFail => build_fail += 1,
             }
         }
 
-        let untested = total_mutants - tested - timeout - skipped - build_fail;
+        let untested = total_mutants - tested - timeout - skipped;
 
         // For severity stats, we need to join with mutants to get mutation_slug
         // This will be computed from the database in a separate query
@@ -740,7 +738,6 @@ impl SqlStore {
             uncaught,
             timeout,
             skipped,
-            build_fail,
             severity_stats,
         })
     }

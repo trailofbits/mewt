@@ -183,7 +183,7 @@ pub struct ResultsArgs {
     #[arg(long, default_value = "false")]
     pub all: bool,
 
-    /// Filter by status (e.g., Uncaught, TestFail, Skipped, BuildFail, Timeout)
+    /// Filter by status (e.g., Uncaught, TestFail, Skipped, Timeout)
     #[arg(long)]
     pub status: Option<String>,
 
@@ -227,7 +227,7 @@ pub struct PrintResultsArgs {
     #[arg(long, default_value = "false")]
     pub all: bool,
 
-    /// Filter by status (e.g., Uncaught, TestFail, Skipped, BuildFail, Timeout)
+    /// Filter by status (e.g., Uncaught, TestFail, Skipped, Timeout)
     #[arg(long)]
     pub status: Option<String>,
 

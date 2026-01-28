@@ -14,8 +14,6 @@ pub enum Status {
     // fine, this less severe mutant was skipped because a more severe mutatnt on the same line
     // was uncaught
     Skipped,
-    // goodish, mutant broke the build (maybe mutant was bad?)
-    BuildFail,
     // questionable, tests timed out before passing or failing
     Timeout,
 }
@@ -25,7 +23,6 @@ impl Status {
         match &self {
             Status::Uncaught => style(self.to_string()).red().bold(),
             Status::TestFail => style(self.to_string()).green().bold(),
-            Status::BuildFail => style(self.to_string()).yellow(),
             Status::Timeout => style(self.to_string()).yellow(),
             Status::Skipped => style(self.to_string()).blue(),
         }

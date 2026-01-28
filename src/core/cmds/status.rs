@@ -18,7 +18,6 @@ struct TargetStats {
     uncaught: usize,
     timeout: usize,
     skipped: usize,
-    build_fail: usize,
     high_catch_rate: Option<f64>,
     medium_catch_rate: Option<f64>,
     low_catch_rate: Option<f64>,
@@ -34,7 +33,6 @@ struct CampaignStats {
     uncaught: usize,
     timeout: usize,
     skipped: usize,
-    build_fail: usize,
     high_catch_rate: Option<f64>,
     medium_catch_rate: Option<f64>,
     low_catch_rate: Option<f64>,
@@ -85,7 +83,6 @@ async fn generate_status_report(
                 uncaught: 0,
                 timeout: 0,
                 skipped: 0,
-                build_fail: 0,
                 high_catch_rate: None,
                 medium_catch_rate: None,
                 low_catch_rate: None,
@@ -104,7 +101,6 @@ async fn generate_status_report(
         uncaught: 0,
         timeout: 0,
         skipped: 0,
-        build_fail: 0,
         high_catch_rate: None,
         medium_catch_rate: None,
         low_catch_rate: None,
@@ -126,7 +122,6 @@ async fn generate_status_report(
         campaign_totals.uncaught += stats.uncaught;
         campaign_totals.timeout += stats.timeout;
         campaign_totals.skipped += stats.skipped;
-        campaign_totals.build_fail += stats.build_fail;
 
         target_stats.push(TargetStats {
             path: target.path.to_string_lossy().to_string(),
@@ -137,7 +132,6 @@ async fn generate_status_report(
             uncaught: stats.uncaught,
             timeout: stats.timeout,
             skipped: stats.skipped,
-            build_fail: stats.build_fail,
             high_catch_rate: high_rate,
             medium_catch_rate: medium_rate,
             low_catch_rate: low_rate,
@@ -260,8 +254,8 @@ fn print_table_format(report: &StatusReport) {
             target.total_mutants, target.tested, target.untested
         );
         info!(
-            "  Outcomes: {} caught, {} uncaught, {} timeout, {} skipped, {} build_fail",
-            target.caught, target.uncaught, target.timeout, target.skipped, target.build_fail
+            "  Outcomes: {} caught, {} uncaught, {} timeout, {} skipped",
+            target.caught, target.uncaught, target.timeout, target.skipped
         );
 
         // Catch rates by severity
@@ -284,8 +278,8 @@ fn print_table_format(report: &StatusReport) {
         c.total_mutants, c.tested, c.progress_percent, c.untested
     );
     info!(
-        "Outcomes: {} caught, {} uncaught, {} timeout, {} skipped, {} build_fail",
-        c.caught, c.uncaught, c.timeout, c.skipped, c.build_fail
+        "Outcomes: {} caught, {} uncaught, {} timeout, {} skipped",
+        c.caught, c.uncaught, c.timeout, c.skipped
     );
 
     let high_rate = format_rate(c.high_catch_rate);

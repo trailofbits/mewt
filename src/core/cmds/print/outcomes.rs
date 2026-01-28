@@ -19,7 +19,7 @@ impl OutcomeCounter {
         }
     }
     fn record(&mut self, status: &Status) {
-        if *status != Status::Skipped && *status != Status::BuildFail {
+        if *status != Status::Skipped {
             self.eligible += 1;
             if *status == Status::TestFail {
                 self.caught += 1;
