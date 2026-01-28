@@ -1,10 +1,12 @@
 use chrono::{DateTime, Utc};
 use sqlx::sqlite::{Sqlite, SqlitePool};
 use sqlx::{QueryBuilder, Row};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::types::{
-    CampaignSummary, Hash, Mutant, Outcome, Status, StoreError, StoreResult, Target,
+    CampaignSeverityStats, CampaignSummary, Hash, Mutant, Outcome, Status, StoreError, StoreResult,
+    Target, TargetStats,
 };
 
 #[derive(Clone, Debug)]
@@ -668,5 +670,104 @@ impl SqlStore {
         }
 
         Ok(results)
+    }
+
+    /// Get statistics for a specific target
+    pub async fn get_target_stats(&self, target_id: i64) -> StoreResult<TargetStats> {
+        // Get all mutants for this target
+        let mutants = self.get_mutants(target_id).await?;
+        let total_mutants = mutants.len();
+
+        // Get all outcomes for this target
+        let outcomes = self.get_outcomes(target_id).await?;
+
+        // Count outcomes by status
+        let mut tested = 0;
+        let mut caught = 0;
+        let mut uncaught = 0;
+        let mut timeout = 0;
+        let mut skipped = 0;
+        let mut build_fail = 0;
+
+        // Track severity stats: (eligible, caught) per severity
+        let mut severity_stats: HashMap<String, (usize, usize)> = HashMap::new();
+
+        for outcome in &outcomes {
+            match outcome.status {
+                Status::TestFail => {
+                    tested += 1;
+                    caught += 1;
+                }
+                Status::Uncaught => {
+                    tested += 1;
+                    uncaught += 1;
+                }
+                Status::Timeout => timeout += 1,
+                Status::Skipped => skipped += 1,
+                Status::BuildFail => build_fail += 1,
+            }
+        }
+
+        let untested = total_mutants - tested - timeout - skipped - build_fail;
+
+        // For severity stats, we need to join with mutants to get mutation_slug
+        // This will be computed from the database in a separate query
+        let severity_records = sqlx::query!(
+            r#"
+            SELECT m.mutation_slug, o.status
+            FROM mutants m
+            JOIN outcomes o ON m.id = o.mutant_id
+            WHERE m.target_id = ? AND o.status IN ('TestFail', 'Uncaught')
+            "#,
+            target_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        for record in severity_records {
+            let entry = severity_stats.entry(record.mutation_slug).or_insert((0, 0));
+            entry.0 += 1; // eligible
+            if record.status == "TestFail" {
+                entry.1 += 1; // caught
+            }
+        }
+
+        Ok(TargetStats {
+            total_mutants,
+            tested,
+            untested,
+            caught,
+            uncaught,
+            timeout,
+            skipped,
+            build_fail,
+            severity_stats,
+        })
+    }
+
+    /// Get campaign-wide severity statistics
+    pub async fn get_campaign_severity_stats(&self) -> StoreResult<CampaignSeverityStats> {
+        let records = sqlx::query!(
+            r#"
+            SELECT m.mutation_slug, o.status
+            FROM mutants m
+            JOIN outcomes o ON m.id = o.mutant_id
+            WHERE o.status IN ('TestFail', 'Uncaught')
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut severity_stats: HashMap<String, (usize, usize)> = HashMap::new();
+
+        for record in records {
+            let entry = severity_stats.entry(record.mutation_slug).or_insert((0, 0));
+            entry.0 += 1; // eligible
+            if record.status == "TestFail" {
+                entry.1 += 1; // caught
+            }
+        }
+
+        Ok(CampaignSeverityStats { severity_stats })
     }
 }

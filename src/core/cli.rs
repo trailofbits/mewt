@@ -48,6 +48,9 @@ pub enum Commands {
         command: PrintArgs,
     },
 
+    /// Show campaign overview with per-file breakdown and aggregates
+    Status(StatusArgs),
+
     /// (Re-)Test a specific mutant by ID
     Test(TestArgs),
 
@@ -265,4 +268,12 @@ pub struct PurgeArgs {
     /// Target path to purge (if not provided, will purge all targets)
     #[arg(long)]
     pub target: Option<String>,
+}
+
+/// Arguments for the status command
+#[derive(Parser, Debug)]
+pub struct StatusArgs {
+    /// Output format: "table" (default) or "json"
+    #[arg(long, default_value = "table")]
+    pub format: String,
 }

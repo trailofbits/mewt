@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use clap::Parser;
-use log::{debug, info, warn};
+use log::{debug, warn};
 
 use crate::LanguageRegistry;
 use crate::core::cli::{Args, Commands, PrintArgs};
@@ -52,7 +52,6 @@ pub async fn run_main(registry: Arc<LanguageRegistry>) -> AppResult<()> {
 
     // Initialize logging after config so level/color are applied
     init_logging();
-    info!("Good morning");
 
     // Initialize the database
     let db_path = &config().general.db;
@@ -114,6 +113,10 @@ pub async fn run_main(registry: Arc<LanguageRegistry>) -> AppResult<()> {
         }
         Commands::Purge(purge_args) => {
             cmds::execute_purge(purge_args, store).await?;
+            0
+        }
+        Commands::Status(status_args) => {
+            cmds::execute_status(status_args, store, Arc::clone(&registry)).await?;
             0
         }
         Commands::Print {

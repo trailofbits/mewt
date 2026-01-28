@@ -7,7 +7,7 @@ pub struct Mutation {
     pub severity: MutationSeverity,
 }
 
-#[derive(Clone, Debug, Display, EnumString, PartialEq)]
+#[derive(Clone, Debug, Display, EnumString, PartialEq, Eq, Hash)]
 pub enum MutationSeverity {
     High,   // eg revert/throw replacement
     Medium, // eg replace line with a comment

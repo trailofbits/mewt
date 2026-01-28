@@ -4,6 +4,7 @@ mod hash;
 mod mutant;
 mod mutation;
 mod outcome;
+mod stats;
 mod target;
 
 pub use error::*;
@@ -11,4 +12,5 @@ pub use hash::*;
 pub use mutant::*;
 pub use mutation::*;
 pub use outcome::*;
+pub use stats::*;
 pub use target::*;

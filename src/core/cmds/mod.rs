@@ -4,6 +4,7 @@ pub mod mutate;
 pub mod print;
 pub mod purge;
 pub mod run;
+pub mod status;
 pub mod test;
 
 // Re-export commands for easier access
@@ -13,4 +14,5 @@ pub use mutate::execute_mutate;
 pub use print::execute_print;
 pub use purge::execute_purge;
 pub use run::execute_run;
+pub use status::execute_status;
 pub use test::execute_test;
