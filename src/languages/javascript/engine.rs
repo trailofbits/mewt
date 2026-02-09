@@ -12,10 +12,12 @@ use super::syntax::{fields, nodes};
 
 static JS_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
 static TS_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
+static TSX_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
 
 unsafe extern "C" {
     fn tree_sitter_javascript() -> *const tree_sitter::ffi::TSLanguage;
     fn tree_sitter_typescript() -> *const tree_sitter::ffi::TSLanguage;
+    fn tree_sitter_tsx() -> *const tree_sitter::ffi::TSLanguage;
 }
 
 pub struct JavaScriptLanguageEngine {
@@ -48,13 +50,18 @@ impl JavaScriptLanguageEngine {
             .clone()
     }
 
-    fn should_use_typescript(target: &Target) -> bool {
+    fn tsx_language(&self) -> TsLanguage {
+        TSX_LANGUAGE
+            .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_tsx()) })
+            .clone()
+    }
+
+    fn get_extension(target: &Target) -> Option<String> {
         target
             .path
             .extension()
             .and_then(|e| e.to_str())
-            .map(|ext| ext == "ts" || ext == "tsx")
-            .unwrap_or(false)
+            .map(|s| s.to_string())
     }
 }
 
@@ -78,11 +85,11 @@ impl LanguageEngine for JavaScriptLanguageEngine {
 
     fn apply_all_mutations(&self, target: &Target) -> Vec<Mutant> {
         let source = &target.text;
-        let use_typescript = Self::should_use_typescript(target);
-        let language = if use_typescript {
-            self.typescript_language()
-        } else {
-            self.javascript_language()
+        let language = match Self::get_extension(target).as_deref() {
+            Some("ts") => self.typescript_language(),
+            Some("tsx") => self.tsx_language(),
+            Some("jsx") => self.javascript_language(), // JSX uses JS grammar
+            _ => self.javascript_language(),           // Default to JS
         };
         let tree = match parse_source(source, &language) {
             Some(t) => t,

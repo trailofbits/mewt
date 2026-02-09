@@ -67,4 +67,8 @@ fn main() {
     // Build TypeScript grammar
     let typescript_dir: PathBuf = ["grammars", "typescript", "src"].iter().collect();
     build_grammar(&typescript_dir, "tree-sitter-typescript");
+
+    // Build TSX grammar (TypeScript + JSX)
+    let tsx_dir: PathBuf = ["grammars", "tsx", "src"].iter().collect();
+    build_grammar(&tsx_dir, "tree-sitter-tsx");
 }
