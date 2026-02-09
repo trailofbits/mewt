@@ -217,7 +217,8 @@ if (a < b && c > d) {
     for mutant in &cos_mutants {
         let text = &mutant.new_text;
         assert!(
-            !text.contains("<div") && !text.contains("</div")
+            !text.contains("<div")
+                && !text.contains("</div")
                 && !text.contains("<Component")
                 && !text.contains("App<")
                 && !text.contains("foo<")

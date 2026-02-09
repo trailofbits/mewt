@@ -36,10 +36,6 @@ pub async fn run_main(
         db: args.db.clone(),
         log_level: args.log_level.clone(),
         log_color: args.log_color.clone(),
-        ignore_targets: args.ignore_targets.clone(),
-        mutations: args.mutations.clone(),
-        test_cmd: args.test_cmd.clone(),
-        test_timeout: args.test_timeout,
     };
 
     // Initialize configuration (files, env, then CLI overrides)
@@ -78,14 +74,30 @@ pub async fn run_main(
     // Dispatch to appropriate command
     let exit_code = match args.command {
         Commands::Run(run_args) => {
+            // Resolve command-specific options
+            let resolved_targets = if !run_args.targets.is_empty()
+                || run_args.ignore_targets.is_some()
+            {
+                Some(
+                    config()
+                        .resolve_targets(&run_args.targets, run_args.ignore_targets.as_deref())?,
+                )
+            } else {
+                None
+            };
+            let mutations = config().resolve_mutations(run_args.mutations.as_deref());
+            let test_cmd = config().resolve_test_cmd(run_args.test_cmd.as_deref());
+            let test_timeout = config().resolve_test_timeout(run_args.test_timeout);
+
             let summary = cmds::execute_run(
                 run_args,
                 store,
                 Arc::clone(&running),
                 Arc::clone(&registry),
-                args.test_cmd.clone(),
-                args.test_timeout,
-                args.mutations.clone(),
+                resolved_targets,
+                mutations,
+                test_cmd,
+                test_timeout,
             )
             .await?;
 
@@ -102,7 +114,19 @@ pub async fn run_main(
             }
         }
         Commands::Mutate(mutate_args) => {
-            cmds::execute_mutate(mutate_args, store, Arc::clone(&registry)).await?;
+            // Resolve command-specific options
+            let resolved_targets = config()
+                .resolve_targets(&mutate_args.targets, mutate_args.ignore_targets.as_deref())?;
+            let mutations = config().resolve_mutations(None);
+
+            cmds::execute_mutate(
+                mutate_args,
+                store,
+                Arc::clone(&registry),
+                resolved_targets,
+                mutations,
+            )
+            .await?;
             0
         }
         Commands::Clean => {
@@ -110,13 +134,17 @@ pub async fn run_main(
             0
         }
         Commands::Test(test_args) => {
+            // Resolve command-specific options
+            let test_cmd = config().resolve_test_cmd(test_args.test_cmd.as_deref());
+            let test_timeout = config().resolve_test_timeout(test_args.test_timeout);
+
             cmds::execute_test(
                 test_args,
                 store,
                 running,
                 Arc::clone(&registry),
-                args.test_cmd.clone(),
-                args.test_timeout,
+                test_cmd,
+                test_timeout,
             )
             .await?;
             0

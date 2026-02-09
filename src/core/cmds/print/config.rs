@@ -15,20 +15,6 @@ pub async fn execute(format: String) -> AppResult<()> {
         info!("Global:");
         info!("  db: {}", effective_config.db.as_ref().unwrap());
 
-        if let Some(ignore_targets) = &effective_config.ignore_targets {
-            if ignore_targets.is_empty() {
-                info!("  ignore_targets: []");
-            } else {
-                info!("  ignore_targets: [{}]", ignore_targets.join(", "));
-            }
-        }
-
-        if let Some(mutations) = &effective_config.mutations {
-            info!("  mutations: [{}]", mutations.join(", "));
-        } else {
-            info!("  mutations: all enabled");
-        }
-
         info!("");
         info!("Log:");
         if let Some(log) = &effective_config.log {
@@ -38,6 +24,47 @@ pub async fn execute(format: String) -> AppResult<()> {
                 Some(false) => info!("  color: off"),
                 None => info!("  color: auto"),
             }
+        }
+
+        info!("");
+        info!("Targets:");
+        if let Some(targets) = &effective_config.targets {
+            if let Some(include) = &targets.include {
+                if include.is_empty() {
+                    info!("  include: []");
+                } else {
+                    info!("  include: [{}]", include.join(", "));
+                }
+            } else {
+                info!("  include: (not set)");
+            }
+
+            if let Some(ignore) = &targets.ignore {
+                if ignore.is_empty() {
+                    info!("  ignore: []");
+                } else {
+                    info!("  ignore: [{}]", ignore.join(", "));
+                }
+            } else {
+                info!("  ignore: (not set)");
+            }
+        } else {
+            info!("  (not configured)");
+        }
+
+        info!("");
+        info!("Run:");
+        if let Some(run) = &effective_config.run {
+            if let Some(mutations) = &run.mutations {
+                info!("  mutations: [{}]", mutations.join(", "));
+            } else {
+                info!("  mutations: all enabled");
+            }
+            if let Some(comprehensive) = run.comprehensive {
+                info!("  comprehensive: {}", comprehensive);
+            }
+        } else {
+            info!("  mutations: all enabled");
         }
 
         info!("");

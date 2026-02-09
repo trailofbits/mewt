@@ -8,7 +8,7 @@ use serde::Serialize;
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
-use crate::types::config::{is_path_excluded, is_slug_enabled};
+use crate::types::config::{ResolvedTargets, is_path_excluded, is_slug_enabled};
 use crate::types::{Hash, Mutant};
 
 #[derive(Debug, Clone, Serialize)]
@@ -45,67 +45,164 @@ impl Target {
     }
 
     pub async fn load_targets(
+        resolved_targets: &ResolvedTargets,
+        store: &SqlStore,
+        registry: &LanguageRegistry,
+        mutations: Option<&[String]>,
+    ) -> io::Result<Vec<Target>> {
+        let mut all_targets: Vec<Target> = vec![];
+
+        // Expand globs and collect all target paths
+        for pattern in &resolved_targets.include {
+            let path = PathBuf::from(pattern);
+
+            if path.is_file() {
+                // Direct file reference
+                if !is_path_excluded(&path, &resolved_targets.ignore)
+                    && let Some(target) =
+                        Self::load_single_file(path, store, registry, mutations).await?
+                {
+                    all_targets.push(target);
+                }
+            } else if path.is_dir() {
+                // Walk directory
+                let targets_from_dir = Box::pin(Self::load_from_directory(
+                    path,
+                    store,
+                    registry,
+                    &resolved_targets.ignore,
+                    mutations,
+                ))
+                .await?;
+                all_targets.extend(targets_from_dir);
+            } else {
+                // Try as glob pattern
+                match glob::glob(pattern) {
+                    Ok(paths) => {
+                        for entry in paths {
+                            match entry {
+                                Ok(glob_path) => {
+                                    if glob_path.is_file()
+                                        && !is_path_excluded(&glob_path, &resolved_targets.ignore)
+                                    {
+                                        if let Some(target) = Self::load_single_file(
+                                            glob_path, store, registry, mutations,
+                                        )
+                                        .await?
+                                        {
+                                            all_targets.push(target);
+                                        }
+                                    } else if glob_path.is_dir() {
+                                        let targets_from_dir = Box::pin(Self::load_from_directory(
+                                            glob_path,
+                                            store,
+                                            registry,
+                                            &resolved_targets.ignore,
+                                            mutations,
+                                        ))
+                                        .await?;
+                                        all_targets.extend(targets_from_dir);
+                                    }
+                                }
+                                Err(e) => {
+                                    info!("Skipping invalid glob entry: {}", e);
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            format!("Invalid glob pattern '{}': {}", pattern, e),
+                        ));
+                    }
+                }
+            }
+        }
+
+        if all_targets.is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "No valid targets found after filtering",
+            ));
+        }
+
+        Ok(all_targets)
+    }
+
+    async fn load_single_file(
         target_path: PathBuf,
         store: &SqlStore,
         registry: &LanguageRegistry,
-    ) -> io::Result<Vec<Target>> {
-        let mut targets: Vec<Target> = vec![];
-        if target_path.is_file() {
-            // Skip by path exclusions before reading
-            if is_path_excluded(&target_path) {
-                return Ok(targets);
+        _mutations: Option<&[String]>,
+    ) -> io::Result<Option<Target>> {
+        let mut file = fs::File::open(&target_path)?;
+        let mut text = String::new();
+        file.read_to_string(&mut text)?;
+
+        // Determine language from the file extension
+        let language_engine = match registry.language_from_path(&target_path) {
+            Some(engine) => engine,
+            None => {
+                info!(
+                    "Skipping file {}: unsupported language",
+                    target_path.display()
+                );
+                return Ok(None);
             }
+        };
+        let language = language_engine.name().to_string();
 
-            let mut file = fs::File::open(&target_path)?;
-            let mut text = String::new();
-            file.read_to_string(&mut text)?;
-            // Determine language from the file extension
-            let language_engine = match registry.language_from_path(&target_path) {
-                Some(engine) => engine,
-                None => {
-                    info!(
-                        "Skipping file {}: unsupported language",
-                        target_path.display()
-                    );
-                    return Ok(targets); // Skip this file but don't error out
-                }
-            };
-            let language = language_engine.name().to_string();
+        let mut target = Target {
+            id: 0, // dummy placeholder until we store it in the db
+            path: target_path,
+            file_hash: Hash::digest(text.clone()),
+            text,
+            language,
+        };
 
-            // No language-specific exclusions: handled globally
+        match store.add_target(target.clone()).await {
+            Ok(id) => {
+                target.id = id;
+                Ok(Some(target))
+            }
+            Err(e) => Err(io::Error::other(format!("Failed to store target: {e}"))),
+        }
+    }
 
-            let mut target = Target {
-                id: 0, // dummy placeholder until we store it in the db
-                path: target_path,
-                file_hash: Hash::digest(text.clone()),
-                text,
-                language,
-            };
-            match store.add_target(target.clone()).await {
-                Ok(id) => {
-                    target.id = id;
+    async fn load_from_directory(
+        dir_path: PathBuf,
+        store: &SqlStore,
+        registry: &LanguageRegistry,
+        ignore_patterns: &[String],
+        mutations: Option<&[String]>,
+    ) -> io::Result<Vec<Target>> {
+        // Skip directory entirely if excluded
+        if is_path_excluded(&dir_path, ignore_patterns) {
+            return Ok(vec![]);
+        }
+
+        let mut targets = vec![];
+        for entry in fs::read_dir(dir_path)? {
+            let path = entry?.path();
+            if path.is_file() {
+                if !is_path_excluded(&path, ignore_patterns)
+                    && let Some(target) =
+                        Self::load_single_file(path, store, registry, mutations).await?
+                {
                     targets.push(target);
                 }
-                Err(e) => {
-                    return Err(io::Error::other(format!("Failed to store target: {e}")));
-                }
+            } else if path.is_dir() {
+                let targets_from_subdir = Box::pin(Self::load_from_directory(
+                    path,
+                    store,
+                    registry,
+                    ignore_patterns,
+                    mutations,
+                ))
+                .await?;
+                targets.extend(targets_from_subdir);
             }
-        } else if target_path.is_dir() {
-            // Skip directory entirely if excluded
-            if is_path_excluded(&target_path) {
-                return Ok(targets);
-            }
-
-            for entry in fs::read_dir(target_path)? {
-                let path = entry?.path();
-                let targets_from_dir = Box::pin(Self::load_targets(path, store, registry)).await?;
-                targets.extend(targets_from_dir);
-            }
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Target is neither a file nor a directory",
-            ));
         }
         Ok(targets)
     }
@@ -123,7 +220,11 @@ impl Target {
         }
     }
 
-    pub fn generate_mutants(&self, registry: &LanguageRegistry) -> Result<Vec<Mutant>, String> {
+    pub fn generate_mutants(
+        &self,
+        registry: &LanguageRegistry,
+        mutations: Option<&[String]>,
+    ) -> Result<Vec<Mutant>, String> {
         let mut mutants: Vec<Mutant> = Vec::new();
 
         // Get mutations for this language
@@ -133,8 +234,8 @@ impl Target {
         };
         let mut new_mutants = engine.apply_all_mutations(self);
 
-        // Filter by global whitelist (if present)
-        new_mutants.retain(|m| is_slug_enabled(&m.mutation_slug));
+        // Filter by whitelist (if present)
+        new_mutants.retain(|m| is_slug_enabled(&m.mutation_slug, mutations));
 
         mutants.append(&mut new_mutants);
 

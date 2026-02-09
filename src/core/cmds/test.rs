@@ -10,7 +10,7 @@ use crate::SqlStore;
 use crate::core::cli::TestArgs;
 use crate::core::runner::TestRunner;
 use crate::types::AppResult;
-use crate::types::config::{config, resolve_test_for_path_with_cli};
+use crate::types::config::{config, resolve_test_for_path};
 
 /// Read mutant IDs from --ids-file (file or stdin) or --ids (CLI arg).
 /// --ids-file takes precedence over --ids.
@@ -78,7 +78,7 @@ pub async fn execute_test(
             Ok(mutant) => match store.get_target(mutant.target_id).await {
                 Ok(target) => {
                     let (maybe_cmd, timeout) =
-                        resolve_test_for_path_with_cli(&target.path, &test_cmd, test_timeout);
+                        resolve_test_for_path(&target.path, test_cmd.as_deref(), test_timeout);
                     if let Some(cmd) = maybe_cmd {
                         groups.entry((cmd, timeout)).or_default().push(id);
                     } else {

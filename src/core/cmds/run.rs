@@ -1,5 +1,3 @@
-use std::io;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -10,27 +8,27 @@ use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::core::cli::RunArgs;
 use crate::core::runner::TestRunner;
-use crate::types::config::{config, resolve_test_for_path_with_cli};
+use crate::types::config::{ResolvedTargets, config, resolve_test_for_path};
 use crate::types::{AppResult, CampaignSummary, Target};
 
+#[allow(clippy::too_many_arguments)]
 pub async fn execute_run(
     args: RunArgs,
     store: SqlStore,
     running: Arc<AtomicBool>,
     registry: Arc<LanguageRegistry>,
+    resolved_targets: Option<ResolvedTargets>,
+    mutations: Option<Vec<String>>,
     test_cmd: Option<String>,
     test_timeout: Option<u32>,
-    mutations: Option<String>,
 ) -> AppResult<Option<CampaignSummary>> {
-    let targets = if let Some(target_path) = &args.target {
-        // Generate new mutants for the specified target
-        let target = PathBuf::from(target_path)
-            .canonicalize()
-            .map_err(|e| io::Error::new(io::ErrorKind::NotFound, format!("Invalid target: {e}")))?;
+    let mutations_slice = mutations.as_deref();
 
-        let targets = Target::load_targets(target, &store, &registry).await?;
+    let targets = if let Some(resolved) = resolved_targets {
+        // Generate new mutants for the specified targets
+        let targets = Target::load_targets(&resolved, &store, &registry, mutations_slice).await?;
         for target in targets.iter() {
-            let mutants_res = target.generate_mutants(&registry);
+            let mutants_res = target.generate_mutants(&registry, mutations_slice);
             if let Ok(mutants) = mutants_res {
                 for mut mutant in mutants {
                     let new_id = store
@@ -69,7 +67,7 @@ pub async fn execute_run(
     let mut groups: HashMap<(String, Option<u32>), Vec<Target>> = HashMap::new();
     for target in targets.into_iter() {
         let (maybe_cmd, timeout) =
-            resolve_test_for_path_with_cli(&target.path, &test_cmd, test_timeout);
+            resolve_test_for_path(&target.path, test_cmd.as_deref(), test_timeout);
         if let Some(cmd) = maybe_cmd {
             groups.entry((cmd, timeout)).or_default().push(target);
         } else {
@@ -100,7 +98,7 @@ pub async fn execute_run(
         };
 
         runner
-            .run_mutation_campaign(group_targets, mutations.clone())
+            .run_mutation_campaign(group_targets, mutations_slice.map(|v| v.join(",")))
             .await?;
     }
 

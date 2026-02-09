@@ -21,24 +21,6 @@ pub struct Args {
     #[arg(long = "log.color", global = true)]
     pub log_color: Option<String>,
 
-    /// Comma-separated substrings; any target path containing any will be ignored
-    #[arg(long = "ignore-targets", global = true)]
-    pub ignore_targets: Option<String>,
-
-    /// Comma-separated list of mutation slugs to test (e.g., "ER,CR").
-    /// Run `mewt print mutations` for a list of slugs.
-    /// If omitted, all mutation types are enabled.
-    #[arg(long, global = true)]
-    pub mutations: Option<String>,
-
-    /// Test command for all targets (can be overridden per-command)
-    #[arg(long = "test.cmd", global = true)]
-    pub test_cmd: Option<String>,
-
-    /// Test timeout in seconds (can be overridden per-command)
-    #[arg(long = "test.timeout", global = true)]
-    pub test_timeout: Option<u32>,
-
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -78,12 +60,35 @@ pub enum Commands {
 /// Arguments for the run command
 #[derive(Parser, Debug)]
 pub struct RunArgs {
-    /// Target to mutate.
+    /// Target(s) to mutate (files or directories).
     /// If a file, mutate that file.
     /// If a directory, mutate all files inside the directory.
     /// If not provided, skip mutation generation and test existing mutants without outcomes.
+    /// Replaces config [targets].include if provided.
     #[arg(value_name = "TARGET")]
-    pub target: Option<String>,
+    pub targets: Vec<String>,
+
+    /// Comma-separated substrings; any target path containing any will be ignored.
+    /// Replaces config [targets].ignore if provided.
+    #[arg(long = "ignore-targets")]
+    pub ignore_targets: Option<String>,
+
+    /// Comma-separated list of mutation slugs to test (e.g., "ER,CR").
+    /// Run `mewt print mutations` for a list of slugs.
+    /// If omitted, all mutation types are enabled.
+    /// Replaces config [run].mutations if provided.
+    #[arg(long)]
+    pub mutations: Option<String>,
+
+    /// Test command for all targets.
+    /// Replaces config [test].cmd if provided.
+    #[arg(long = "test.cmd")]
+    pub test_cmd: Option<String>,
+
+    /// Test timeout in seconds.
+    /// Replaces config [test].timeout if provided.
+    #[arg(long = "test.timeout")]
+    pub test_timeout: Option<u32>,
 
     /// Test all mutants even if more severe mutants on the same line were uncaught.
     /// By default, less severe mutants are skipped if more severe ones were uncaught.
@@ -98,11 +103,17 @@ pub struct RunArgs {
 /// Arguments for the mutate command
 #[derive(Parser, Debug)]
 pub struct MutateArgs {
-    /// Target to mutate.
+    /// Target(s) to mutate (files or directories).
     /// If a file, mutate that file.
     /// If a directory, mutate all files inside the directory.
-    #[arg(value_name = "TARGET")]
-    pub target: String,
+    /// Replaces config [targets].include if provided.
+    #[arg(value_name = "TARGET", required = true)]
+    pub targets: Vec<String>,
+
+    /// Comma-separated substrings; any target path containing any will be ignored.
+    /// Replaces config [targets].ignore if provided.
+    #[arg(long = "ignore-targets")]
+    pub ignore_targets: Option<String>,
 }
 
 /// Arguments for the list-mutations command
@@ -263,6 +274,16 @@ pub struct TestArgs {
     /// IDs should be separated by whitespace or newlines.
     #[arg(long)]
     pub ids_file: Option<String>,
+
+    /// Test command for all targets.
+    /// Replaces config [test].cmd if provided.
+    #[arg(long = "test.cmd")]
+    pub test_cmd: Option<String>,
+
+    /// Test timeout in seconds.
+    /// Replaces config [test].timeout if provided.
+    #[arg(long = "test.timeout")]
+    pub test_timeout: Option<u32>,
 
     /// Stream stdout and stderr from baseline test to stdout
     #[arg(long)]

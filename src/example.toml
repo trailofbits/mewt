@@ -3,27 +3,19 @@
 #
 # Corresponding CLI flags use dotted notation matching this structure:
 #   db → --db
-#   ignore_targets → --ignore-targets
-#   mutations → --mutations
 #   log.level → --log.level
 #   log.color → --log.color
-#   test.cmd → --test.cmd
-#   test.timeout → --test.timeout
+#   test.cmd → --test.cmd (run, test commands)
+#   test.timeout → --test.timeout (run, test commands)
+#
+# Command-specific CLI flags:
+#   mewt run [TARGET...] --ignore-targets=... --mutations=...
+#   mewt mutate <TARGET...> --ignore-targets=...
+#   mewt test --ids=... --test.cmd=... --test.timeout=...
 
 # Database path (relative to this config file or absolute)
 # CLI: --db PATH
 db = "mewt.sqlite"
-
-# Ignore targets matching these substrings (optional)
-# Useful for excluding generated code, test files, or vendored dependencies
-# CLI: --ignore-targets test,vendor,.cargo
-# ignore_targets = ["test", "vendor", ".cargo"]
-
-# Whitelist specific mutation types by slug (optional)
-# Run `mewt print mutations` to see all available mutation types
-# If omitted, all mutation types are enabled
-# CLI: --mutations ER,CR,BR
-# mutations = ["ER", "CR", "BR", "AOD", "AOR"]
 
 [log]
 # Logging level: trace, debug, info, warn, error
@@ -33,6 +25,33 @@ level = "info"
 # Force color output on/off, or omit for auto-detection based on terminal
 # CLI: --log.color on|off
 # color = true
+
+[targets]
+# Target discovery configuration (used by run and mutate commands)
+# CLI overrides COMPLETELY REPLACE these config values (no merging)
+
+# Include patterns: supports globs, files, and directories
+# Examples: ["src/**/*.rs"], ["src", "tests"], ["lib/*.py"]
+# CLI: mewt run <TARGET...> (replaces include if provided)
+# include = ["src/**/*.rs", "tests/**/*.rs"]
+
+# Ignore patterns: substring matching (simple and user-friendly)
+# Any path containing these substrings will be excluded
+# Examples: ["node_modules", "vendor", "target", ".cargo"]
+# CLI: mewt run --ignore-targets=node_modules,vendor (replaces ignore if provided)
+# ignore = ["target", "node_modules", "vendor"]
+
+[run]
+# Run command configuration
+
+# Whitelist specific mutation types by slug (optional)
+# Run `mewt print mutations` to see all available mutation types
+# If omitted, all mutation types are enabled
+# CLI: mewt run --mutations ER,CR,BR (replaces this if provided)
+# mutations = ["ER", "CR", "BR", "AOD", "AOR"]
+
+# Test all mutants comprehensively (default: false)
+# comprehensive = false
 
 [test]
 # Default test command for all targets

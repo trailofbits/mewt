@@ -68,28 +68,41 @@ impl TestConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct TargetsConfig {
+    /// Glob patterns for target inclusion (e.g., "src/**/*.rs")
+    pub include: Option<Vec<String>>,
+    /// Substrings for path exclusion (e.g., "node_modules")
+    pub ignore: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ResolvedTargets {
+    pub include: Vec<String>,
+    pub ignore: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct RunConfig {
+    /// Whitelist specific mutation types by slug (None = all enabled)
+    pub mutations: Option<Vec<String>>,
+    pub comprehensive: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct Config {
     // Top-level fields
     pub db: Option<String>,
-    pub ignore_targets: Option<Vec<String>>,
-    pub mutations: Option<Vec<String>>, // None = all enabled (semantic)
 
     // Nested sections
     pub log: Option<LogConfig>,
     pub test: Option<TestConfig>,
+    pub targets: Option<TargetsConfig>,
+    pub run: Option<RunConfig>,
 }
 
 impl Config {
     pub fn db(&self) -> &str {
         self.db.as_deref().unwrap_or("mewt.sqlite")
-    }
-
-    pub fn ignore_targets(&self) -> &[String] {
-        self.ignore_targets.as_deref().unwrap_or(&[])
-    }
-
-    pub fn mutations(&self) -> Option<&[String]> {
-        self.mutations.as_deref() // None = all enabled (semantic)
     }
 
     pub fn log(&self) -> LogConfig {
@@ -100,13 +113,78 @@ impl Config {
         self.test.clone().unwrap_or_default()
     }
 
+    pub fn targets(&self) -> Option<&TargetsConfig> {
+        self.targets.as_ref()
+    }
+
+    pub fn run(&self) -> Option<&RunConfig> {
+        self.run.as_ref()
+    }
+
+    /// Resolve target configuration with CLI overrides (complete replacement)
+    pub fn resolve_targets(
+        &self,
+        cli_targets: &[String],
+        cli_ignore: Option<&str>,
+    ) -> std::io::Result<ResolvedTargets> {
+        // CLI completely replaces config
+        let include = if !cli_targets.is_empty() {
+            cli_targets.to_vec()
+        } else if let Some(config_include) = self.targets().and_then(|t| t.include.as_ref()) {
+            config_include.clone()
+        } else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "No targets specified. Provide targets via CLI or config [targets].include",
+            ));
+        };
+
+        let ignore = if let Some(cli_ign) = cli_ignore {
+            cli_ign
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        } else {
+            self.targets()
+                .and_then(|t| t.ignore.clone())
+                .unwrap_or_default()
+        };
+
+        Ok(ResolvedTargets { include, ignore })
+    }
+
+    /// Resolve mutations with CLI override (complete replacement)
+    pub fn resolve_mutations(&self, cli_mutations: Option<&str>) -> Option<Vec<String>> {
+        cli_mutations
+            .map(|s| {
+                s.split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            })
+            .or_else(|| self.run().and_then(|r| r.mutations.clone()))
+    }
+
+    /// Resolve test command with CLI override
+    pub fn resolve_test_cmd(&self, cli_test_cmd: Option<&str>) -> Option<String> {
+        cli_test_cmd
+            .map(|s| s.to_string())
+            .or_else(|| self.test().cmd().map(|s| s.to_string()))
+    }
+
+    /// Resolve test timeout with CLI override
+    pub fn resolve_test_timeout(&self, cli_timeout: Option<u32>) -> Option<u32> {
+        cli_timeout.or_else(|| self.test().timeout())
+    }
+
     pub fn to_effective(&self) -> Self {
         Self {
             db: Some(self.db().to_string()),
-            ignore_targets: Some(self.ignore_targets().to_vec()),
-            mutations: self.mutations.as_ref().map(|v| v.to_vec()),
             log: Some(self.log().to_effective()),
             test: Some(self.test().to_effective()),
+            targets: self.targets.clone(),
+            run: self.run.clone(),
         }
     }
 }
@@ -115,11 +193,7 @@ impl Config {
 pub struct CliOverrides {
     pub db: Option<String>,
     pub log_level: Option<String>,
-    pub log_color: Option<String>,      // "on" | "off"
-    pub ignore_targets: Option<String>, // csv
-    pub mutations: Option<String>,      // csv
-    pub test_cmd: Option<String>,
-    pub test_timeout: Option<u32>,
+    pub log_color: Option<String>, // "on" | "off"
 }
 
 static CONFIG_FILENAME: OnceCell<String> = OnceCell::new();
@@ -177,18 +251,6 @@ fn apply_file_config(cfg: &mut Config, file: &Config) {
     if file.db.is_some() {
         cfg.db = file.db.clone();
     }
-    if let Some(targets) = &file.ignore_targets {
-        cfg.ignore_targets = Some(
-            cfg.ignore_targets()
-                .iter()
-                .chain(targets.iter())
-                .cloned()
-                .collect(),
-        );
-    }
-    if file.mutations.is_some() {
-        cfg.mutations = file.mutations.clone(); // override semantics
-    }
 
     // Merge log section
     if let Some(file_log) = &file.log {
@@ -222,23 +284,22 @@ fn apply_file_config(cfg: &mut Config, file: &Config) {
         }
         cfg.test = Some(test);
     }
+
+    // Merge targets section
+    if let Some(file_targets) = &file.targets {
+        cfg.targets = Some(file_targets.clone());
+    }
+
+    // Merge run section
+    if let Some(file_run) = &file.run {
+        cfg.run = Some(file_run.clone());
+    }
 }
 
 fn apply_cli_overrides(cfg: &mut Config, overrides: &CliOverrides) {
     // Top-level overrides
     if overrides.db.is_some() {
         cfg.db = overrides.db.clone();
-    }
-    if let Some(ignore_csv) = &overrides.ignore_targets {
-        let existing = cfg.ignore_targets().to_vec();
-        let new_targets = parse_csv(ignore_csv);
-        cfg.ignore_targets = Some(existing.into_iter().chain(new_targets).collect());
-    }
-    if let Some(muts_csv) = &overrides.mutations {
-        let list = parse_csv(muts_csv);
-        if !list.is_empty() {
-            cfg.mutations = Some(list);
-        }
     }
 
     // Log overrides
@@ -258,28 +319,6 @@ fn apply_cli_overrides(cfg: &mut Config, overrides: &CliOverrides) {
     if overrides.log_level.is_some() || overrides.log_color.is_some() {
         cfg.log = Some(log);
     }
-
-    // Test overrides
-    let mut test = cfg.test.clone().unwrap_or_default();
-    if let Some(cmd) = &overrides.test_cmd
-        && !cmd.trim().is_empty()
-    {
-        test.cmd = Some(cmd.clone());
-    }
-    if overrides.test_timeout.is_some() {
-        test.timeout = overrides.test_timeout;
-    }
-    if overrides.test_cmd.is_some() || overrides.test_timeout.is_some() {
-        cfg.test = Some(test);
-    }
-}
-
-fn parse_csv(input: &str) -> Vec<String> {
-    input
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect()
 }
 
 fn find_nearest_config_file() -> Option<PathBuf> {
@@ -301,38 +340,36 @@ pub fn colors_enabled() -> bool {
     }
 }
 
-pub fn is_slug_enabled(slug: &str) -> bool {
-    if let Some(list) = config().mutations() {
+pub fn is_slug_enabled(slug: &str, mutations: Option<&[String]>) -> bool {
+    if let Some(list) = mutations {
         return list.iter().any(|s| s == slug);
     }
     true
 }
 
-pub fn is_path_excluded(path: &Path) -> bool {
-    let patterns = config().ignore_targets();
-    if patterns.is_empty() {
+pub fn is_path_excluded(path: &Path, ignore_patterns: &[String]) -> bool {
+    if ignore_patterns.is_empty() {
         return false;
     }
     let path_str = path.to_string_lossy();
-    patterns
+    ignore_patterns
         .iter()
         .filter(|p| !p.is_empty())
         .any(|pat| path_str.contains(pat))
 }
 
-pub fn resolve_test_for_path_with_cli(
+pub fn resolve_test_for_path(
     path: &Path,
-    cli_test_cmd: &Option<String>,
-    cli_timeout: Option<u32>,
+    resolved_cmd: Option<&str>,
+    resolved_timeout: Option<u32>,
 ) -> (Option<String>, Option<u32>) {
     let test = config().test();
 
-    // CLI has highest precedence
-    if let Some(cmd) = cli_test_cmd.as_ref()
+    // If we have a resolved command from CLI, use it
+    if let Some(cmd) = resolved_cmd
         && !cmd.trim().is_empty()
     {
-        let timeout = cli_timeout.or(test.timeout());
-        return (Some(cmd.clone()), timeout);
+        return (Some(cmd.to_string()), resolved_timeout);
     }
 
     // Per-target rules: first match wins
@@ -341,7 +378,7 @@ pub fn resolve_test_for_path_with_cli(
         if glob_matches(&rule.glob, &path_buf)
             && let Some(cmd) = &rule.cmd
         {
-            let timeout = cli_timeout.or(rule.timeout).or(test.timeout());
+            let timeout = resolved_timeout.or(rule.timeout).or(test.timeout());
             return (Some(cmd.clone()), timeout);
         }
     }
@@ -349,7 +386,7 @@ pub fn resolve_test_for_path_with_cli(
     // Fallback to global
     (
         test.cmd().map(|s| s.to_string()),
-        cli_timeout.or(test.timeout()),
+        resolved_timeout.or(test.timeout()),
     )
 }
 
