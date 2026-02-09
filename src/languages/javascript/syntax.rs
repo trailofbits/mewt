@@ -11,6 +11,9 @@ pub mod nodes {
     pub const VARIABLE_DECLARATION: &str = "variable_declaration";
     pub const BREAK_STATEMENT: &str = "break_statement";
     pub const CONTINUE_STATEMENT: &str = "continue_statement";
+    // TypeScript-specific node types
+    pub const TYPE_ARGUMENTS: &str = "type_arguments";
+    pub const TYPE_PARAMETERS: &str = "type_parameters";
 }
 
 pub mod fields {

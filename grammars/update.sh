@@ -17,6 +17,7 @@ declare -A REPO_URLS=(
   ["solidity"]="https://github.com/JoranHonig/tree-sitter-solidity"
   ["go"]="https://github.com/tree-sitter/tree-sitter-go"
   ["javascript"]="https://github.com/tree-sitter/tree-sitter-javascript"
+  ["typescript"]="https://github.com/tree-sitter/tree-sitter-typescript"
 )
 
 declare -A GRAMMAR_PATHS=(
@@ -24,6 +25,7 @@ declare -A GRAMMAR_PATHS=(
   ["solidity"]="" # repo root
   ["go"]="" # repo root
   ["javascript"]="" # repo root
+  ["typescript"]="typescript" # grammar is in typescript/ subdirectory
 )
 
 # Validate language argument

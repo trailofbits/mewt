@@ -10,10 +10,12 @@ use crate::utils::{node_text, parse_source};
 use super::mutations::JAVASCRIPT_MUTATIONS;
 use super::syntax::{fields, nodes};
 
-static JAVASCRIPT_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
+static JS_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
+static TS_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
 
 unsafe extern "C" {
     fn tree_sitter_javascript() -> *const tree_sitter::ffi::TSLanguage;
+    fn tree_sitter_typescript() -> *const tree_sitter::ffi::TSLanguage;
 }
 
 pub struct JavaScriptLanguageEngine {
@@ -33,6 +35,27 @@ impl JavaScriptLanguageEngine {
         mutations.extend_from_slice(JAVASCRIPT_MUTATIONS);
         Self { mutations }
     }
+
+    fn javascript_language(&self) -> TsLanguage {
+        JS_LANGUAGE
+            .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_javascript()) })
+            .clone()
+    }
+
+    fn typescript_language(&self) -> TsLanguage {
+        TS_LANGUAGE
+            .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_typescript()) })
+            .clone()
+    }
+
+    fn should_use_typescript(target: &Target) -> bool {
+        target
+            .path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|ext| ext == "ts" || ext == "tsx")
+            .unwrap_or(false)
+    }
 }
 
 impl LanguageEngine for JavaScriptLanguageEngine {
@@ -45,9 +68,8 @@ impl LanguageEngine for JavaScriptLanguageEngine {
     }
 
     fn tree_sitter_language(&self) -> TsLanguage {
-        JAVASCRIPT_LANGUAGE
-            .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_javascript()) })
-            .clone()
+        // Default to JavaScript for compatibility
+        self.javascript_language()
     }
 
     fn get_mutations(&self) -> &[Mutation] {
@@ -56,7 +78,13 @@ impl LanguageEngine for JavaScriptLanguageEngine {
 
     fn apply_all_mutations(&self, target: &Target) -> Vec<Mutant> {
         let source = &target.text;
-        let tree = match parse_source(source, &self.tree_sitter_language()) {
+        let use_typescript = Self::should_use_typescript(target);
+        let language = if use_typescript {
+            self.typescript_language()
+        } else {
+            self.javascript_language()
+        };
+        let tree = match parse_source(source, &language) {
             Some(t) => t,
             None => return Vec::new(),
         };
