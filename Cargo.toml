@@ -2,9 +2,7 @@
 name = "mewt"
 version = "2.0.1"
 edition = "2024"
-
 description = "Mutation testing framework with multi-language support"
-
 authors = ["Bo Henderson <bo.henderson@trailofbits.com>"]
 license = "AGPL-3.0"
 repository = "https://github.com/trailofbits/mewt"
@@ -12,13 +10,13 @@ homepage = "https://github.com/trailofbits/mewt"
 keywords = ["mutation", "testing"]
 categories = ["development-tools::testing", "security"]
 
-[lib]
-name = "mewt"
-path = "src/lib.rs"
-
 [[bin]]
 name = "mewt"
 path = "src/main.rs"
+
+[lib]
+name = "mewt"
+path = "src/lib.rs"
 
 [dependencies]
 # Shared dependencies across all crates
@@ -55,7 +53,6 @@ tokio-test = "0.4"
 [build-dependencies]
 cc = "1.0"
 
-# The profile that 'dist' will build with
 [profile.dist]
 inherits = "release"
 lto = "thin"
