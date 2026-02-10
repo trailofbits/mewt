@@ -15,7 +15,6 @@ pub struct ResultsFilters {
     pub language: Option<String>,
     pub mutation_type: Option<String>,
     pub line: Option<u32>,
-    pub file: Option<String>,
     pub format: String,
 }
 
@@ -275,20 +274,20 @@ async fn get_results_data(
     }
 
     // Use filtered query if any filters are provided
-    let use_filters = filters.status.is_some()
+    let use_filters = filters.target.is_some()
+        || filters.status.is_some()
         || filters.language.is_some()
         || filters.mutation_type.is_some()
-        || filters.line.is_some()
-        || filters.file.is_some();
+        || filters.line.is_some();
 
     if use_filters {
         return store
             .get_outcomes_filtered(
+                filters.target.clone(),
                 normalize_status(filters.status.clone()),
                 filters.language.clone(),
                 filters.mutation_type.clone(),
                 filters.line,
-                filters.file.clone(),
             )
             .await
             .map_err(|e| e.into());
@@ -337,11 +336,11 @@ async fn print_table_format(
     }
 
     // Use filtered query if any filters are provided
-    let use_filters = filters.status.is_some()
+    let use_filters = filters.target.is_some()
+        || filters.status.is_some()
         || filters.language.is_some()
         || filters.mutation_type.is_some()
-        || filters.line.is_some()
-        || filters.file.is_some();
+        || filters.line.is_some();
 
     if use_filters {
         if data.is_empty() {

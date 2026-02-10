@@ -213,10 +213,6 @@ pub struct ResultsArgs {
     #[arg(long)]
     pub line: Option<u32>,
 
-    /// Filter by file path (substring match)
-    #[arg(long)]
-    pub file: Option<String>,
-
     /// Output format: "table" (default), "ids" (just IDs), "json", or "sarif"
     #[arg(long, default_value = "table")]
     pub format: String,
@@ -240,10 +236,6 @@ pub struct PrintMutantsArgs {
     /// Filter by line number
     #[arg(long)]
     pub line: Option<u32>,
-
-    /// Filter by file path (substring match)
-    #[arg(long)]
-    pub file: Option<String>,
 
     /// Filter by mutation type slug (e.g., ER, CR, BR)
     #[arg(long)]

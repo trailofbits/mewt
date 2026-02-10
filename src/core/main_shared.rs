@@ -180,7 +180,6 @@ pub async fn run_main(
                     language: args.language,
                     mutation_type: args.mutation_type,
                     line: args.line,
-                    file: args.file,
                     format: args.format,
                 },
                 &registry,
@@ -224,7 +223,6 @@ pub async fn run_main(
                         cmds::print::PrintCommand::Mutants(cmds::print::MutantsFilters {
                             target: args.target,
                             line: args.line,
-                            file: args.file,
                             mutation_type: args.mutation_type,
                             tested: args.tested,
                             untested: args.untested,
