@@ -11,6 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     registry.register(mewt::languages::javascript::engine::JavaScriptLanguageEngine::new());
     registry.register(mewt::languages::rust::engine::RustLanguageEngine::new());
     registry.register(mewt::languages::solidity::engine::SolidityLanguageEngine::new());
+    registry.register(mewt::languages::tolk::engine::TolkLanguageEngine::new());
 
     // Run the shared main function
     run_main(Arc::new(registry)).await?;

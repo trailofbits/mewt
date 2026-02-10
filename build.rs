@@ -63,4 +63,8 @@ fn main() {
     // Build JavaScript grammar
     let javascript_dir: PathBuf = ["grammars", "javascript", "src"].iter().collect();
     build_grammar(&javascript_dir, "tree-sitter-javascript");
+
+    // Build Tolk grammar
+    let tolk_dir: PathBuf = ["grammars", "tolk", "src"].iter().collect();
+    build_grammar(&tolk_dir, "tree-sitter-tolk");
 }
