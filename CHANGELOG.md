@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 2.0.1 - 2026-02-05
+
+### Changed
+- Added support for Rust edition 2021 by replacing let-chains with nested if statements
+- Configured clippy to allow `collapsible_if` for broader edition compatibility
+
 ## 2.0.0 - 2026-02-05
 
 ### Added
