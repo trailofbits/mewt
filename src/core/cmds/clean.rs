@@ -6,7 +6,7 @@ use crate::types::{AppResult, Hash};
 pub async fn execute_clean(store: SqlStore) -> AppResult<()> {
     info!("Cleaning database of stale targets...");
 
-    // Get all targets from the database
+    // Get all targets from the database (already sorted by path)
     let targets = store.get_all_targets().await?;
     info!("Found {} targets in database", targets.len());
 

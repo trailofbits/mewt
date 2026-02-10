@@ -1,5 +1,6 @@
 use log::info;
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use crate::LanguageRegistry;
@@ -348,15 +349,17 @@ async fn print_table_format(
             return Ok(());
         }
 
-        // Group by target for display
-        let mut by_target: std::collections::HashMap<i64, Vec<&(Mutant, Target, Outcome)>> =
-            std::collections::HashMap::new();
+        // Group by target path for display
+        // Note: Data is already sorted by path from database query,
+        // BTreeMap maintains this order since we insert in sorted order
+        let mut by_target: BTreeMap<String, Vec<&(Mutant, Target, Outcome)>> = BTreeMap::new();
         for entry in data {
-            by_target.entry(entry.1.id).or_default().push(entry);
+            let path_key = entry.1.path.to_string_lossy().to_string();
+            by_target.entry(path_key).or_default().push(entry);
         }
 
         // Display grouped results
-        for (_, entries) in by_target {
+        for entries in by_target.values() {
             if entries.is_empty() {
                 continue;
             }

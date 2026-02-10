@@ -76,9 +76,8 @@ pub async fn execute_run(
     }
 
     // For each group, create a runner (baseline once per unique cmd) and run campaign
-    for ((cmd, timeout), mut group_targets) in groups.into_iter() {
-        // Sort targets lexicographically by path (interleaves folder contents)
-        group_targets.sort_by(|a, b| a.path.cmp(&b.path));
+    for ((cmd, timeout), group_targets) in groups.into_iter() {
+        // Targets are already sorted by path from load_targets()
         if !running.load(Ordering::SeqCst) {
             warn!("Mutation campaign cancelled before execution");
             break;

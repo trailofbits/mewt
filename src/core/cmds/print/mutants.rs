@@ -1,6 +1,7 @@
 use console::style;
 use log::info;
 use serde::Serialize;
+use std::collections::BTreeMap;
 
 use crate::SqlStore;
 use crate::core::cmds::print::MutantsFilters;
@@ -72,18 +73,20 @@ pub async fn execute(store: SqlStore, filters: MutantsFilters) -> AppResult<()> 
             return Ok(());
         }
 
-        // Group by target for display
-        let mut by_target: std::collections::HashMap<i64, Vec<_>> =
-            std::collections::HashMap::new();
+        // Group by target path for display
+        // Note: Data is already sorted by path from database query,
+        // BTreeMap maintains this order since we insert in sorted order
+        let mut by_target: BTreeMap<String, Vec<(Mutant, Target)>> = BTreeMap::new();
         for (mutant, target) in results {
+            let path_key = target.path.to_string_lossy().to_string();
             by_target
-                .entry(target.id)
-                .or_insert_with(Vec::new)
+                .entry(path_key)
+                .or_default()
                 .push((mutant, target));
         }
 
         // Display grouped results
-        for (_, entries) in by_target {
+        for entries in by_target.values() {
             if entries.is_empty() {
                 continue;
             }
@@ -91,7 +94,7 @@ pub async fn execute(store: SqlStore, filters: MutantsFilters) -> AppResult<()> 
             info!("{}", style(format!("Target: {}", target.display())).bold());
 
             for (mutant, target) in entries {
-                info!("  {}", mutant.display(&target));
+                info!("  {}", mutant.display(target));
             }
             info!(""); // Empty line between targets
         }

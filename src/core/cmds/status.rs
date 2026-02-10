@@ -70,6 +70,7 @@ async fn generate_status_report(
     registry: &LanguageRegistry,
 ) -> AppResult<StatusReport> {
     let targets = store.get_all_targets().await?;
+    // Targets are already sorted by path from database
 
     if targets.is_empty() {
         return Ok(StatusReport {

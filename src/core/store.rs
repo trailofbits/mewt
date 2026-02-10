@@ -196,6 +196,7 @@ impl SqlStore {
             r#"
             SELECT id, path, file_hash, text, language
             FROM targets
+            ORDER BY path
         "#
         )
         .fetch_all(&self.pool)
@@ -569,6 +570,9 @@ impl SqlStore {
                 .push_bind(mutation_slug);
         }
 
+        // Sort by target path, then by byte offset within each target
+        query_builder.push(" ORDER BY t.path, m.byte_offset");
+
         // Execute the query
         let query = query_builder.build();
         let records = query.fetch_all(&self.pool).await?;
@@ -675,6 +679,9 @@ impl SqlStore {
             }
             query_builder.push(")");
         }
+
+        // Sort by target path, then by byte offset within each target
+        query_builder.push(" ORDER BY t.path, m.byte_offset");
 
         // Execute the query
         let query = query_builder.build();

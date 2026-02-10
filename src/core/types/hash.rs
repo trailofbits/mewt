@@ -45,7 +45,7 @@ impl TryFrom<String> for Hash {
 
 #[derive(Debug, Error)]
 pub enum HashError {
-    #[error("Given string is not valid hexidecimal: {0}")]
+    #[error("Given string is not valid hexadecimal: {0}")]
     InvalidHex(String),
     #[error("Expected 32 bytes, got {0}")]
     InvalidLength(u32),

@@ -20,7 +20,7 @@ struct JsonTargets {
 
 pub async fn execute(store: SqlStore, format: String) -> AppResult<()> {
     let is_json_format = format == "json";
-    // Get all targets
+    // Get all targets (already sorted by path from database)
     let targets = store.get_all_targets().await?;
     if targets.is_empty() {
         if is_json_format {

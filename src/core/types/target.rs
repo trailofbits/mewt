@@ -128,7 +128,9 @@ impl Target {
             ));
         }
 
-        // Sort targets lexicographically by path (interleaves folder contents)
+        // Note: Targets are already sorted by path from load_single_file's alphabetical
+        // traversal of directories, but we sort again to ensure consistent ordering
+        // regardless of filesystem traversal order
         all_targets.sort_by(|a, b| a.path.cmp(&b.path));
 
         Ok(all_targets)
@@ -221,8 +223,7 @@ impl Target {
             let path_buf = PathBuf::from(path).canonicalize()?;
             targets.retain(|t| t.path == path_buf);
         }
-        // Sort targets lexicographically by path (interleaves folder contents)
-        targets.sort_by(|a, b| a.path.cmp(&b.path));
+        // Targets are already sorted by path from get_all_targets()
         Ok(targets)
     }
 

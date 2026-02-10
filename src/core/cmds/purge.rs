@@ -102,6 +102,7 @@ pub async fn execute_purge(args: PurgeArgs, store: SqlStore) -> AppResult<()> {
             // Purge all targets
             info!("Purging all targets...");
             let targets = store.get_all_targets().await?;
+            // Targets are already sorted by path from database
 
             if targets.is_empty() {
                 info!("No targets found in database.");
