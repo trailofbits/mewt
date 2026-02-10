@@ -82,17 +82,17 @@ pub async fn execute(format: String) -> AppResult<()> {
                 info!("  timeout: (not set)");
             }
 
-            if let Some(per_target) = &test.per_target
-                && !per_target.is_empty()
-            {
-                info!("  per_target:");
-                for rule in per_target {
-                    info!("    - glob: {}", rule.glob);
-                    if let Some(cmd) = &rule.cmd {
-                        info!("      cmd: {}", cmd);
-                    }
-                    if let Some(timeout) = rule.timeout {
-                        info!("      timeout: {}s", timeout);
+            if let Some(per_target) = &test.per_target {
+                if !per_target.is_empty() {
+                    info!("  per_target:");
+                    for rule in per_target {
+                        info!("    - glob: {}", rule.glob);
+                        if let Some(cmd) = &rule.cmd {
+                            info!("      cmd: {}", cmd);
+                        }
+                        if let Some(timeout) = rule.timeout {
+                            info!("      timeout: {}s", timeout);
+                        }
                     }
                 }
             }
