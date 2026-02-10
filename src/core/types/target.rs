@@ -128,6 +128,9 @@ impl Target {
             ));
         }
 
+        // Sort targets lexicographically by path (interleaves folder contents)
+        all_targets.sort_by(|a, b| a.path.cmp(&b.path));
+
         Ok(all_targets)
     }
 
@@ -213,13 +216,14 @@ impl Target {
         store: &SqlStore,
         target_path: Option<String>,
     ) -> io::Result<Vec<Target>> {
-        let targets = store.get_all_targets().await.map_err(io::Error::other)?;
+        let mut targets = store.get_all_targets().await.map_err(io::Error::other)?;
         if let Some(path) = target_path {
             let path_buf = PathBuf::from(path).canonicalize()?;
-            Ok(targets.into_iter().filter(|t| t.path == path_buf).collect())
-        } else {
-            Ok(targets)
+            targets.retain(|t| t.path == path_buf);
         }
+        // Sort targets lexicographically by path (interleaves folder contents)
+        targets.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(targets)
     }
 
     pub fn generate_mutants(

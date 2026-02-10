@@ -10,10 +10,9 @@ This project has Claude Code skills for specialized tasks:
 
 Invoke skills using the Skill tool when working on related tasks.
 
-## Issue Tracking with `bd`
-- `bd list` - see all open issues
-- `bd show <issue-id>` - get full details (e.g., `bd show mewt-2`)
-- Issue IDs: `mewt-N` format
+## Issue Tracking
+- `ls .todo/` - see all task files, or use associated agent extensions
+- After resolving a todo, do not delete the associated file until the user has reviewed you changes
 
 ## Parallel Workflows with `wt`
 
