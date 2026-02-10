@@ -490,24 +490,25 @@ impl TestRunner {
             }
 
             // If we're filtering by mutation type, check if this one matches
-            if let Some(slugs) = &allowed_slugs
-                && !slugs.is_empty()
-            {
-                // Check if the mutant's slug is in our allowed list
-                if !slugs.iter().any(|s| s == &mutant.mutation_slug) {
-                    // Skip this mutant as its slug is not in our allowed list
-                    skipped += 1;
-                    if let Some(bar) = &self.campaign_bar {
-                        bar.inc(1);
-                    }
-                    continue;
-                } else if !warned_invalid_slugs.contains(&mutant.mutation_slug) {
-                    // For invalid slugs, we'll warn the user but only once per slug
-                    let valid_slugs = self.registry.get_engine(language).unwrap().get_all_slugs();
+            if let Some(slugs) = &allowed_slugs {
+                if !slugs.is_empty() {
+                    // Check if the mutant's slug is in our allowed list
+                    if !slugs.iter().any(|s| s == &mutant.mutation_slug) {
+                        // Skip this mutant as its slug is not in our allowed list
+                        skipped += 1;
+                        if let Some(bar) = &self.campaign_bar {
+                            bar.inc(1);
+                        }
+                        continue;
+                    } else if !warned_invalid_slugs.contains(&mutant.mutation_slug) {
+                        // For invalid slugs, we'll warn the user but only once per slug
+                        let valid_slugs =
+                            self.registry.get_engine(language).unwrap().get_all_slugs();
 
-                    if !valid_slugs.contains(&mutant.mutation_slug) {
-                        warn!("Unknown mutation slug: {}", mutant.mutation_slug);
-                        warned_invalid_slugs.push(mutant.mutation_slug.clone());
+                        if !valid_slugs.contains(&mutant.mutation_slug) {
+                            warn!("Unknown mutation slug: {}", mutant.mutation_slug);
+                            warned_invalid_slugs.push(mutant.mutation_slug.clone());
+                        }
                     }
                 }
             }
@@ -561,13 +562,13 @@ impl TestRunner {
         let result = self.run_and_wait();
 
         // Handle interruption specially
-        if let Err(e) = &result
-            && e.kind() == io::ErrorKind::Interrupted
-        {
-            // Just restore the file and exit without creating an outcome
-            target.restore()?;
-            self.has_active_mutation = false;
-            return Ok(());
+        if let Err(e) = &result {
+            if e.kind() == io::ErrorKind::Interrupted {
+                // Just restore the file and exit without creating an outcome
+                target.restore()?;
+                self.has_active_mutation = false;
+                return Ok(());
+            }
         }
 
         let (status, output) = result?;
@@ -689,13 +690,13 @@ impl TestRunner {
         }
 
         loop {
-            if let Some(timeout) = self.timeout
-                && start.elapsed() >= timeout
-            {
-                warn!("test timeout reached, killing process");
-                let _ = child.kill();
-                let _ = child.wait();
-                return Ok((Status::Timeout, format!("{stdout}\n\n{stderr}")));
+            if let Some(timeout) = self.timeout {
+                if start.elapsed() >= timeout {
+                    warn!("test timeout reached, killing process");
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Ok((Status::Timeout, format!("{stdout}\n\n{stderr}")));
+                }
             }
 
             // Check if we should terminate due to ctrl-c
@@ -776,12 +777,12 @@ impl TestRunner {
     pub fn cleanup(&mut self) -> io::Result<()> {
         info!("Running cleanup...");
         // Restore original file if mutation is active
-        if self.has_active_mutation
-            && let Some(target) = &self.current_target
-        {
-            info!("Restoring original file after interrupted mutation");
-            target.restore()?;
-            self.has_active_mutation = false;
+        if self.has_active_mutation {
+            if let Some(target) = &self.current_target {
+                info!("Restoring original file after interrupted mutation");
+                target.restore()?;
+                self.has_active_mutation = false;
+            }
         }
         Ok(())
     }

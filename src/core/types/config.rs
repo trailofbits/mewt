@@ -226,10 +226,10 @@ pub fn config() -> &'static Config {
     CONFIG.get_or_init(|| {
         let mut cfg = Config::default();
         // Apply nearest config file found by walking up from cwd
-        if let Some(path) = find_nearest_config_file()
-            && let Some(file_cfg) = read_config_file(&path)
-        {
-            apply_file_config(&mut cfg, &file_cfg);
+        if let Some(path) = find_nearest_config_file() {
+            if let Some(file_cfg) = read_config_file(&path) {
+                apply_file_config(&mut cfg, &file_cfg);
+            }
         }
         cfg
     })
@@ -239,10 +239,10 @@ pub fn init_with_overrides(overrides: &CliOverrides) {
     let mut cfg = Config::default();
 
     // 1) Config file: walk up from cwd and use the first config file found
-    if let Some(path) = find_nearest_config_file()
-        && let Some(file_cfg) = read_config_file(&path)
-    {
-        apply_file_config(&mut cfg, &file_cfg);
+    if let Some(path) = find_nearest_config_file() {
+        if let Some(file_cfg) = read_config_file(&path) {
+            apply_file_config(&mut cfg, &file_cfg);
+        }
     }
 
     // 2) CLI arguments (highest priority). Only override if user specified.
@@ -316,10 +316,10 @@ fn apply_cli_overrides(cfg: &mut Config, overrides: &CliOverrides) {
 
     // Log overrides
     let mut log = cfg.log.clone().unwrap_or_default();
-    if let Some(level) = &overrides.log_level
-        && !level.trim().is_empty()
-    {
-        log.level = Some(level.trim().to_string());
+    if let Some(level) = &overrides.log_level {
+        if !level.trim().is_empty() {
+            log.level = Some(level.trim().to_string());
+        }
     }
     if let Some(color_str) = &overrides.log_color {
         match color_str.to_lowercase().as_str() {
@@ -378,20 +378,20 @@ pub fn resolve_test_for_path(
     let test = config().test();
 
     // If we have a resolved command from CLI, use it
-    if let Some(cmd) = resolved_cmd
-        && !cmd.trim().is_empty()
-    {
-        return (Some(cmd.to_string()), resolved_timeout);
+    if let Some(cmd) = resolved_cmd {
+        if !cmd.trim().is_empty() {
+            return (Some(cmd.to_string()), resolved_timeout);
+        }
     }
 
     // Per-target rules: first match wins
     let path_buf = PathBuf::from(path);
     for rule in test.per_target() {
-        if glob_matches(&rule.glob, &path_buf)
-            && let Some(cmd) = &rule.cmd
-        {
-            let timeout = resolved_timeout.or(rule.timeout).or(test.timeout());
-            return (Some(cmd.clone()), timeout);
+        if glob_matches(&rule.glob, &path_buf) {
+            if let Some(cmd) = &rule.cmd {
+                let timeout = resolved_timeout.or(rule.timeout).or(test.timeout());
+                return (Some(cmd.clone()), timeout);
+            }
         }
     }
 

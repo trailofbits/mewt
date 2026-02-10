@@ -59,3 +59,8 @@ cc = "1.0"
 [profile.dist]
 inherits = "release"
 lto = "thin"
+
+# Clippy lints configuration
+[lints.clippy]
+# Allow nested ifs instead of let-chains for broader edition compatibility
+collapsible_if = "allow"

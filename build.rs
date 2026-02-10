@@ -36,15 +36,15 @@ fn main() {
     // The issue is cc crate converts aarch64-apple-darwin -> arm64-apple-macosx
     // but Nix expects arm64-apple-darwin
     unsafe {
-        if let Ok(target) = std::env::var("TARGET")
-            && target == "aarch64-apple-darwin"
-        {
-            // Force cc crate to use the darwin naming that Nix expects
-            std::env::set_var(
-                "CC_aarch64_apple_darwin",
-                std::env::var("CC").unwrap_or_else(|_| "clang".to_string()),
-            );
-            std::env::set_var("CFLAGS_aarch64_apple_darwin", "-target arm64-apple-darwin");
+        if let Ok(target) = std::env::var("TARGET") {
+            if target == "aarch64-apple-darwin" {
+                // Force cc crate to use the darwin naming that Nix expects
+                std::env::set_var(
+                    "CC_aarch64_apple_darwin",
+                    std::env::var("CC").unwrap_or_else(|_| "clang".to_string()),
+                );
+                std::env::set_var("CFLAGS_aarch64_apple_darwin", "-target arm64-apple-darwin");
+            }
         }
     }
 

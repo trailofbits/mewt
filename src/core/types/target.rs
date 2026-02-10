@@ -58,11 +58,12 @@ impl Target {
 
             if path.is_file() {
                 // Direct file reference
-                if !is_path_excluded(&path, &resolved_targets.ignore)
-                    && let Some(target) =
+                if !is_path_excluded(&path, &resolved_targets.ignore) {
+                    if let Some(target) =
                         Self::load_single_file(path, store, registry, mutations).await?
-                {
-                    all_targets.push(target);
+                    {
+                        all_targets.push(target);
+                    }
                 }
             } else if path.is_dir() {
                 // Walk directory
@@ -186,11 +187,12 @@ impl Target {
         for entry in fs::read_dir(dir_path)? {
             let path = entry?.path();
             if path.is_file() {
-                if !is_path_excluded(&path, ignore_patterns)
-                    && let Some(target) =
+                if !is_path_excluded(&path, ignore_patterns) {
+                    if let Some(target) =
                         Self::load_single_file(path, store, registry, mutations).await?
-                {
-                    targets.push(target);
+                    {
+                        targets.push(target);
+                    }
                 }
             } else if path.is_dir() {
                 let targets_from_subdir = Box::pin(Self::load_from_directory(
