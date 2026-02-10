@@ -136,14 +136,9 @@ impl LanguageEngine for TolkLanguageEngine {
                     .map(|p| Mutant::from_partial(p, target, "WF")),
                 ),
                 "AS" => all_mutants.extend(
-                    patterns::swap_args(
-                        root,
-                        source,
-                        &[nodes::FUNCTION_CALL],
-                        fields::ARGUMENTS,
-                    )
-                    .into_iter()
-                    .map(|p| Mutant::from_partial(p, target, "AS")),
+                    patterns::swap_args(root, source, &[nodes::FUNCTION_CALL], fields::ARGUMENTS)
+                        .into_iter()
+                        .map(|p| Mutant::from_partial(p, target, "AS")),
                 ),
                 "AOS" => all_mutants.extend(
                     patterns::shuffle_operators(
@@ -186,14 +181,9 @@ impl LanguageEngine for TolkLanguageEngine {
                     .map(|p| Mutant::from_partial(p, target, "BAOS")),
                 ),
                 "BL" => all_mutants.extend(
-                    patterns::shuffle_nodes(
-                        root,
-                        source,
-                        &[nodes::BOOLEAN],
-                        &["true", "false"],
-                    )
-                    .into_iter()
-                    .map(|p| Mutant::from_partial(p, target, "BL")),
+                    patterns::shuffle_nodes(root, source, &[nodes::BOOLEAN], &["true", "false"])
+                        .into_iter()
+                        .map(|p| Mutant::from_partial(p, target, "BL")),
                 ),
                 "COS" => all_mutants.extend(
                     patterns::shuffle_operators(
