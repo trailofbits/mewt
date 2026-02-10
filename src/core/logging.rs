@@ -2,7 +2,7 @@
 //! - Logs go to stdout via a custom writer (`BarAwareWriter`).
 //! - When a bar is active, completed lines use `ProgressBar::println`, preserving the bar.
 //! - Progress bars render on stderr (indicatif default); logs stay on stdout.
-//! - Log level comes from `RUST_LOG` or `MEWT_LOG`; default is Info.
+//! - Log level comes from CLI flags or config file; default is Info.
 //! - Colors are applied with `console::style`.
 //! - A `Mutex<Vec<u8>>` buffers bytes to assemble whole lines without interleaving.
 
@@ -133,9 +133,9 @@ impl Write for BarAwareWriter {
 }
 
 /// Initialize logging with `fern`, using `BarAwareWriter` to coexist with active
-/// progress bars. Level comes from `RUST_LOG`/`MEWT_LOG`, default Info.
+/// progress bars. Level comes from config, default Info.
 pub fn init_logging() {
-    let level = match config().log.level.to_lowercase().as_str() {
+    let level = match config().log().level().to_lowercase().as_str() {
         "trace" => LevelFilter::Trace,
         "debug" => LevelFilter::Debug,
         "info" => LevelFilter::Info,

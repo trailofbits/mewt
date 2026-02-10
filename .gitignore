@@ -2,6 +2,7 @@
 *.sqlite*
 .direnv/
 .env
+mewt.toml
 
 # Cache
 .cargo

@@ -1,5 +1,6 @@
 use log::info;
 use serde::Serialize;
+use std::str::FromStr;
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
@@ -14,7 +15,6 @@ pub struct ResultsFilters {
     pub language: Option<String>,
     pub mutation_type: Option<String>,
     pub line: Option<u32>,
-    pub file: Option<String>,
     pub format: String,
 }
 
@@ -127,6 +127,11 @@ impl OutcomeCounter {
     }
 }
 
+// Normalize status string to PascalCase using case-insensitive parsing
+fn normalize_status(status_str: Option<String>) -> Option<String> {
+    status_str.and_then(|s| Status::from_str(&s).ok().map(|status| status.to_string()))
+}
+
 // Print outcome details and verbose information if requested
 fn print_outcome(mutant: &Mutant, target: &Target, outcome: &Outcome, verbose: bool) {
     info!(
@@ -156,7 +161,7 @@ fn print_outcome(mutant: &Mutant, target: &Target, outcome: &Outcome, verbose: b
     }
 }
 
-pub async fn execute(
+pub async fn execute_results(
     store: SqlStore,
     filters: ResultsFilters,
     registry: &LanguageRegistry,
@@ -269,20 +274,20 @@ async fn get_results_data(
     }
 
     // Use filtered query if any filters are provided
-    let use_filters = filters.status.is_some()
+    let use_filters = filters.target.is_some()
+        || filters.status.is_some()
         || filters.language.is_some()
         || filters.mutation_type.is_some()
-        || filters.line.is_some()
-        || filters.file.is_some();
+        || filters.line.is_some();
 
     if use_filters {
         return store
             .get_outcomes_filtered(
-                filters.status.clone(),
+                filters.target.clone(),
+                normalize_status(filters.status.clone()),
                 filters.language.clone(),
                 filters.mutation_type.clone(),
                 filters.line,
-                filters.file.clone(),
             )
             .await
             .map_err(|e| e.into());
@@ -331,11 +336,11 @@ async fn print_table_format(
     }
 
     // Use filtered query if any filters are provided
-    let use_filters = filters.status.is_some()
+    let use_filters = filters.target.is_some()
+        || filters.status.is_some()
         || filters.language.is_some()
         || filters.mutation_type.is_some()
-        || filters.line.is_some()
-        || filters.file.is_some();
+        || filters.line.is_some();
 
     if use_filters {
         if data.is_empty() {

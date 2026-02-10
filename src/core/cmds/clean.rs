@@ -16,7 +16,10 @@ pub async fn execute_clean(store: SqlStore) -> AppResult<()> {
         // Check if the file exists
         let path = &target.path;
         if !path.exists() {
-            info!("Target file no longer exists: {}", target.display());
+            info!(
+                "Removing target file that no longer exists: {}",
+                target.display()
+            );
             store.remove_target(target.id).await?;
             removed_count += 1;
             continue;
@@ -29,7 +32,7 @@ pub async fn execute_clean(store: SqlStore) -> AppResult<()> {
 
                 // Compare with stored hash
                 if current_hash.to_hex() != target.file_hash.to_hex() {
-                    info!("Target file hash has changed: {}", target.display());
+                    info!("Removing modified target file:  {}", path.display());
                     store.remove_target(target.id).await?;
                     removed_count += 1;
                 }

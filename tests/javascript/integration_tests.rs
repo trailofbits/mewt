@@ -110,3 +110,134 @@ function calc(a, b) {
     );
     assert!(los_count > 0, "Should generate logical operator mutations");
 }
+
+#[test]
+fn test_typescript_generics_not_mutated() {
+    let source = r#"
+// TypeScript generics should NOT be mutated
+const emitter = module.get<EventEmitter2>(EventEmitter2);
+const result = foo<string, number>(arg1, arg2);
+
+function generic<T>(value: T): T {
+    return value;
+}
+
+// Real comparisons SHOULD be mutated
+if (a < b && c > d) {
+    return true;
+}
+
+const max = x >= y ? x : y;
+"#;
+    let (_temp_dir, target) = create_test_target(source, "test.ts");
+    let engine = JavaScriptLanguageEngine::new();
+    let mutants = engine.apply_all_mutations(&target);
+
+    // Filter to just COS mutations
+    let cos_mutants: Vec<_> = mutants
+        .iter()
+        .filter(|m| m.mutation_slug.starts_with("COS"))
+        .collect();
+
+    // Should have COS mutations (from the actual comparison operators)
+    assert!(
+        !cos_mutants.is_empty(),
+        "Should generate COS mutations for real comparison operators"
+    );
+
+    // Verify no mutations contain "get<", "foo<", or "generic<"
+    // (these would indicate mutations of TypeScript generics)
+    for mutant in &cos_mutants {
+        assert!(
+            !mutant.new_text.contains("get<")
+                && !mutant.new_text.contains("get==")
+                && !mutant.new_text.contains("get!=")
+                && !mutant.new_text.contains("get<=")
+                && !mutant.new_text.contains("get>=")
+                && !mutant.new_text.contains("foo<")
+                && !mutant.new_text.contains("foo==")
+                && !mutant.new_text.contains("foo!=")
+                && !mutant.new_text.contains("foo<=")
+                && !mutant.new_text.contains("foo>=")
+                && !mutant.new_text.contains("generic<")
+                && !mutant.new_text.contains("generic==")
+                && !mutant.new_text.contains("generic!=")
+                && !mutant.new_text.contains("generic<=")
+                && !mutant.new_text.contains("generic>="),
+            "COS mutation should not mutate TypeScript generic brackets: {}",
+            mutant.new_text
+        );
+    }
+
+    // Verify we have mutations for the actual comparison operators
+    // (The old_text will just be the operator, not the full expression)
+    let has_less_than_mutation = cos_mutants.iter().any(|m| m.old_text == "<");
+    let has_greater_than_mutation = cos_mutants.iter().any(|m| m.old_text == ">");
+    let has_gte_mutation = cos_mutants.iter().any(|m| m.old_text == ">=");
+
+    assert!(
+        has_less_than_mutation && has_greater_than_mutation && has_gte_mutation,
+        "Should mutate actual comparison operators (<, >, >=) in conditions"
+    );
+}
+
+#[test]
+fn test_tsx_jsx_and_generics_not_mutated() {
+    let source = r#"
+// TSX with both JSX elements and TypeScript generics
+function App<T>(props: { value: T }) {
+    return <div>Hello</div>;
+}
+
+const result = foo<string, number>(arg1, arg2);
+const element = <Component prop="value" />;
+
+// Real comparisons SHOULD be mutated
+if (a < b && c > d) {
+    return true;
+}
+"#;
+    let (_temp_dir, target) = create_test_target(source, "test.tsx");
+    let engine = JavaScriptLanguageEngine::new();
+    let mutants = engine.apply_all_mutations(&target);
+
+    // Filter to just COS mutations
+    let cos_mutants: Vec<_> = mutants
+        .iter()
+        .filter(|m| m.mutation_slug.starts_with("COS"))
+        .collect();
+
+    // Should have COS mutations (from the actual comparison operators)
+    assert!(
+        !cos_mutants.is_empty(),
+        "Should generate COS mutations for real comparison operators"
+    );
+
+    // Verify no mutations contain JSX tags or generic brackets
+    for mutant in &cos_mutants {
+        let text = &mutant.new_text;
+        assert!(
+            !text.contains("<div")
+                && !text.contains("</div")
+                && !text.contains("<Component")
+                && !text.contains("App<")
+                && !text.contains("foo<")
+                && !text.contains("foo==")
+                && !text.contains("foo!=")
+                && !text.contains("App==")
+                && !text.contains("App!="),
+            "COS mutation should not mutate TSX JSX elements or TypeScript generics: {}",
+            text
+        );
+    }
+
+    // Verify we have mutations for the actual comparison operators
+    let has_comparison_mutations = cos_mutants
+        .iter()
+        .any(|m| m.old_text == "<" || m.old_text == ">" || m.old_text == ">=");
+
+    assert!(
+        has_comparison_mutations,
+        "Should mutate actual comparison operators in TSX files"
+    );
+}

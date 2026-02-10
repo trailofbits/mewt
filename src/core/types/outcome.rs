@@ -5,7 +5,7 @@ use serde::Serialize;
 use strum::{Display, EnumString};
 
 #[derive(Clone, Debug, Display, EnumString, PartialEq, Serialize)]
-#[strum(serialize_all = "PascalCase")]
+#[strum(serialize_all = "PascalCase", ascii_case_insensitive)]
 pub enum Status {
     // bad, mutant is valid
     Uncaught,

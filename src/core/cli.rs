@@ -1,6 +1,5 @@
 use clap::{Parser, Subcommand};
 
-/// mewt - Mutation testing framework
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
@@ -14,16 +13,12 @@ pub struct Args {
     pub db: Option<String>,
 
     /// Logging level (overrides env/config). One of: trace, debug, info, warn, error
-    #[arg(long, global = true)]
+    #[arg(long = "log.level", global = true)]
     pub log_level: Option<String>,
 
     /// Logging color control: "on" to force colors, "off" to disable; omit for auto
-    #[arg(long, global = true)]
+    #[arg(long = "log.color", global = true)]
     pub log_color: Option<String>,
-
-    /// Comma-separated substrings; any target path containing any will be ignored
-    #[arg(long, global = true)]
-    pub ignore: Option<String>,
 
     #[command(subcommand)]
     pub command: Commands,
@@ -64,30 +59,35 @@ pub enum Commands {
 /// Arguments for the run command
 #[derive(Parser, Debug)]
 pub struct RunArgs {
-    /// Target to mutate.
+    /// Target(s) to mutate (files or directories).
     /// If a file, mutate that file.
     /// If a directory, mutate all files inside the directory.
     /// If not provided, skip mutation generation and test existing mutants without outcomes.
+    /// Replaces config [targets].include if provided.
     #[arg(value_name = "TARGET")]
-    pub target: Option<String>,
+    pub targets: Vec<String>,
 
-    /// Command to run the tests for the target
-    #[arg(
-        long,
-        help = "Test command; highest non-empty source wins (CLI > env > file > default)"
-    )]
-    pub test_cmd: Option<String>,
-
-    /// Timeout in seconds after which a given test run will be considered failing.
-    /// Defaults to 2x the baseline test runtime.
-    #[arg(long)]
-    pub timeout: Option<u32>,
+    /// Comma-separated substrings; any target path containing any will be ignored.
+    /// Replaces config [targets].ignore if provided.
+    #[arg(long = "ignore-targets")]
+    pub ignore_targets: Option<String>,
 
     /// Comma-separated list of mutation slugs to test (e.g., "ER,CR").
-    /// Run `mewt print mutations` for a list of slugs.
-    /// Highest non-empty source wins for the whitelist (CLI > env > file > default none).
+    /// Use 'print mutations' subcommand for a full list of available slugs.
+    /// If omitted, all mutation types are enabled.
+    /// Replaces config [run].mutations if provided.
     #[arg(long)]
     pub mutations: Option<String>,
+
+    /// Test command for all targets.
+    /// Replaces config [test].cmd if provided.
+    #[arg(long = "test.cmd")]
+    pub test_cmd: Option<String>,
+
+    /// Test timeout in seconds.
+    /// Replaces config [test].timeout if provided.
+    #[arg(long = "test.timeout")]
+    pub test_timeout: Option<u32>,
 
     /// Test all mutants even if more severe mutants on the same line were uncaught.
     /// By default, less severe mutants are skipped if more severe ones were uncaught.
@@ -102,11 +102,17 @@ pub struct RunArgs {
 /// Arguments for the mutate command
 #[derive(Parser, Debug)]
 pub struct MutateArgs {
-    /// Target to mutate.
+    /// Target(s) to mutate (files or directories).
     /// If a file, mutate that file.
     /// If a directory, mutate all files inside the directory.
-    #[arg(value_name = "TARGET")]
-    pub target: String,
+    /// Replaces config [targets].include if provided.
+    #[arg(value_name = "TARGET", required = true)]
+    pub targets: Vec<String>,
+
+    /// Comma-separated substrings; any target path containing any will be ignored.
+    /// Replaces config [targets].ignore if provided.
+    #[arg(long = "ignore-targets")]
+    pub ignore_targets: Option<String>,
 }
 
 /// Arguments for the list-mutations command
@@ -131,9 +137,6 @@ pub enum PrintArgs {
     /// List all available mutations
     Mutations(PrintMutationsArgs),
 
-    /// List outcomes of mutation tests
-    Results(PrintResultsArgs),
-
     /// List all saved targets and their status
     Targets(PrintTargetsArgs),
 
@@ -142,6 +145,9 @@ pub enum PrintArgs {
 
     /// List all mutants or filter by target
     Mutants(PrintMutantsArgs),
+
+    /// Print the effective global configuration
+    Config(PrintConfigArgs),
 }
 
 /// Arguments for the print targets subcommand
@@ -159,6 +165,14 @@ pub struct PrintMutationsArgs {
     #[arg(long)]
     pub language: Option<String>,
 
+    /// Output format: "table" (default) or "json"
+    #[arg(long, default_value = "table")]
+    pub format: String,
+}
+
+/// Arguments for the print config subcommand
+#[derive(Parser, Debug)]
+pub struct PrintConfigArgs {
     /// Output format: "table" (default) or "json"
     #[arg(long, default_value = "table")]
     pub format: String,
@@ -199,55 +213,7 @@ pub struct ResultsArgs {
     #[arg(long)]
     pub line: Option<u32>,
 
-    /// Filter by file path (substring match)
-    #[arg(long)]
-    pub file: Option<String>,
-
     /// Output format: "table" (default), "ids" (just IDs), "json", or "sarif"
-    #[arg(long, default_value = "table")]
-    pub format: String,
-}
-
-/// Arguments for the print results subcommand
-#[derive(Parser, Debug)]
-pub struct PrintResultsArgs {
-    /// Filter outcomes by target path
-    #[arg(long)]
-    pub target: Option<String>,
-
-    /// Show verbose output including test output and timing information
-    #[arg(long, default_value = "false")]
-    pub verbose: bool,
-
-    /// Show only the outcome for a specific mutant ID
-    #[arg(long)]
-    pub id: Option<i64>,
-
-    /// Show all outcomes instead of only uncaught ones
-    #[arg(long, default_value = "false")]
-    pub all: bool,
-
-    /// Filter by status (e.g., Uncaught, TestFail, Skipped, Timeout)
-    #[arg(long)]
-    pub status: Option<String>,
-
-    /// Filter by language (e.g., rust, python, javascript)
-    #[arg(long)]
-    pub language: Option<String>,
-
-    /// Filter by mutation type slug (e.g., ER, CR, BR)
-    #[arg(long)]
-    pub mutation_type: Option<String>,
-
-    /// Filter by line number
-    #[arg(long)]
-    pub line: Option<u32>,
-
-    /// Filter by file path (substring match)
-    #[arg(long)]
-    pub file: Option<String>,
-
-    /// Output format: "table" (default), "ids" (just IDs), or "json"
     #[arg(long, default_value = "table")]
     pub format: String,
 }
@@ -270,10 +236,6 @@ pub struct PrintMutantsArgs {
     /// Filter by line number
     #[arg(long)]
     pub line: Option<u32>,
-
-    /// Filter by file path (substring match)
-    #[arg(long)]
-    pub file: Option<String>,
 
     /// Filter by mutation type slug (e.g., ER, CR, BR)
     #[arg(long)]
@@ -304,17 +266,15 @@ pub struct TestArgs {
     #[arg(long)]
     pub ids_file: Option<String>,
 
-    /// Command to run the tests for the target
-    #[arg(
-        long,
-        help = "Test command; highest non-empty source wins (CLI > env > file > default)"
-    )]
+    /// Test command for all targets.
+    /// Replaces config [test].cmd if provided.
+    #[arg(long = "test.cmd")]
     pub test_cmd: Option<String>,
 
-    /// Timeout in seconds after which a given test run will be considered failing.
-    /// Defaults to 2x the baseline test runtime.
-    #[arg(long)]
-    pub timeout: Option<u32>,
+    /// Test timeout in seconds.
+    /// Replaces config [test].timeout if provided.
+    #[arg(long = "test.timeout")]
+    pub test_timeout: Option<u32>,
 
     /// Stream stdout and stderr from baseline test to stdout
     #[arg(long)]

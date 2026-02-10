@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use clap::Parser;
+use clap::{CommandFactory, FromArgMatches};
 use log::{debug, warn};
 
 use crate::LanguageRegistry;
@@ -12,10 +12,27 @@ use crate::core::cmds;
 use crate::core::logging::init_logging;
 use crate::core::store::SqlStore;
 use crate::types::AppResult;
-use crate::types::config::{CliOverrides, config, init_with_overrides};
+use crate::types::config::{CliOverrides, config, init_with_overrides, set_namespace};
 
-pub async fn run_main(registry: Arc<LanguageRegistry>) -> AppResult<()> {
-    let args = Args::parse();
+pub async fn run_main(
+    registry: Arc<LanguageRegistry>,
+    namespace: &str,
+    description: &str,
+) -> AppResult<()> {
+    // Set namespace at start (derives config/db filenames)
+    set_namespace(namespace);
+
+    // Override CLI help text with namespace and description
+    // Leak strings to get 'static lifetime for clap
+    let namespace_static: &'static str = Box::leak(namespace.to_string().into_boxed_str());
+    let description_static: &'static str =
+        Box::leak(format!("{} - {}", description, namespace).into_boxed_str());
+
+    let mut cmd = Args::command();
+    cmd = cmd.name(namespace_static).about(description_static);
+    let matches = cmd.get_matches();
+    let args = Args::from_arg_matches(&matches)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e.to_string()))?;
 
     // Handle global arguments
     if let Some(cwd_arg) = args.cwd.as_ref() {
@@ -30,21 +47,6 @@ pub async fn run_main(registry: Arc<LanguageRegistry>) -> AppResult<()> {
         db: args.db.clone(),
         log_level: args.log_level.clone(),
         log_color: args.log_color.clone(),
-        ignore_targets: args.ignore.clone(),
-        mutations_slugs: match &args.command {
-            Commands::Run(run_args) => run_args.mutations.clone(),
-            _ => None,
-        },
-        test_cmd: match &args.command {
-            Commands::Run(run_args) => run_args.test_cmd.clone(),
-            Commands::Test(test_args) => test_args.test_cmd.clone(),
-            _ => None,
-        },
-        test_timeout: match &args.command {
-            Commands::Run(run_args) => run_args.timeout,
-            Commands::Test(test_args) => test_args.timeout,
-            _ => None,
-        },
     };
 
     // Initialize configuration (files, env, then CLI overrides)
@@ -54,8 +56,8 @@ pub async fn run_main(registry: Arc<LanguageRegistry>) -> AppResult<()> {
     init_logging();
 
     // Initialize the database
-    let db_path = &config().general.db;
-    let db_file = PathBuf::from(db_path);
+    let db_path = config().db();
+    let db_file = PathBuf::from(&db_path);
 
     if !db_file.exists() {
         debug!(
@@ -83,9 +85,32 @@ pub async fn run_main(registry: Arc<LanguageRegistry>) -> AppResult<()> {
     // Dispatch to appropriate command
     let exit_code = match args.command {
         Commands::Run(run_args) => {
-            let summary =
-                cmds::execute_run(run_args, store, Arc::clone(&running), Arc::clone(&registry))
-                    .await?;
+            // Resolve command-specific options
+            let resolved_targets = if !run_args.targets.is_empty()
+                || run_args.ignore_targets.is_some()
+            {
+                Some(
+                    config()
+                        .resolve_targets(&run_args.targets, run_args.ignore_targets.as_deref())?,
+                )
+            } else {
+                None
+            };
+            let mutations = config().resolve_mutations(run_args.mutations.as_deref());
+            let test_cmd = config().resolve_test_cmd(run_args.test_cmd.as_deref());
+            let test_timeout = config().resolve_test_timeout(run_args.test_timeout);
+
+            let summary = cmds::execute_run(
+                run_args,
+                store,
+                Arc::clone(&running),
+                Arc::clone(&registry),
+                resolved_targets,
+                mutations,
+                test_cmd,
+                test_timeout,
+            )
+            .await?;
 
             // Determine exit code based on campaign results
             match summary {
@@ -100,7 +125,19 @@ pub async fn run_main(registry: Arc<LanguageRegistry>) -> AppResult<()> {
             }
         }
         Commands::Mutate(mutate_args) => {
-            cmds::execute_mutate(mutate_args, store, Arc::clone(&registry)).await?;
+            // Resolve command-specific options
+            let resolved_targets = config()
+                .resolve_targets(&mutate_args.targets, mutate_args.ignore_targets.as_deref())?;
+            let mutations = config().resolve_mutations(None);
+
+            cmds::execute_mutate(
+                mutate_args,
+                store,
+                Arc::clone(&registry),
+                resolved_targets,
+                mutations,
+            )
+            .await?;
             0
         }
         Commands::Clean => {
@@ -108,7 +145,19 @@ pub async fn run_main(registry: Arc<LanguageRegistry>) -> AppResult<()> {
             0
         }
         Commands::Test(test_args) => {
-            cmds::execute_test(test_args, store, running, Arc::clone(&registry)).await?;
+            // Resolve command-specific options
+            let test_cmd = config().resolve_test_cmd(test_args.test_cmd.as_deref());
+            let test_timeout = config().resolve_test_timeout(test_args.test_timeout);
+
+            cmds::execute_test(
+                test_args,
+                store,
+                running,
+                Arc::clone(&registry),
+                test_cmd,
+                test_timeout,
+            )
+            .await?;
             0
         }
         Commands::Purge(purge_args) => {
@@ -131,7 +180,6 @@ pub async fn run_main(registry: Arc<LanguageRegistry>) -> AppResult<()> {
                     language: args.language,
                     mutation_type: args.mutation_type,
                     line: args.line,
-                    file: args.file,
                     format: args.format,
                 },
                 &registry,
@@ -150,25 +198,6 @@ pub async fn run_main(registry: Arc<LanguageRegistry>) -> AppResult<()> {
                             format: args.format,
                         }),
                         None,
-                        Arc::clone(&registry),
-                    )
-                    .await?
-                }
-                PrintArgs::Results(args) => {
-                    cmds::execute_print(
-                        cmds::print::PrintCommand::Results(cmds::print::ResultsFilters {
-                            target: args.target,
-                            verbose: args.verbose,
-                            id: args.id,
-                            all: args.all,
-                            status: args.status,
-                            language: args.language,
-                            mutation_type: args.mutation_type,
-                            line: args.line,
-                            file: args.file,
-                            format: args.format,
-                        }),
-                        Some(store),
                         Arc::clone(&registry),
                     )
                     .await?
@@ -194,13 +223,20 @@ pub async fn run_main(registry: Arc<LanguageRegistry>) -> AppResult<()> {
                         cmds::print::PrintCommand::Mutants(cmds::print::MutantsFilters {
                             target: args.target,
                             line: args.line,
-                            file: args.file,
                             mutation_type: args.mutation_type,
                             tested: args.tested,
                             untested: args.untested,
                             format: args.format,
                         }),
                         Some(store),
+                        Arc::clone(&registry),
+                    )
+                    .await?
+                }
+                PrintArgs::Config(args) => {
+                    cmds::execute_print(
+                        cmds::print::PrintCommand::Config(args.format),
+                        None,
                         Arc::clone(&registry),
                     )
                     .await?

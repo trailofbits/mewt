@@ -10,10 +10,14 @@ use crate::utils::{node_text, parse_source};
 use super::mutations::JAVASCRIPT_MUTATIONS;
 use super::syntax::{fields, nodes};
 
-static JAVASCRIPT_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
+static JS_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
+static TS_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
+static TSX_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
 
 unsafe extern "C" {
     fn tree_sitter_javascript() -> *const tree_sitter::ffi::TSLanguage;
+    fn tree_sitter_typescript() -> *const tree_sitter::ffi::TSLanguage;
+    fn tree_sitter_tsx() -> *const tree_sitter::ffi::TSLanguage;
 }
 
 pub struct JavaScriptLanguageEngine {
@@ -33,6 +37,32 @@ impl JavaScriptLanguageEngine {
         mutations.extend_from_slice(JAVASCRIPT_MUTATIONS);
         Self { mutations }
     }
+
+    fn javascript_language(&self) -> TsLanguage {
+        JS_LANGUAGE
+            .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_javascript()) })
+            .clone()
+    }
+
+    fn typescript_language(&self) -> TsLanguage {
+        TS_LANGUAGE
+            .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_typescript()) })
+            .clone()
+    }
+
+    fn tsx_language(&self) -> TsLanguage {
+        TSX_LANGUAGE
+            .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_tsx()) })
+            .clone()
+    }
+
+    fn get_extension(target: &Target) -> Option<String> {
+        target
+            .path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|s| s.to_string())
+    }
 }
 
 impl LanguageEngine for JavaScriptLanguageEngine {
@@ -45,9 +75,8 @@ impl LanguageEngine for JavaScriptLanguageEngine {
     }
 
     fn tree_sitter_language(&self) -> TsLanguage {
-        JAVASCRIPT_LANGUAGE
-            .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_javascript()) })
-            .clone()
+        // Default to JavaScript for compatibility
+        self.javascript_language()
     }
 
     fn get_mutations(&self) -> &[Mutation] {
@@ -56,7 +85,13 @@ impl LanguageEngine for JavaScriptLanguageEngine {
 
     fn apply_all_mutations(&self, target: &Target) -> Vec<Mutant> {
         let source = &target.text;
-        let tree = match parse_source(source, &self.tree_sitter_language()) {
+        let language = match Self::get_extension(target).as_deref() {
+            Some("ts") => self.typescript_language(),
+            Some("tsx") => self.tsx_language(),
+            Some("jsx") => self.javascript_language(), // JSX uses JS grammar
+            _ => self.javascript_language(),           // Default to JS
+        };
+        let tree = match parse_source(source, &language) {
             Some(t) => t,
             None => return Vec::new(),
         };

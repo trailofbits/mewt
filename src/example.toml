@@ -1,0 +1,76 @@
+## Configuration File
+##
+## Corresponding CLI flags use dotted notation matching this structure:
+##   db → --db
+##   log.level → --log.level
+##   log.color → --log.color
+##   test.cmd → --test.cmd (run, test commands)
+##   test.timeout → --test.timeout (run, test commands)
+
+## Database path (relative to this config file or absolute)
+db = "{namespace}.sqlite"
+
+[log]
+## Logging level: trace, debug, info, warn, error
+level = "info"
+
+## Force color output on/off, or omit for auto-detection based on terminal
+# color = true
+
+## Target discovery configuration (used by run and mutate commands)
+## Note: CLI overrides replace these config values, no merging
+[targets]
+
+## Include patterns: supports globs, files, and directories
+## Examples: ["src/**/*.rs"], ["src", "lib"], ["lib/*.py"]
+# include = ["src/**/*.rs"]
+
+## Ignore patterns: substring matching
+## Any path containing these substrings will be excluded
+## Examples: ["node_modules", "vendor", "target", ".cargo"]
+# ignore = ["target", "node_modules", "vendor"]
+
+## Run command configuration
+[run]
+
+## Whitelist specific mutation types by slug
+## Run the 'print mutations' subcommand to see all available mutation types
+## If omitted, all mutation types are enabled
+# mutations = ["ER", "CR", "BR", "AOD", "AOR"]
+
+## In comprehensive mode, all mutants are tested (default: false)
+## ie lower severity mutants will not be skipped if higher severity mutants on the same line are uncaught
+# comprehensive = false
+
+[test]
+# Default test command for all targets
+# This command will be run to verify mutants are caught by your test suite
+# cmd = "cargo test"
+
+# Default timeout in seconds (optional)
+# If omitted, defaults to 2x the baseline test runtime
+# timeout = 30
+
+# Per-target test rules (optional)
+# Ordered array where first matching glob wins
+# Each entry can override cmd and/or timeout for specific file patterns
+# More specific patterns should come BEFORE general patterns
+# Note: No CLI equivalent - use config file for complex per-target rules
+
+# Example 1: Critical files get extra scrutiny with slower, thorough tests
+# [[test.per_target]]
+# glob = "src/auth/*.rs"
+# cmd = "cargo test --release -- --test-threads=1"
+# timeout = 120
+
+# Example 2: Standard Rust files use default fast tests
+# [[test.per_target]]
+# glob = "*.rs"
+# cmd = "cargo test"
+# timeout = 60
+
+# Example 3: Different language needs different test command
+# [[test.per_target]]
+# glob = "*.go"
+# cmd = "go test ./..."
+# timeout = 30

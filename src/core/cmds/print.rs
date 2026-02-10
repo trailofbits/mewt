@@ -4,29 +4,15 @@ use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::types::{AppError, AppResult};
 
+pub mod config;
 pub mod mutant;
 pub mod mutants;
 pub mod mutations;
-pub mod outcomes;
 pub mod targets;
-
-pub struct ResultsFilters {
-    pub target: Option<String>,
-    pub verbose: bool,
-    pub id: Option<i64>,
-    pub all: bool,
-    pub status: Option<String>,
-    pub language: Option<String>,
-    pub mutation_type: Option<String>,
-    pub line: Option<u32>,
-    pub file: Option<String>,
-    pub format: String,
-}
 
 pub struct MutantsFilters {
     pub target: Option<String>,
     pub line: Option<u32>,
-    pub file: Option<String>,
     pub mutation_type: Option<String>,
     pub tested: bool,
     pub untested: bool,
@@ -40,10 +26,10 @@ pub struct MutationsFilters {
 
 pub enum PrintCommand {
     Mutations(MutationsFilters),
-    Results(ResultsFilters),
     Targets(String),
     Mutant(i64),
     Mutants(MutantsFilters),
+    Config(String),
 }
 
 pub async fn execute_print(
@@ -73,15 +59,6 @@ pub async fn execute_print(
         PrintCommand::Mutations(filters) => mutations::execute(filters, &registry)
             .await
             .map_err(AppError::Custom),
-        PrintCommand::Results(filters) => {
-            if let Some(store) = store {
-                outcomes::execute(store, filters, &registry).await
-            } else {
-                Err(AppError::Custom(
-                    "Store is required for listing outcomes".to_string(),
-                ))
-            }
-        }
         PrintCommand::Targets(format) => {
             if let Some(store) = store {
                 targets::execute(store, format).await
@@ -91,5 +68,6 @@ pub async fn execute_print(
                 ))
             }
         }
+        PrintCommand::Config(format) => config::execute(format).await,
     }
 }

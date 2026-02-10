@@ -756,6 +756,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
+name = "glob"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
+
+[[package]]
 name = "globset"
 version = "0.4.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1127,7 +1133,7 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "mewt"
-version = "1.1.0"
+version = "2.0.0"
 dependencies = [
  "cc",
  "chrono",
@@ -1137,6 +1143,7 @@ dependencies = [
  "ctrlc",
  "dirs-next",
  "fern",
+ "glob",
  "globset",
  "hex",
  "indicatif",

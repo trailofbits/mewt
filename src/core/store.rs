@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use sqlx::sqlite::{Sqlite, SqlitePool};
 use sqlx::{QueryBuilder, Row};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::types::{
@@ -213,6 +213,51 @@ impl SqlStore {
         }
 
         Ok(targets)
+    }
+
+    /// Get target IDs that match a glob pattern (file, dir, or glob) against database targets.
+    /// Returns None if no pattern provided (match all targets).
+    /// Returns Some(vec![...]) with matching target IDs if pattern provided.
+    pub async fn match_target_ids(&self, pattern: Option<String>) -> StoreResult<Option<Vec<i64>>> {
+        match pattern {
+            None => Ok(None), // No filter
+            Some(pattern) => {
+                let all_targets = self.get_all_targets().await?;
+                let path = PathBuf::from(&pattern);
+
+                let matching_ids: Vec<i64> = if path.exists() && path.is_file() {
+                    // Direct file match
+                    all_targets
+                        .iter()
+                        .filter(|t| t.path == path)
+                        .map(|t| t.id)
+                        .collect()
+                } else if path.exists() && path.is_dir() {
+                    // Directory match - all targets under this dir
+                    all_targets
+                        .iter()
+                        .filter(|t| t.path.starts_with(&path))
+                        .map(|t| t.id)
+                        .collect()
+                } else {
+                    // Try as glob pattern
+                    match glob::glob(&pattern) {
+                        Ok(paths) => {
+                            let glob_paths: HashSet<PathBuf> =
+                                paths.filter_map(Result::ok).collect();
+                            all_targets
+                                .iter()
+                                .filter(|t| glob_paths.contains(&t.path))
+                                .map(|t| t.id)
+                                .collect()
+                        }
+                        Err(_) => vec![], // Invalid glob, no matches
+                    }
+                };
+
+                Ok(Some(matching_ids))
+            }
+        }
     }
 
     pub async fn get_mutant(&self, id: i64) -> StoreResult<Mutant> {
@@ -456,12 +501,14 @@ impl SqlStore {
     /// Get mutants with optional filters applied via SQL queries
     pub async fn get_mutants_filtered(
         &self,
+        target: Option<String>,
         line: Option<u32>,
-        file: Option<String>,
         mutation_type: Option<String>,
         tested: bool,
         untested: bool,
     ) -> StoreResult<Vec<(Mutant, Target)>> {
+        // Get target IDs matching the pattern (if provided)
+        let target_ids = self.match_target_ids(target).await?;
         // Build the SQL query dynamically with proper parameter binding
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
             r#"
@@ -499,26 +546,19 @@ impl SqlStore {
             query_builder.push("o.mutant_id IS NULL");
         }
 
-        // Add line filter (convert 1-indexed user input to 0-indexed storage)
-        if let Some(line_num) = line {
+        // Add target filter (if target IDs were matched)
+        if let Some(ids) = &target_ids {
+            if ids.is_empty() {
+                // No matching targets, return empty result
+                return Ok(vec![]);
+            }
             add_separator(&mut query_builder, &mut has_where);
-            query_builder
-                .push("m.line_offset = ")
-                .push_bind((line_num.saturating_sub(1)) as i64);
-        }
-
-        // Add file filter (substring match on path)
-        if let Some(file_pattern) = file {
-            add_separator(&mut query_builder, &mut has_where);
-            // Escape LIKE wildcards in user input to treat them literally
-            let escaped_pattern = file_pattern
-                .replace('\\', "\\\\")
-                .replace('%', "\\%")
-                .replace('_', "\\_");
-            query_builder
-                .push("t.path LIKE ")
-                .push_bind(format!("%{}%", escaped_pattern))
-                .push(" ESCAPE '\\'");
+            query_builder.push("t.id IN (");
+            let mut separated = query_builder.separated(", ");
+            for id in ids {
+                separated.push_bind(*id);
+            }
+            query_builder.push(")");
         }
 
         // Add mutation type filter
@@ -554,18 +594,28 @@ impl SqlStore {
             results.push((mutant, target));
         }
 
+        // Apply line filter in Rust to check if line falls within mutation span
+        if let Some(line_num) = line {
+            results.retain(|(mutant, _)| {
+                let (start_line, end_line) = mutant.get_lines();
+                line_num >= start_line && line_num <= end_line
+            });
+        }
+
         Ok(results)
     }
 
     /// Get outcomes with optional filters applied via SQL queries
     pub async fn get_outcomes_filtered(
         &self,
+        target: Option<String>,
         status: Option<String>,
         language: Option<String>,
         mutation_type: Option<String>,
         line: Option<u32>,
-        file: Option<String>,
     ) -> StoreResult<Vec<(Mutant, Target, Outcome)>> {
+        // Get target IDs matching the pattern (if provided)
+        let target_ids = self.match_target_ids(target).await?;
         // Build the SQL query dynamically with proper parameter binding
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
             r#"
@@ -611,26 +661,19 @@ impl SqlStore {
                 .push_bind(mutation_slug);
         }
 
-        // Add line filter (convert 1-indexed user input to 0-indexed storage)
-        if let Some(line_num) = line {
+        // Add target filter (if target IDs were matched)
+        if let Some(ids) = &target_ids {
+            if ids.is_empty() {
+                // No matching targets, return empty result
+                return Ok(vec![]);
+            }
             add_separator(&mut query_builder, &mut has_where);
-            query_builder
-                .push("m.line_offset = ")
-                .push_bind((line_num.saturating_sub(1)) as i64);
-        }
-
-        // Add file filter (substring match on path)
-        if let Some(file_pattern) = file {
-            add_separator(&mut query_builder, &mut has_where);
-            // Escape LIKE wildcards in user input to treat them literally
-            let escaped_pattern = file_pattern
-                .replace('\\', "\\\\")
-                .replace('%', "\\%")
-                .replace('_', "\\_");
-            query_builder
-                .push("t.path LIKE ")
-                .push_bind(format!("%{}%", escaped_pattern))
-                .push(" ESCAPE '\\'");
+            query_builder.push("t.id IN (");
+            let mut separated = query_builder.separated(", ");
+            for id in ids {
+                separated.push_bind(*id);
+            }
+            query_builder.push(")");
         }
 
         // Execute the query
@@ -667,6 +710,14 @@ impl SqlStore {
                 duration_ms: row.try_get::<i64, _>("duration_ms")? as u32,
             };
             results.push((mutant, target, outcome));
+        }
+
+        // Apply line filter in Rust to check if line falls within mutation span
+        if let Some(line_num) = line {
+            results.retain(|(mutant, _, _)| {
+                let (start_line, end_line) = mutant.get_lines();
+                line_num >= start_line && line_num <= end_line
+            });
         }
 
         Ok(results)

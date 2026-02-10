@@ -23,8 +23,8 @@ pub async fn execute(store: SqlStore, filters: MutantsFilters) -> AppResult<()> 
     let is_json_format = filters.format == "json";
 
     // Use filtered query if any filters are provided
-    let use_filters = filters.line.is_some()
-        || filters.file.is_some()
+    let use_filters = filters.target.is_some()
+        || filters.line.is_some()
         || filters.mutation_type.is_some()
         || filters.tested
         || filters.untested;
@@ -33,8 +33,8 @@ pub async fn execute(store: SqlStore, filters: MutantsFilters) -> AppResult<()> 
         // Get filtered mutants from database
         let results = store
             .get_mutants_filtered(
+                filters.target.clone(),
                 filters.line,
-                filters.file.clone(),
                 filters.mutation_type.clone(),
                 filters.tested,
                 filters.untested,

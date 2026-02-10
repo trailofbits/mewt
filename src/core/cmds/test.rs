@@ -10,7 +10,7 @@ use crate::SqlStore;
 use crate::core::cli::TestArgs;
 use crate::core::runner::TestRunner;
 use crate::types::AppResult;
-use crate::types::config::{config, resolve_test_for_path_with_cli};
+use crate::types::config::{config, resolve_test_for_path};
 
 /// Read mutant IDs from --ids-file (file or stdin) or --ids (CLI arg).
 /// --ids-file takes precedence over --ids.
@@ -57,6 +57,8 @@ pub async fn execute_test(
     store: SqlStore,
     running: Arc<AtomicBool>,
     registry: Arc<LanguageRegistry>,
+    test_cmd: Option<String>,
+    test_timeout: Option<u32>,
 ) -> AppResult<()> {
     // Read IDs from file/stdin or CLI arg
     let ids = read_mutant_ids(&args)?;
@@ -76,7 +78,7 @@ pub async fn execute_test(
             Ok(mutant) => match store.get_target(mutant.target_id).await {
                 Ok(target) => {
                     let (maybe_cmd, timeout) =
-                        resolve_test_for_path_with_cli(&target.path, &args.test_cmd, args.timeout);
+                        resolve_test_for_path(&target.path, test_cmd.as_deref(), test_timeout);
                     if let Some(cmd) = maybe_cmd {
                         groups.entry((cmd, timeout)).or_default().push(id);
                     } else {
@@ -98,7 +100,7 @@ pub async fn execute_test(
 
         let mut runner = match TestRunner::new_with_baseline(
             cmd,
-            timeout.or(config().test.timeout),
+            timeout.or(config().test().timeout()),
             Arc::clone(&running),
             store.clone(),
             false, // No need for comprehensive mode during targeted re-tests
