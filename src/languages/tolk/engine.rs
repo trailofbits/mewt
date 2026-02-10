@@ -82,7 +82,7 @@ impl LanguageEngine for TolkLanguageEngine {
                             root,
                             source,
                             statement_kinds,
-                            "throw 0",
+                            "throw 999",
                             &|node, src| {
                                 let text = node_text(node, src);
                                 !text.contains("throw")
