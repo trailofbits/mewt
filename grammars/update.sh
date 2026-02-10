@@ -135,6 +135,28 @@ cat > "grammars/$language/vendor.json" <<EOF
 }
 EOF
 
+# Step 4.5: Handle monorepo shared code (if present)
+if [ -d "$TEMP_DIR/common" ]; then
+  echo "Detected monorepo structure - copying shared code..."
+  rm -rf "grammars/$language/common"
+  cp -r "$TEMP_DIR/common" "grammars/$language/"
+  
+  echo "Rewriting import paths for self-contained vendoring..."
+  # Fix JavaScript require('../common/...) -> require('./common/...)
+  if [ -f "grammars/$language/grammar.js" ]; then
+    sed -i.bak "s|require('../common/|require('./common/|g" "grammars/$language/grammar.js"
+    rm -f "grammars/$language/grammar.js.bak"
+  fi
+  
+  # Fix C includes "../../common/... -> "../common/...
+  find "grammars/$language/src" -name "*.c" -o -name "*.h" | while read -r file; do
+    sed -i.bak 's|"../../common/|"../common/|g' "$file"
+    rm -f "$file.bak"
+  done
+  
+  echo "Self-contained vendoring complete (no shared state between grammars)"
+fi
+
 # Step 5: Clean up temporary directory
 echo "Cleaning up..."
 rm -rf "$TEMP_DIR"
