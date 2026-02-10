@@ -86,13 +86,15 @@ impl Write for BarAwareWriter {
                     }
                     let line = String::from_utf8_lossy(&line_bytes);
                     let mut printed_via_bar = false;
-                    if let Some(cell) = ACTIVE_BAR.get()
-                        && let Ok(guard) = cell.lock()
-                        && let Some(ref weak) = *guard
-                        && let Some(bar) = weak.upgrade()
-                    {
-                        bar.println(&line);
-                        printed_via_bar = true;
+                    if let Some(cell) = ACTIVE_BAR.get() {
+                        if let Ok(guard) = cell.lock() {
+                            if let Some(ref weak) = *guard {
+                                if let Some(bar) = weak.upgrade() {
+                                    bar.println(&line);
+                                    printed_via_bar = true;
+                                }
+                            }
+                        }
                     }
                     if !printed_via_bar {
                         let _ = writeln!(io::stdout(), "{}", line);
@@ -106,23 +108,25 @@ impl Write for BarAwareWriter {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        if let Ok(mut buf_guard) = self.buffer.lock()
-            && !buf_guard.is_empty()
-        {
-            let line = String::from_utf8_lossy(&buf_guard);
-            let mut printed_via_bar = false;
-            if let Some(cell) = ACTIVE_BAR.get()
-                && let Ok(guard) = cell.lock()
-                && let Some(ref weak) = *guard
-                && let Some(bar) = weak.upgrade()
-            {
-                bar.println(&line);
-                printed_via_bar = true;
+        if let Ok(mut buf_guard) = self.buffer.lock() {
+            if !buf_guard.is_empty() {
+                let line = String::from_utf8_lossy(&buf_guard);
+                let mut printed_via_bar = false;
+                if let Some(cell) = ACTIVE_BAR.get() {
+                    if let Ok(guard) = cell.lock() {
+                        if let Some(ref weak) = *guard {
+                            if let Some(bar) = weak.upgrade() {
+                                bar.println(&line);
+                                printed_via_bar = true;
+                            }
+                        }
+                    }
+                }
+                if !printed_via_bar {
+                    let _ = writeln!(io::stdout(), "{}", line);
+                }
+                buf_guard.clear();
             }
-            if !printed_via_bar {
-                let _ = writeln!(io::stdout(), "{}", line);
-            }
-            buf_guard.clear();
         }
         io::stdout().flush()
     }

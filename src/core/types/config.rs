@@ -99,10 +99,10 @@ pub fn config() -> &'static GlobalConfig {
     CONFIG.get_or_init(|| {
         let mut cfg = default_global_config();
         // Apply nearest config file found by walking up from cwd, then env
-        if let Some(path) = find_nearest_config_file()
-            && let Some(file_cfg) = read_config_file(&path)
-        {
-            apply_file_config(&mut cfg, &file_cfg);
+        if let Some(path) = find_nearest_config_file() {
+            if let Some(file_cfg) = read_config_file(&path) {
+                apply_file_config(&mut cfg, &file_cfg);
+            }
         }
         apply_env_overrides(&mut cfg);
         cfg
@@ -113,10 +113,10 @@ pub fn init_with_overrides(overrides: &CliOverrides) {
     let mut cfg = default_global_config();
 
     // 1) Config file: walk up from cwd and use the first mewt.toml found
-    if let Some(path) = find_nearest_config_file()
-        && let Some(file_cfg) = read_config_file(&path)
-    {
-        apply_file_config(&mut cfg, &file_cfg);
+    if let Some(path) = find_nearest_config_file() {
+        if let Some(file_cfg) = read_config_file(&path) {
+            apply_file_config(&mut cfg, &file_cfg);
+        }
     }
 
     // 2) Environment variables
@@ -171,11 +171,12 @@ fn apply_file_config(cfg: &mut GlobalConfig, file: &FileConfig) {
             cfg.general.ignore_targets.extend(globs.clone());
         }
     }
-    if let Some(muts) = &file.mutations
-        && let Some(slugs) = &muts.slugs
-        && !slugs.is_empty()
-    {
-        cfg.mutations.slugs = Some(slugs.clone()); // override semantics
+    if let Some(muts) = &file.mutations {
+        if let Some(slugs) = &muts.slugs {
+            if !slugs.is_empty() {
+                cfg.mutations.slugs = Some(slugs.clone()); // override semantics
+            }
+        }
     }
     if let Some(test) = &file.test {
         if let Some(cmd) = &test.cmd {
@@ -186,14 +187,14 @@ fn apply_file_config(cfg: &mut GlobalConfig, file: &FileConfig) {
         }
         if let Some(per) = &test.per_target {
             for rule in per {
-                if let Some(cmd) = &rule.cmd
-                    && !cmd.trim().is_empty()
-                {
-                    cfg.test.per_target.push(PerTargetTestRule {
-                        glob: rule.glob.clone(),
-                        cmd: cmd.clone(),
-                        timeout: rule.timeout,
-                    });
+                if let Some(cmd) = &rule.cmd {
+                    if !cmd.trim().is_empty() {
+                        cfg.test.per_target.push(PerTargetTestRule {
+                            glob: rule.glob.clone(),
+                            cmd: cmd.clone(),
+                            timeout: rule.timeout,
+                        });
+                    }
                 }
             }
         }
@@ -202,10 +203,10 @@ fn apply_file_config(cfg: &mut GlobalConfig, file: &FileConfig) {
 
 fn apply_env_overrides(cfg: &mut GlobalConfig) {
     // Logging
-    if let Ok(level) = std::env::var("MEWT_LOG_LEVEL")
-        && !level.trim().is_empty()
-    {
-        cfg.log.level = level.trim().to_string();
+    if let Ok(level) = std::env::var("MEWT_LOG_LEVEL") {
+        if !level.trim().is_empty() {
+            cfg.log.level = level.trim().to_string();
+        }
     }
     if let Ok(color) = std::env::var("MEWT_LOG_COLOR") {
         match color.to_lowercase().as_str() {
@@ -216,10 +217,10 @@ fn apply_env_overrides(cfg: &mut GlobalConfig) {
     }
 
     // General
-    if let Ok(db) = std::env::var("MEWT_DB")
-        && !db.trim().is_empty()
-    {
-        cfg.general.db = db;
+    if let Ok(db) = std::env::var("MEWT_DB") {
+        if !db.trim().is_empty() {
+            cfg.general.db = db;
+        }
     }
     if let Ok(ignore) = std::env::var("MEWT_IGNORE_TARGETS") {
         let patterns = parse_csv(&ignore);
@@ -235,15 +236,15 @@ fn apply_env_overrides(cfg: &mut GlobalConfig) {
     }
 
     // Test
-    if let Ok(cmd) = std::env::var("MEWT_TEST_CMD")
-        && !cmd.trim().is_empty()
-    {
-        cfg.test.cmd = Some(cmd);
+    if let Ok(cmd) = std::env::var("MEWT_TEST_CMD") {
+        if !cmd.trim().is_empty() {
+            cfg.test.cmd = Some(cmd);
+        }
     }
-    if let Ok(timeout) = std::env::var("MEWT_TEST_TIMEOUT")
-        && let Ok(parsed) = timeout.trim().parse::<u32>()
-    {
-        cfg.test.timeout = Some(parsed);
+    if let Ok(timeout) = std::env::var("MEWT_TEST_TIMEOUT") {
+        if let Ok(parsed) = timeout.trim().parse::<u32>() {
+            cfg.test.timeout = Some(parsed);
+        }
     }
 }
 
@@ -252,10 +253,10 @@ fn apply_cli_overrides(cfg: &mut GlobalConfig, overrides: &CliOverrides) {
     if let Some(db) = overrides.db.as_ref() {
         cfg.general.db = db.clone();
     }
-    if let Some(level) = overrides.log_level.as_ref()
-        && !level.trim().is_empty()
-    {
-        cfg.log.level = level.trim().to_string();
+    if let Some(level) = overrides.log_level.as_ref() {
+        if !level.trim().is_empty() {
+            cfg.log.level = level.trim().to_string();
+        }
     }
     if let Some(color) = overrides.log_color.as_ref() {
         match color.to_lowercase().as_str() {
@@ -277,10 +278,10 @@ fn apply_cli_overrides(cfg: &mut GlobalConfig, overrides: &CliOverrides) {
     }
 
     // Test overrides
-    if let Some(cmd) = overrides.test_cmd.as_ref()
-        && !cmd.trim().is_empty()
-    {
-        cfg.test.cmd = Some(cmd.clone());
+    if let Some(cmd) = overrides.test_cmd.as_ref() {
+        if !cmd.trim().is_empty() {
+            cfg.test.cmd = Some(cmd.clone());
+        }
     }
     if let Some(timeout) = overrides.test_timeout {
         cfg.test.timeout = Some(timeout);
@@ -338,11 +339,11 @@ pub fn resolve_test_for_path_with_cli(
     cli_timeout: Option<u32>,
 ) -> (Option<String>, Option<u32>) {
     // CLI has highest precedence
-    if let Some(cmd) = cli_test_cmd.as_ref()
-        && !cmd.trim().is_empty()
-    {
-        let timeout = cli_timeout.or(config().test.timeout);
-        return (Some(cmd.clone()), timeout);
+    if let Some(cmd) = cli_test_cmd.as_ref() {
+        if !cmd.trim().is_empty() {
+            let timeout = cli_timeout.or(config().test.timeout);
+            return (Some(cmd.clone()), timeout);
+        }
     }
 
     // Per-target rules: first match wins

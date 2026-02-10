@@ -89,25 +89,25 @@ pub fn replace_condition(
                     old_text: old_text.to_string(),
                     new_text,
                 });
-            } else if let Some(cond) = first_named_child_after_keyword(&node, keyword_kinds)
-                && cond.kind() != ";"
-                && cond.kind() != "{"
-            {
-                let old_text = node_text(&cond, source);
-                let trimmed_start = old_text.trim_start();
-                let trimmed_end = old_text.trim_end();
-                let needs_parens = trimmed_start.starts_with('(') && trimmed_end.ends_with(')');
-                let new_text = if needs_parens {
-                    format!("({replacement})")
-                } else {
-                    replacement.to_string()
-                };
-                mutants.push(PartialMutant {
-                    byte_offset: cond.start_byte() as u32,
-                    line_offset: calculate_line_offset(source, cond.start_byte()),
-                    old_text: old_text.to_string(),
-                    new_text,
-                });
+            } else if let Some(cond) = first_named_child_after_keyword(&node, keyword_kinds) {
+                if cond.kind() != ";" && cond.kind() != "{" {
+                    let old_text = node_text(&cond, source);
+                    let trimmed_start = old_text.trim_start();
+                    let trimmed_end = old_text.trim_end();
+                    let needs_parens =
+                        trimmed_start.starts_with('(') && trimmed_end.ends_with(')');
+                    let new_text = if needs_parens {
+                        format!("({replacement})")
+                    } else {
+                        replacement.to_string()
+                    };
+                    mutants.push(PartialMutant {
+                        byte_offset: cond.start_byte() as u32,
+                        line_offset: calculate_line_offset(source, cond.start_byte()),
+                        old_text: old_text.to_string(),
+                        new_text,
+                    });
+                }
             }
         }
     });
@@ -263,34 +263,33 @@ pub fn swap_args(
     let kinds: Vec<&str> = node_kinds.to_vec();
     let mut cursor = root.walk();
     visit_nodes_with_cursor(root, &mut cursor, &mut |node| {
-        if kinds.contains(&node.kind())
-            && !is_in_comment(&node)
-            && let Some(args_node) = node.child_by_field_name(args_field_name)
-        {
-            let mut args: Vec<Node> = Vec::new();
-            let mut ac = args_node.walk();
-            for child in args_node.children(&mut ac) {
-                let k = child.kind();
-                if k != "(" && k != ")" && k != "," {
-                    args.push(child);
+        if kinds.contains(&node.kind()) && !is_in_comment(&node) {
+            if let Some(args_node) = node.child_by_field_name(args_field_name) {
+                let mut args: Vec<Node> = Vec::new();
+                let mut ac = args_node.walk();
+                for child in args_node.children(&mut ac) {
+                    let k = child.kind();
+                    if k != "(" && k != ")" && k != "," {
+                        args.push(child);
+                    }
                 }
-            }
-            if args.len() >= 2 {
-                for i in 0..args.len() - 1 {
-                    let a = args[i];
-                    let b = args[i + 1];
-                    let start = a.start_byte();
-                    let end = b.end_byte();
-                    let a_text = node_text(&a, source);
-                    let b_text = node_text(&b, source);
-                    let full_text = &source[start..end];
-                    let swapped = format!("{b_text}, {a_text}");
-                    mutants.push(PartialMutant {
-                        byte_offset: start as u32,
-                        line_offset: calculate_line_offset(source, start),
-                        old_text: full_text.to_string(),
-                        new_text: swapped,
-                    });
+                if args.len() >= 2 {
+                    for i in 0..args.len() - 1 {
+                        let a = args[i];
+                        let b = args[i + 1];
+                        let start = a.start_byte();
+                        let end = b.end_byte();
+                        let a_text = node_text(&a, source);
+                        let b_text = node_text(&b, source);
+                        let full_text = &source[start..end];
+                        let swapped = format!("{b_text}, {a_text}");
+                        mutants.push(PartialMutant {
+                            byte_offset: start as u32,
+                            line_offset: calculate_line_offset(source, start),
+                            old_text: full_text.to_string(),
+                            new_text: swapped,
+                        });
+                    }
                 }
             }
         }
