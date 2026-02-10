@@ -94,8 +94,7 @@ pub fn replace_condition(
                     let old_text = node_text(&cond, source);
                     let trimmed_start = old_text.trim_start();
                     let trimmed_end = old_text.trim_end();
-                    let needs_parens =
-                        trimmed_start.starts_with('(') && trimmed_end.ends_with(')');
+                    let needs_parens = trimmed_start.starts_with('(') && trimmed_end.ends_with(')');
                     let new_text = if needs_parens {
                         format!("({replacement})")
                     } else {
