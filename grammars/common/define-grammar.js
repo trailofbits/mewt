@@ -828,7 +828,7 @@ module.exports = function defineGrammar(dialect) {
           $.this,
           // Sometimes tree-sitter contextual lexing is not good enough to know
           // that 'object' in ':object is foo' is really an identifier and not
-          // a predefined_type, so we must explicitely list all possibilities.
+          // a predefined_type, so we must explicitly list all possibilities.
           // TODO: should we use '_reserved_identifier'? Should all the element in
           // 'predefined_type' be added to '_reserved_identifier'?
           alias($.predefined_type, $.identifier),

@@ -143,6 +143,7 @@
         sqlite
         sqlx-cli
         toolchain
+        typos
       ];
 
       devShells = {

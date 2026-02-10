@@ -6,16 +6,34 @@ export DATABASE_URL := "sqlite:" + SQLITE_FILE
 # Common dev commands
 
 lint:
-  cargo clippy --lib -p {{project}} --tests
+  cargo clippy --lib -p {{project}} --tests || { echo "clippy linter checks failed"; exit 1; }
 
 lint-fix:
   cargo clippy --lib -p {{project}} --tests --fix
 
 check:
-  cargo check
+  cargo check || { echo "cargo check failed"; exit 1; }
+
+fmt-check:
+  cargo fmt --all --check || { echo "formatting checks failed, run 'just fmt'"; exit 1; }
 
 fmt:
   cargo fmt --all
+
+typos:
+  typos || { echo "typos check failed"; exit 1; }
+
+pre-commit:
+  just fmt-check
+  just check
+  just lint
+  just typos
+
+install-pre-commit:
+  echo 'just pre-commit' > .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+
+uninstall-pre-commit:
+  rm .git/hooks/pre-commit
 
 ########################################
 # Database

@@ -19,7 +19,7 @@ const PREC = {
     BITWISE_XOR: 6, // [8] Bitwise XOR
     BITWISE_AND: 7, // [7] Bitwise AND
     BITWISE_SHIFT: 8, // [6] Bitwise shift operators
-    PLUS: 9, // [5] Addition and substraction
+    PLUS: 9, // [5] Addition and subtraction
     TIMES: 10, // [4] Multiplication, division and modulo
     EXP: 11, // [3] Exponentiation
     PREFIX_UNARY: 12, // [2]
