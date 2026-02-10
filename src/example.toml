@@ -1,67 +1,54 @@
-# Mewt Configuration File
-# Documentation: https://github.com/trailofbits/mewt
-#
-# Corresponding CLI flags use dotted notation matching this structure:
-#   db → --db
-#   log.level → --log.level
-#   log.color → --log.color
-#   test.cmd → --test.cmd (run, test commands)
-#   test.timeout → --test.timeout (run, test commands)
-#
-# Command-specific CLI flags:
-#   mewt run [TARGET...] --ignore-targets=... --mutations=...
-#   mewt mutate <TARGET...> --ignore-targets=...
-#   mewt test --ids=... --test.cmd=... --test.timeout=...
+## Configuration File
+##
+## Corresponding CLI flags use dotted notation matching this structure:
+##   db → --db
+##   log.level → --log.level
+##   log.color → --log.color
+##   test.cmd → --test.cmd (run, test commands)
+##   test.timeout → --test.timeout (run, test commands)
 
-# Database path (relative to this config file or absolute)
-# CLI: --db PATH
-db = "mewt.sqlite"
+## Database path (relative to this config file or absolute)
+db = "{namespace}.sqlite"
 
 [log]
-# Logging level: trace, debug, info, warn, error
-# CLI: --log.level debug
+## Logging level: trace, debug, info, warn, error
 level = "info"
 
-# Force color output on/off, or omit for auto-detection based on terminal
-# CLI: --log.color on|off
+## Force color output on/off, or omit for auto-detection based on terminal
 # color = true
 
+## Target discovery configuration (used by run and mutate commands)
+## Note: CLI overrides replace these config values, no merging
 [targets]
-# Target discovery configuration (used by run and mutate commands)
-# CLI overrides COMPLETELY REPLACE these config values (no merging)
 
-# Include patterns: supports globs, files, and directories
-# Examples: ["src/**/*.rs"], ["src", "tests"], ["lib/*.py"]
-# CLI: mewt run <TARGET...> (replaces include if provided)
-# include = ["src/**/*.rs", "tests/**/*.rs"]
+## Include patterns: supports globs, files, and directories
+## Examples: ["src/**/*.rs"], ["src", "lib"], ["lib/*.py"]
+# include = ["src/**/*.rs"]
 
-# Ignore patterns: substring matching (simple and user-friendly)
-# Any path containing these substrings will be excluded
-# Examples: ["node_modules", "vendor", "target", ".cargo"]
-# CLI: mewt run --ignore-targets=node_modules,vendor (replaces ignore if provided)
+## Ignore patterns: substring matching
+## Any path containing these substrings will be excluded
+## Examples: ["node_modules", "vendor", "target", ".cargo"]
 # ignore = ["target", "node_modules", "vendor"]
 
+## Run command configuration
 [run]
-# Run command configuration
 
-# Whitelist specific mutation types by slug (optional)
-# Run `mewt print mutations` to see all available mutation types
-# If omitted, all mutation types are enabled
-# CLI: mewt run --mutations ER,CR,BR (replaces this if provided)
+## Whitelist specific mutation types by slug
+## Run the 'print mutations' subcommand to see all available mutation types
+## If omitted, all mutation types are enabled
 # mutations = ["ER", "CR", "BR", "AOD", "AOR"]
 
-# Test all mutants comprehensively (default: false)
+## In comprehensive mode, all mutants are tested (default: false)
+## ie lower severity mutants will not be skipped if higher severity mutants on the same line are uncaught
 # comprehensive = false
 
 [test]
 # Default test command for all targets
 # This command will be run to verify mutants are caught by your test suite
-# CLI: --test.cmd "cargo test"
 # cmd = "cargo test"
 
 # Default timeout in seconds (optional)
 # If omitted, defaults to 2x the baseline test runtime
-# CLI: --test.timeout 30
 # timeout = 30
 
 # Per-target test rules (optional)

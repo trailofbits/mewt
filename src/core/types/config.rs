@@ -101,8 +101,10 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn db(&self) -> &str {
-        self.db.as_deref().unwrap_or("mewt.sqlite")
+    pub fn db(&self) -> String {
+        self.db
+            .clone()
+            .unwrap_or_else(|| format!("{}.sqlite", get_namespace()))
     }
 
     pub fn log(&self) -> LogConfig {
@@ -196,18 +198,28 @@ pub struct CliOverrides {
     pub log_color: Option<String>, // "on" | "off"
 }
 
+static NAMESPACE: OnceCell<String> = OnceCell::new();
 static CONFIG_FILENAME: OnceCell<String> = OnceCell::new();
 static CONFIG: OnceCell<Config> = OnceCell::new();
+
+pub fn set_namespace(namespace: &str) {
+    let _ = NAMESPACE.set(namespace.to_string());
+    // Also set config filename based on namespace if not already set
+    if CONFIG_FILENAME.get().is_none() {
+        let _ = CONFIG_FILENAME.set(format!("{}.toml", namespace));
+    }
+}
+
+pub fn get_namespace() -> &'static str {
+    NAMESPACE.get().map(|s| s.as_str()).unwrap()
+}
 
 pub fn set_config_filename(filename: &str) {
     let _ = CONFIG_FILENAME.set(filename.to_string());
 }
 
 pub fn get_config_filename() -> &'static str {
-    CONFIG_FILENAME
-        .get()
-        .map(|s| s.as_str())
-        .unwrap_or("mewt.toml")
+    CONFIG_FILENAME.get().map(|s| s.as_str()).unwrap()
 }
 
 pub fn config() -> &'static Config {

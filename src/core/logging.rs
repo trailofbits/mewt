@@ -2,7 +2,7 @@
 //! - Logs go to stdout via a custom writer (`BarAwareWriter`).
 //! - When a bar is active, completed lines use `ProgressBar::println`, preserving the bar.
 //! - Progress bars render on stderr (indicatif default); logs stay on stdout.
-//! - Log level comes from CLI flags or config file (`mewt.toml`); default is Info.
+//! - Log level comes from CLI flags or config file; default is Info.
 //! - Colors are applied with `console::style`.
 //! - A `Mutex<Vec<u8>>` buffers bytes to assemble whole lines without interleaving.
 

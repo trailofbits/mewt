@@ -1,6 +1,5 @@
 use clap::{Parser, Subcommand};
 
-/// mewt - Mutation testing framework
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
@@ -74,7 +73,7 @@ pub struct RunArgs {
     pub ignore_targets: Option<String>,
 
     /// Comma-separated list of mutation slugs to test (e.g., "ER,CR").
-    /// Run `mewt print mutations` for a list of slugs.
+    /// Use 'print mutations' subcommand for a full list of available slugs.
     /// If omitted, all mutation types are enabled.
     /// Replaces config [run].mutations if provided.
     #[arg(long)]

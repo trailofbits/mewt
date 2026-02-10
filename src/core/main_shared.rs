@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use clap::Parser;
+use clap::{CommandFactory, FromArgMatches};
 use log::{debug, warn};
 
 use crate::LanguageRegistry;
@@ -12,16 +12,27 @@ use crate::core::cmds;
 use crate::core::logging::init_logging;
 use crate::core::store::SqlStore;
 use crate::types::AppResult;
-use crate::types::config::{CliOverrides, config, init_with_overrides, set_config_filename};
+use crate::types::config::{CliOverrides, config, init_with_overrides, set_namespace};
 
 pub async fn run_main(
     registry: Arc<LanguageRegistry>,
-    config_filename: Option<&str>,
+    namespace: &str,
+    description: &str,
 ) -> AppResult<()> {
-    // Set config filename at start (defaults to "mewt.toml")
-    set_config_filename(config_filename.unwrap_or("mewt.toml"));
+    // Set namespace at start (derives config/db filenames)
+    set_namespace(namespace);
 
-    let args = Args::parse();
+    // Override CLI help text with namespace and description
+    // Leak strings to get 'static lifetime for clap
+    let namespace_static: &'static str = Box::leak(namespace.to_string().into_boxed_str());
+    let description_static: &'static str =
+        Box::leak(format!("{} - {}", description, namespace).into_boxed_str());
+
+    let mut cmd = Args::command();
+    cmd = cmd.name(namespace_static).about(description_static);
+    let matches = cmd.get_matches();
+    let args = Args::from_arg_matches(&matches)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e.to_string()))?;
 
     // Handle global arguments
     if let Some(cwd_arg) = args.cwd.as_ref() {
@@ -46,7 +57,7 @@ pub async fn run_main(
 
     // Initialize the database
     let db_path = config().db();
-    let db_file = PathBuf::from(db_path);
+    let db_file = PathBuf::from(&db_path);
 
     if !db_file.exists() {
         debug!(

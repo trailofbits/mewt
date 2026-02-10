@@ -162,7 +162,7 @@ fn print_outcome(mutant: &Mutant, target: &Target, outcome: &Outcome, verbose: b
     }
 }
 
-pub async fn execute(
+pub async fn execute_results(
     store: SqlStore,
     filters: ResultsFilters,
     registry: &LanguageRegistry,

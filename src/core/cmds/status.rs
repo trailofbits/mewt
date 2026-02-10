@@ -243,7 +243,7 @@ fn print_table_format(report: &StatusReport) {
     info!("=====================");
 
     if report.targets.is_empty() {
-        info!("No targets found. Run 'mewt run <target>' to start a campaign.");
+        info!("No targets found. Use the 'run' command with a target to start a campaign.");
         return;
     }
 
