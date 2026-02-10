@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 2.0.0 - 2026-02-05
+
+### Added
+- `mewt print config` command to display the effective configuration
+- Dedicated TypeScript and TSX grammars for improved parsing accuracy
+
+### Changed
+- **BREAKING**: Configuration system overhauled with unified CLI/file symmetry
+  - Configuration now uses dotted notation for CLI flags (e.g., `--log.level`, `--test.cmd`, `--test.timeout`)
+  - Config file structure reorganized with nested sections (`[log]`, `[targets]`, `[run]`, `[test]`)
+  - Added support for per-target test rules via `[[test.per_target]]` array in config file
+  - CLI overrides now replace (not merge) config file values
+- **BREAKING**: Removed environment variable configuration support
+  - Previously supported variables (`MEWT_LOG_LEVEL`, `MEWT_DB`, `MEWT_TEST_CMD`, etc.) are no longer recognized
+- **BREAKING**: Removed `mewt print results` command
+  - Use `mewt results` instead (promoted in v1.1.0)
+- Status filtering is now case-insensitive for `--status` flag
+- Improved filter implementation consistency across `print mutants` and `results` commands
+
+### Fixed
+- Percentage complete display in `status` command campaign summary
+- Internal namespacing improvements in core module
+
 ## 1.1.0 - 2026-01-28
 
 ### Added
