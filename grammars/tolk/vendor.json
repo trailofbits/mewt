@@ -1,0 +1,6 @@
+{
+  "repo": "https://github.com/ton-blockchain/ton-language-server",
+  "path": "server/src/languages/tolk/tree-sitter-tolk/",
+  "commit": "7620a815ded1dfe99452a152e8169872135af84c",
+  "updated": "2026-02-10T13:29:36Z"
+}
