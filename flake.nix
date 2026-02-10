@@ -57,7 +57,7 @@
         fenixPkgs.targets.${targets.aarch64-linux}.stable.rust-std
       ];
 
-      naerskBuild = { targetSystem, crate }: let
+      naerskBuild = targetSystem: let
         pkgsCross = mkPkgs targetSystem;
         isNativeBuild = targetSystem == null || targetSystem == buildSystem;
       in (naersk.lib.${buildSystem}.override {
@@ -68,7 +68,6 @@
         strictDeps = true;
         doCheck = false;
         release = true;
-        cargoBuildOptions = x: x ++ [ "-p" crate ];
         postInstall = if targetSystem == null then "" else ''
           cd "$out"/bin
           for f in $(ls); do
@@ -127,10 +126,10 @@
 
       packages = {
         default = packages.mewt;
-        mewt = naerskBuild { targetSystem = null; crate = "mewt"; };
-        mewt-x86_64-linux = naerskBuild { targetSystem = "x86_64-linux"; crate = "mewt"; };
-        mewt-aarch64-linux = naerskBuild { targetSystem = "aarch64-linux"; crate = "mewt"; };
-        mewt-aarch64-darwin = naerskBuild { targetSystem = "aarch64-darwin"; crate = "mewt"; };
+        mewt = naerskBuild null;
+        mewt-x86_64-linux = naerskBuild "x86_64-linux";
+        mewt-aarch64-linux = naerskBuild "aarch64-linux";
+        mewt-aarch64-darwin = naerskBuild "aarch64-darwin";
       };
 
       devInputs = with pkgs; [
