@@ -15,11 +15,12 @@ alwaysApply: true
 - Build: `just build`
 - Test: `just test`
 - Run: `just run <language>` - Run tool against some simple examples in a supported language
+- Do NOT run `git commit` or modify the git history in any way unless the user explicitly requests it
 
 ## Issue Tracking
 - `ls .todo/` - see all task files, or use associated agent extensions
 - After resolving a todo, update the associated file with a summary of the solution
-- Do not delete todo files until the user has reviewed and confirmed the solution
+- Do NOT delete todo files until the user has reviewed and confirmed the solution
 
 ## Database
 - Do not change schemas in `migrations/` unless explicitly requested
