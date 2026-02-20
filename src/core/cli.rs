@@ -116,6 +116,10 @@ pub struct MutateArgs {
     /// Replaces config [targets].ignore if provided.
     #[arg(long = "ignore-targets")]
     pub ignore_targets: Option<String>,
+
+    /// Show detailed output for each mutant generated (default: show per-target summaries)
+    #[arg(long)]
+    pub verbose: bool,
 }
 
 /// Arguments for the list-mutations command
