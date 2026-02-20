@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
+use crate::core::utils::parse_csv;
+
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct LogConfig {
     pub level: Option<String>,
@@ -142,11 +144,7 @@ impl Config {
         };
 
         let ignore = if let Some(cli_ign) = cli_ignore {
-            cli_ign
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect()
+            parse_csv::<String>(Some(cli_ign)).unwrap_or_default()
         } else {
             self.targets()
                 .and_then(|t| t.ignore.clone())
@@ -158,14 +156,7 @@ impl Config {
 
     /// Resolve mutations with CLI override (complete replacement)
     pub fn resolve_mutations(&self, cli_mutations: Option<&str>) -> Option<Vec<String>> {
-        cli_mutations
-            .map(|s| {
-                s.split(',')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect()
-            })
-            .or_else(|| self.run().and_then(|r| r.mutations.clone()))
+        parse_csv::<String>(cli_mutations).or_else(|| self.run().and_then(|r| r.mutations.clone()))
     }
 
     /// Resolve test command with CLI override

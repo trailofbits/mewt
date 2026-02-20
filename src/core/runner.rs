@@ -12,6 +12,7 @@ use indicatif::{HumanDuration, ProgressBar};
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
+use crate::core::utils::parse_csv;
 use crate::types::{CampaignSummary, Mutant, MutationSeverity, Outcome, Status, Target};
 
 pub struct TestRunner {
@@ -161,11 +162,10 @@ impl TestRunner {
         filter_slugs: Option<String>,
     ) -> io::Result<CampaignSummary> {
         // Parse mutation slugs if provided
-        let allowed_slugs: Option<Vec<String>> = filter_slugs.map(|s| {
-            let slugs: Vec<String> = s.split(',').map(|s| s.trim().to_string()).collect();
-            info!("Filtering mutations to test by slugs: {}", slugs.join(", "));
-            slugs
-        });
+        let allowed_slugs: Option<Vec<String>> = parse_csv::<String>(filter_slugs.as_deref())
+            .inspect(|slugs| {
+                info!("Filtering mutations to test by slugs: {}", slugs.join(", "));
+            });
 
         // Count total mutants to be tested across all targets for time estimation
         let mut total_untested_mutants = 0;
