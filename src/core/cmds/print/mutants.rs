@@ -102,8 +102,9 @@ pub async fn execute(store: SqlStore, filters: MutantsFilters) -> AppResult<()> 
         return Ok(());
     }
 
-    // Legacy path: no filters, use old logic with target filtering
-    let filtered_targets = Target::filter_by_path(&store, filters.target.clone()).await?;
+    // Legacy path: no filters, use old logic with target filtering or config
+    let filtered_targets = Target::filter_by_path_or_config(&store, filters.target.clone()).await?;
+
     if filtered_targets.is_empty() {
         if is_json_format {
             println!(

@@ -294,8 +294,8 @@ async fn get_results_data(
             .map_err(|e| e.into());
     }
 
-    // Legacy path: no filters, use old logic with target filtering
-    let filtered_targets = Target::filter_by_path(store, filters.target.clone()).await?;
+    // Legacy path: no filters, use old logic with target filtering or config
+    let filtered_targets = Target::filter_by_path_or_config(store, filters.target.clone()).await?;
     let mut results = Vec::new();
 
     for target in filtered_targets {
@@ -376,7 +376,7 @@ async fn print_table_format(
     }
 
     // Legacy path: display with per-target statistics
-    let filtered_targets = Target::filter_by_path(store, filters.target.clone()).await?;
+    let filtered_targets = Target::filter_by_path_or_config(store, filters.target.clone()).await?;
     if filtered_targets.is_empty() {
         info!("No targets found");
         return Ok(());

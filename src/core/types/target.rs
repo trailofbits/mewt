@@ -8,7 +8,7 @@ use serde::Serialize;
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
-use crate::types::config::{ResolvedTargets, is_path_excluded, is_slug_enabled};
+use crate::types::config::{ResolvedTargets, config, is_path_excluded, is_slug_enabled};
 use crate::types::{Hash, Mutant};
 
 #[derive(Debug, Clone, Serialize)]
@@ -220,11 +220,95 @@ impl Target {
     ) -> io::Result<Vec<Target>> {
         let mut targets = store.get_all_targets().await.map_err(io::Error::other)?;
         if let Some(path) = target_path {
-            let path_buf = PathBuf::from(path).canonicalize()?;
-            targets.retain(|t| t.path == path_buf);
+            // Check if the path contains glob characters
+            if path.contains('*') || path.contains('?') || path.contains('[') {
+                // Treat as glob pattern
+                let glob_pattern = globset::Glob::new(&path)
+                    .map_err(|e| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            format!("Invalid glob pattern '{}': {}", path, e),
+                        )
+                    })?
+                    .compile_matcher();
+
+                targets.retain(|t| glob_pattern.is_match(&t.path));
+            } else {
+                // Exact path match (try canonicalization)
+                match PathBuf::from(&path).canonicalize() {
+                    Ok(canonical_path) => {
+                        targets.retain(|t| t.path == canonical_path);
+                    }
+                    Err(_) => {
+                        // If canonicalization fails (e.g., file doesn't exist),
+                        // try matching against the non-canonical path as a fallback
+                        let path_buf = PathBuf::from(path);
+                        targets.retain(|t| t.path == path_buf);
+                    }
+                }
+            }
         }
         // Targets are already sorted by path from get_all_targets()
         Ok(targets)
+    }
+
+    /// Filter existing database targets using include/ignore patterns from ResolvedTargets
+    pub async fn filter_existing_by_patterns(
+        store: &SqlStore,
+        resolved_targets: &ResolvedTargets,
+    ) -> io::Result<Vec<Target>> {
+        let all_targets = store.get_all_targets().await.map_err(io::Error::other)?;
+
+        // Build globset for include patterns
+        let mut builder = globset::GlobSetBuilder::new();
+        for pattern in &resolved_targets.include {
+            if let Ok(glob) = globset::Glob::new(pattern) {
+                builder.add(glob);
+            }
+        }
+        let include_matcher = builder.build().ok();
+
+        let mut matched = Vec::new();
+        for target in all_targets {
+            let is_ignored = is_path_excluded(&target.path, &resolved_targets.ignore);
+            let is_included = if let Some(ref matcher) = include_matcher {
+                matcher.is_match(&target.path)
+            } else {
+                false
+            };
+
+            if is_included && !is_ignored {
+                matched.push(target);
+            }
+        }
+
+        Ok(matched)
+    }
+
+    /// Get targets, using config [targets] if no explicit path is provided
+    pub async fn filter_by_path_or_config(
+        store: &SqlStore,
+        target_path: Option<String>,
+    ) -> io::Result<Vec<Target>> {
+        // If explicit path provided, use it
+        if target_path.is_some() {
+            return Self::filter_by_path(store, target_path).await;
+        }
+
+        // Otherwise, use config targets if available
+        let targets_cfg = config().targets();
+        if let Some(cfg) = targets_cfg {
+            if let Some(include_patterns) = &cfg.include {
+                let resolved = ResolvedTargets {
+                    include: include_patterns.clone(),
+                    ignore: cfg.ignore.clone().unwrap_or_default(),
+                };
+                return Self::filter_existing_by_patterns(store, &resolved).await;
+            }
+        }
+
+        // Fallback: return all targets
+        Self::filter_by_path(store, None).await
     }
 
     pub fn generate_mutants(

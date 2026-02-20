@@ -59,9 +59,10 @@ pub enum Commands {
 /// Arguments for the run command
 #[derive(Parser, Debug)]
 pub struct RunArgs {
-    /// Target(s) to mutate (files or directories).
+    /// Target(s) to mutate (files, directories, or glob patterns).
     /// If a file, mutate that file.
     /// If a directory, mutate all files inside the directory.
+    /// If a glob pattern (e.g., "**/*.rs"), mutate all matching files.
     /// If not provided, skip mutation generation and test existing mutants without outcomes.
     /// Replaces config [targets].include if provided.
     #[arg(value_name = "TARGET")]
@@ -102,9 +103,10 @@ pub struct RunArgs {
 /// Arguments for the mutate command
 #[derive(Parser, Debug)]
 pub struct MutateArgs {
-    /// Target(s) to mutate (files or directories).
+    /// Target(s) to mutate (files, directories, or glob patterns).
     /// If a file, mutate that file.
     /// If a directory, mutate all files inside the directory.
+    /// If a glob pattern (e.g., "**/*.rs"), mutate all matching files.
     /// If not provided, uses config [targets].include.
     /// Replaces config [targets].include if provided.
     #[arg(value_name = "TARGET")]
@@ -127,7 +129,7 @@ pub struct ListMutationsArgs {
 /// Arguments for the list-outcomes command
 #[derive(Parser, Debug)]
 pub struct ListOutcomesArgs {
-    /// Filter outcomes by target path
+    /// Filter outcomes by target path or glob pattern (e.g., "src/**/*.rs")
     #[arg(long)]
     pub target: Option<String>,
 }
@@ -182,7 +184,8 @@ pub struct PrintConfigArgs {
 /// Arguments for the results command
 #[derive(Parser, Debug)]
 pub struct ResultsArgs {
-    /// Filter outcomes by target path
+    /// Filter outcomes by target path or glob pattern (e.g., "src/**/*.rs").
+    /// If not provided, uses config [targets].include.
     #[arg(long)]
     pub target: Option<String>,
 
@@ -230,7 +233,8 @@ pub struct PrintMutantArgs {
 /// Arguments for the print mutants subcommand
 #[derive(Parser, Debug)]
 pub struct PrintMutantsArgs {
-    /// Filter mutants by target path
+    /// Filter mutants by target path or glob pattern (e.g., "src/**/*.rs").
+    /// If not provided, uses config [targets].include.
     #[arg(long)]
     pub target: Option<String>,
 
@@ -285,9 +289,16 @@ pub struct TestArgs {
 /// Arguments for the purge command
 #[derive(Parser, Debug)]
 pub struct PurgeArgs {
-    /// Target path to purge (if not provided, will purge all targets)
+    /// Target path or glob pattern to purge (e.g., "node_modules/**" or "**/test_*.rs").
+    /// If not provided, purges targets that are NOT in config [targets].include or ARE in config [targets].ignore.
+    /// Use --all to purge all targets regardless of config.
     #[arg(long)]
     pub target: Option<String>,
+
+    /// Purge all targets in the database, regardless of config [targets] rules.
+    /// Cannot be combined with --target.
+    #[arg(long, conflicts_with = "target")]
+    pub all: bool,
 }
 
 /// Arguments for the status command
