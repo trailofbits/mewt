@@ -105,8 +105,9 @@ pub struct MutateArgs {
     /// Target(s) to mutate (files or directories).
     /// If a file, mutate that file.
     /// If a directory, mutate all files inside the directory.
+    /// If not provided, uses config [targets].include.
     /// Replaces config [targets].include if provided.
-    #[arg(value_name = "TARGET", required = true)]
+    #[arg(value_name = "TARGET")]
     pub targets: Vec<String>,
 
     /// Comma-separated substrings; any target path containing any will be ignored.
