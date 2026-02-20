@@ -207,7 +207,7 @@ pub async fn run_main(
                     all: args.all,
                     status: args.status,
                     language: args.language,
-                    mutation_type: args.mutation_type,
+                    mutation_types: args.mutation_types,
                     severity: args.severity,
                     line: args.line,
                     format: args.format,
@@ -253,7 +253,7 @@ pub async fn run_main(
                         cmds::print::PrintCommand::Mutants(cmds::print::MutantsFilters {
                             target: args.target,
                             line: args.line,
-                            mutation_type: args.mutation_type,
+                            mutation_types: args.mutation_types,
                             severity: args.severity,
                             tested: args.tested,
                             untested: args.untested,

@@ -14,7 +14,7 @@ pub struct ResultsFilters {
     pub all: bool,
     pub status: Option<String>,
     pub language: Option<String>,
-    pub mutation_type: Option<String>,
+    pub mutation_types: Option<String>,
     pub severity: Option<String>,
     pub line: Option<u32>,
     pub format: String,
@@ -280,8 +280,11 @@ async fn get_results_data(
     let use_filters = filters.target.is_some()
         || filters.status.is_some()
         || filters.language.is_some()
-        || filters.mutation_type.is_some()
+        || filters.mutation_types.is_some()
         || filters.line.is_some();
+
+    // Parse mutation types CSV
+    let mutation_slugs = parse_csv::<String>(filters.mutation_types.as_deref());
 
     let mut results = if use_filters {
         store
@@ -289,7 +292,7 @@ async fn get_results_data(
                 filters.target.clone(),
                 normalize_status(filters.status.clone()),
                 filters.language.clone(),
-                filters.mutation_type.clone(),
+                mutation_slugs,
                 filters.line,
             )
             .await
@@ -355,7 +358,7 @@ async fn print_table_format(
     let use_filters = filters.target.is_some()
         || filters.status.is_some()
         || filters.language.is_some()
-        || filters.mutation_type.is_some()
+        || filters.mutation_types.is_some()
         || filters.line.is_some();
 
     if use_filters {

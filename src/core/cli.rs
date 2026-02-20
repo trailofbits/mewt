@@ -213,9 +213,9 @@ pub struct ResultsArgs {
     #[arg(long)]
     pub language: Option<String>,
 
-    /// Filter by mutation type slug (e.g., ER, CR, BR)
-    #[arg(long)]
-    pub mutation_type: Option<String>,
+    /// Filter by mutation type slugs (comma-separated, e.g., "ER,CR,BR")
+    #[arg(long, value_name = "SLUGS")]
+    pub mutation_types: Option<String>,
 
     /// Filter by severity level (e.g., high, medium, low). Comma-separated for multiple.
     #[arg(long)]
@@ -250,9 +250,9 @@ pub struct PrintMutantsArgs {
     #[arg(long)]
     pub line: Option<u32>,
 
-    /// Filter by mutation type slug (e.g., ER, CR, BR)
-    #[arg(long)]
-    pub mutation_type: Option<String>,
+    /// Filter by mutation type slugs (comma-separated, e.g., "ER,CR,BR")
+    #[arg(long, value_name = "SLUGS")]
+    pub mutation_types: Option<String>,
 
     /// Filter by severity level (e.g., high, medium, low). Comma-separated for multiple.
     #[arg(long)]

@@ -32,9 +32,12 @@ pub async fn execute(
     // Use filtered query if any filters are provided
     let use_filters = filters.target.is_some()
         || filters.line.is_some()
-        || filters.mutation_type.is_some()
+        || filters.mutation_types.is_some()
         || filters.tested
         || filters.untested;
+
+    // Parse mutation types CSV
+    let mutation_slugs = parse_csv::<String>(filters.mutation_types.as_deref());
 
     if use_filters {
         // Get filtered mutants from database
@@ -42,7 +45,7 @@ pub async fn execute(
             .get_mutants_filtered(
                 filters.target.clone(),
                 filters.line,
-                filters.mutation_type.clone(),
+                mutation_slugs,
                 filters.tested,
                 filters.untested,
             )

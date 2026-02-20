@@ -13,7 +13,7 @@ pub mod targets;
 pub struct MutantsFilters {
     pub target: Option<String>,
     pub line: Option<u32>,
-    pub mutation_type: Option<String>,
+    pub mutation_types: Option<String>,
     pub severity: Option<String>,
     pub tested: bool,
     pub untested: bool,

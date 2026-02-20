@@ -504,7 +504,7 @@ impl SqlStore {
         &self,
         target: Option<String>,
         line: Option<u32>,
-        mutation_type: Option<String>,
+        mutation_types: Option<Vec<String>>,
         tested: bool,
         untested: bool,
     ) -> StoreResult<Vec<(Mutant, Target)>> {
@@ -562,12 +562,17 @@ impl SqlStore {
             query_builder.push(")");
         }
 
-        // Add mutation type filter
-        if let Some(mutation_slug) = mutation_type {
-            add_separator(&mut query_builder, &mut has_where);
-            query_builder
-                .push("m.mutation_slug = ")
-                .push_bind(mutation_slug);
+        // Add mutation types filter (supports multiple slugs via IN clause)
+        if let Some(mutation_slugs) = mutation_types {
+            if !mutation_slugs.is_empty() {
+                add_separator(&mut query_builder, &mut has_where);
+                query_builder.push("m.mutation_slug IN (");
+                let mut separated = query_builder.separated(", ");
+                for slug in mutation_slugs {
+                    separated.push_bind(slug);
+                }
+                query_builder.push(")");
+            }
         }
 
         // Sort by target path, then by byte offset within each target
@@ -615,7 +620,7 @@ impl SqlStore {
         target: Option<String>,
         status: Option<String>,
         language: Option<String>,
-        mutation_type: Option<String>,
+        mutation_types: Option<Vec<String>>,
         line: Option<u32>,
     ) -> StoreResult<Vec<(Mutant, Target, Outcome)>> {
         // Get target IDs matching the pattern (if provided)
@@ -657,12 +662,17 @@ impl SqlStore {
             query_builder.push("t.language = ").push_bind(lang);
         }
 
-        // Add mutation type filter
-        if let Some(mutation_slug) = mutation_type {
-            add_separator(&mut query_builder, &mut has_where);
-            query_builder
-                .push("m.mutation_slug = ")
-                .push_bind(mutation_slug);
+        // Add mutation types filter (supports multiple slugs via IN clause)
+        if let Some(mutation_slugs) = mutation_types {
+            if !mutation_slugs.is_empty() {
+                add_separator(&mut query_builder, &mut has_where);
+                query_builder.push("m.mutation_slug IN (");
+                let mut separated = query_builder.separated(", ");
+                for slug in mutation_slugs {
+                    separated.push_bind(slug);
+                }
+                query_builder.push(")");
+            }
         }
 
         // Add target filter (if target IDs were matched)
