@@ -323,7 +323,7 @@ impl Target {
             Some(engine) => engine,
             None => return Err(format!("No engine found for language: {}", self.language)),
         };
-        let mut new_mutants = engine.apply_all_mutations(self);
+        let mut new_mutants = engine.mutate(self);
 
         // Filter by whitelist (if present)
         new_mutants.retain(|m| is_slug_enabled(&m.mutation_slug, mutations));

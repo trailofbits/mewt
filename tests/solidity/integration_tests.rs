@@ -39,7 +39,7 @@ contract Test {
 
     // Get AST mutations
     let ast_engine = SolidityLanguageEngine::new();
-    let ast_mutants = ast_engine.apply_all_mutations(&target);
+    let ast_mutants = ast_engine.mutate(&target);
 
     println!("AST mutations: {}", ast_mutants.len());
 
@@ -85,7 +85,7 @@ contract Test {
 
     // Get AST mutations
     let ast_engine = SolidityLanguageEngine::new();
-    let ast_mutants = ast_engine.apply_all_mutations(&target);
+    let ast_mutants = ast_engine.mutate(&target);
 
     // Check comment handling (checking old_text for comment patterns)
     let ast_comment_mutations = ast_mutants
@@ -152,7 +152,7 @@ contract ComplexToken is ERC20, Ownable {
 
     // Test that AST system can handle complex Solidity code
     let ast_engine = SolidityLanguageEngine::new();
-    let ast_result = std::panic::catch_unwind(|| ast_engine.apply_all_mutations(&target));
+    let ast_result = std::panic::catch_unwind(|| ast_engine.mutate(&target));
 
     assert!(
         ast_result.is_ok(),
@@ -190,7 +190,7 @@ contract Test {
     let (_temp_dir, target) = create_test_target(source);
 
     let ast_engine = SolidityLanguageEngine::new();
-    let ast_mutants = ast_engine.apply_all_mutations(&target);
+    let ast_mutants = ast_engine.mutate(&target);
 
     // Analyze which lines are affected by mutations
     let mut ast_lines: HashMap<usize, Vec<String>> = HashMap::new();

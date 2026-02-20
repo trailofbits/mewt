@@ -44,19 +44,18 @@ impl LanguageEngine for RustLanguageEngine {
         &["rs"]
     }
 
-    fn tree_sitter_language(&self) -> TsLanguage {
-        RUST_LANGUAGE
-            .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_rust()) })
-            .clone()
-    }
-
     fn get_mutations(&self) -> &[Mutation] {
         &self.mutations
     }
 
-    fn apply_all_mutations(&self, target: &Target) -> Vec<Mutant> {
+    fn mutate(&self, target: &Target) -> Vec<Mutant> {
         let source = &target.text;
-        let tree = match parse_source(source, &self.tree_sitter_language()) {
+
+        // Load grammar once and cache it
+        let language =
+            RUST_LANGUAGE.get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_rust()) });
+
+        let tree = match parse_source(source, language) {
             Some(t) => t,
             None => return Vec::new(),
         };
@@ -310,6 +309,6 @@ mod tests {
             language: "Rust".to_string(),
         };
         let engine = RustLanguageEngine::new();
-        let _ = engine.apply_all_mutations(&target);
+        let _ = engine.mutate(&target);
     }
 }

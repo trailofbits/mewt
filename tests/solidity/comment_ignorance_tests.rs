@@ -46,7 +46,7 @@ contract TestContract {
 
     let target = solidity_target_from_source(source);
     let engine = SolidityLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     // Ensure none of the mutants originate from commented content (line or block)
     for m in &mutants {

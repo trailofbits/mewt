@@ -40,21 +40,13 @@ pub async fn execute_mutate(
             let mut medium_count = 0;
             let mut low_count = 0;
 
-            let engine = registry.get_engine(&target.language);
-
             for mutant in mutants {
                 // Count by severity for summary (regardless of whether it's new)
-                if let Some(eng) = engine {
-                    let severity = eng
-                        .get_severity_by_slug(&mutant.mutation_slug)
-                        .unwrap_or(MutationSeverity::Low);
-                    match severity {
-                        MutationSeverity::High => high_count += 1,
-                        MutationSeverity::Medium => medium_count += 1,
-                        MutationSeverity::Low => low_count += 1,
-                    }
-                } else {
-                    low_count += 1;
+                let severity = registry.get_severity(&target.language, &mutant.mutation_slug);
+                match severity {
+                    MutationSeverity::High => high_count += 1,
+                    MutationSeverity::Medium => medium_count += 1,
+                    MutationSeverity::Low => low_count += 1,
                 }
 
                 let mut new_mutant = mutant.clone();

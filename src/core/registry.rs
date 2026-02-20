@@ -1,5 +1,4 @@
 use std::path::Path;
-use tree_sitter::Tree;
 
 use crate::LanguageEngine;
 
@@ -54,12 +53,11 @@ impl LanguageRegistry {
         engine.get_mutations().iter().find(|m| m.slug == slug)
     }
 
-    /// Parse source code with the appropriate language
-    pub fn parse(&self, language_name: &str, source: &str) -> Option<Tree> {
-        let engine = self.get_engine(language_name)?;
-        let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&engine.tree_sitter_language()).ok()?;
-        parser.parse(source, None)
+    /// Get severity for a mutation, defaults to Low if not found
+    pub fn get_severity(&self, language_name: &str, slug: &str) -> crate::types::MutationSeverity {
+        self.get_mutation(language_name, slug)
+            .map(|m| m.severity.clone())
+            .unwrap_or(crate::types::MutationSeverity::Low)
     }
 }
 

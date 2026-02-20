@@ -36,7 +36,7 @@ fn main() {
 
     let target = rust_target_from_source(source);
     let engine = RustLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     // None of the mutants should have old_text originating from a Rust comment
     // Simple heuristic: if old_text string is found entirely between // or /* */ regions in the source
@@ -77,7 +77,7 @@ fn main() {
 
     let target = rust_target_from_source(rust_src);
     let engine = RustLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     fn count(mutants: &[mewt::types::Mutant], slug: &str) -> usize {
         mutants.iter().filter(|m| m.mutation_slug == slug).count()
@@ -108,7 +108,7 @@ fn test_func() -> i32 {
 
     let target = rust_target_from_source(source);
     let engine = RustLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     let er_mutants: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "ER").collect();
 
@@ -138,7 +138,7 @@ fn test_func() -> i32 {
 
     let target = rust_target_from_source(source);
     let engine = RustLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     let cr_mutants: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "CR").collect();
 
@@ -169,7 +169,7 @@ fn test_func() -> i32 {
 
     let target = rust_target_from_source(source);
     let engine = RustLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     // Should have mutations that target conditional expressions
     let conditional_mutants: Vec<_> = mutants
@@ -195,7 +195,7 @@ fn test_func() -> i32 {
 
     let target = rust_target_from_source(source);
     let engine = RustLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     // Should have mutations that target variables and expressions
     let var_mutants: Vec<_> = mutants

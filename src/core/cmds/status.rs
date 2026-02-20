@@ -110,11 +110,10 @@ async fn generate_status_report(
 
     for target in targets {
         let stats = store.get_target_stats(target.id).await?;
-        let language_engine = registry.get_engine(&target.language);
 
         // Compute severity-based catch rates from slug-based stats
         let (high_rate, medium_rate, low_rate) =
-            compute_severity_catch_rates(&stats.severity_stats, language_engine);
+            compute_severity_catch_rates(&stats.severity_stats, registry, &target.language);
 
         campaign_totals.total_mutants += stats.total_mutants;
         campaign_totals.tested += stats.tested;
@@ -145,7 +144,7 @@ async fn generate_status_report(
     // Get all language engines to map slugs to severities
     let all_languages = registry.all_languages();
     let mut all_engines = Vec::new();
-    for lang in all_languages {
+    for lang in &all_languages {
         if let Some(engine) = registry.get_engine(lang) {
             all_engines.push(engine);
         }
@@ -154,15 +153,15 @@ async fn generate_status_report(
     let (high_rate, medium_rate, low_rate) = if all_engines.is_empty() {
         (None, None, None)
     } else {
-        // For campaign-wide stats, try each engine to resolve slugs
+        // For campaign-wide stats, resolve severities for each slug+language pair
         let mut severity_stats: HashMap<MutationSeverity, (usize, usize)> = HashMap::new();
 
         for (slug, (eligible, caught)) in &campaign_severity_stats.severity_stats {
-            // Try to find the severity from any engine
+            // Try to find the severity from any language
             let mut found_severity = None;
-            for engine in &all_engines {
-                if let Some(severity) = engine.get_severity_by_slug(slug) {
-                    found_severity = Some(severity);
+            for lang in &all_languages {
+                if let Some(mutation) = registry.get_mutation(lang, slug) {
+                    found_severity = Some(mutation.severity.clone());
                     break;
                 }
             }
@@ -200,21 +199,17 @@ async fn generate_status_report(
 
 fn compute_severity_catch_rates(
     slug_stats: &HashMap<String, (usize, usize)>,
-    language_engine: Option<&dyn crate::LanguageEngine>,
+    registry: &LanguageRegistry,
+    language: &str,
 ) -> (Option<f64>, Option<f64>, Option<f64>) {
-    let Some(engine) = language_engine else {
-        return (None, None, None);
-    };
-
     // Aggregate slug-level stats into severity-level stats
     let mut severity_stats: HashMap<MutationSeverity, (usize, usize)> = HashMap::new();
 
     for (slug, (eligible, caught)) in slug_stats {
-        if let Some(severity) = engine.get_severity_by_slug(slug) {
-            let entry = severity_stats.entry(severity).or_insert((0, 0));
-            entry.0 += eligible;
-            entry.1 += caught;
-        }
+        let severity = registry.get_severity(language, slug);
+        let entry = severity_stats.entry(severity).or_insert((0, 0));
+        entry.0 += eligible;
+        entry.1 += caught;
     }
 
     let high_rate = calculate_catch_rate(&severity_stats, &MutationSeverity::High);
