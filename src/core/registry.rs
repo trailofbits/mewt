@@ -48,6 +48,12 @@ impl LanguageRegistry {
         self.engines.iter().map(|engine| engine.name()).collect()
     }
 
+    /// Get a specific mutation by language and slug
+    pub fn get_mutation(&self, language_name: &str, slug: &str) -> Option<&crate::types::Mutation> {
+        let engine = self.get_engine(language_name)?;
+        engine.get_mutations().iter().find(|m| m.slug == slug)
+    }
+
     /// Parse source code with the appropriate language
     pub fn parse(&self, language_name: &str, source: &str) -> Option<Tree> {
         let engine = self.get_engine(language_name)?;

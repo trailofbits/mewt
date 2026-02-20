@@ -3,9 +3,11 @@ use log::info;
 use serde::Serialize;
 use std::collections::BTreeMap;
 
+use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::core::cmds::print::MutantsFilters;
-use crate::types::{AppResult, Mutant, Target};
+use crate::core::utils::parse_csv;
+use crate::types::{AppResult, Mutant, MutationSeverity, Target};
 
 #[derive(Serialize)]
 struct JsonMutant {
@@ -18,7 +20,11 @@ struct JsonMutants {
     mutants: Vec<JsonMutant>,
 }
 
-pub async fn execute(store: SqlStore, filters: MutantsFilters) -> AppResult<()> {
+pub async fn execute(
+    store: SqlStore,
+    filters: MutantsFilters,
+    registry: &LanguageRegistry,
+) -> AppResult<()> {
     // Handle format output
     let is_ids_format = filters.format == "ids";
     let is_json_format = filters.format == "json";
@@ -32,7 +38,7 @@ pub async fn execute(store: SqlStore, filters: MutantsFilters) -> AppResult<()> 
 
     if use_filters {
         // Get filtered mutants from database
-        let results = store
+        let mut results = store
             .get_mutants_filtered(
                 filters.target.clone(),
                 filters.line,
@@ -41,6 +47,19 @@ pub async fn execute(store: SqlStore, filters: MutantsFilters) -> AppResult<()> 
                 filters.untested,
             )
             .await?;
+
+        // Apply severity filter if provided (application-layer filtering)
+        if let Some(severities) = parse_csv::<MutationSeverity>(filters.severity.as_deref()) {
+            results.retain(|(mutant, target)| {
+                if let Some(mutation) =
+                    registry.get_mutation(&target.language, &mutant.mutation_slug)
+                {
+                    severities.contains(&mutation.severity)
+                } else {
+                    false // Filter out unknown mutations
+                }
+            });
+        }
 
         if results.is_empty() {
             if is_json_format {
@@ -117,16 +136,34 @@ pub async fn execute(store: SqlStore, filters: MutantsFilters) -> AppResult<()> 
         return Ok(());
     }
 
+    // Parse severity filter once
+    let severity_filter = parse_csv::<MutationSeverity>(filters.severity.as_deref());
+
     // Collect all mutants for JSON format
     if is_json_format {
         let mut all_mutants = Vec::new();
         for target in filtered_targets {
             let mutants = store.get_mutants(target.id).await?;
             for mutant in mutants {
-                all_mutants.push(JsonMutant {
-                    mutant,
-                    target: target.clone(),
-                });
+                // Apply severity filter if provided
+                let include = if let Some(ref severities) = severity_filter {
+                    if let Some(mutation) =
+                        registry.get_mutation(&target.language, &mutant.mutation_slug)
+                    {
+                        severities.contains(&mutation.severity)
+                    } else {
+                        false
+                    }
+                } else {
+                    true
+                };
+
+                if include {
+                    all_mutants.push(JsonMutant {
+                        mutant,
+                        target: target.clone(),
+                    });
+                }
             }
         }
         let json_mutants = JsonMutants {
@@ -151,13 +188,34 @@ pub async fn execute(store: SqlStore, filters: MutantsFilters) -> AppResult<()> 
             continue;
         }
 
-        // Print mutants
+        // Print mutants (with severity filtering)
+        let mut printed_any = false;
         for mutant in mutants {
-            if is_ids_format {
-                info!("{}", mutant.id);
+            // Apply severity filter if provided
+            let include = if let Some(ref severities) = severity_filter {
+                if let Some(mutation) =
+                    registry.get_mutation(&target.language, &mutant.mutation_slug)
+                {
+                    severities.contains(&mutation.severity)
+                } else {
+                    false
+                }
             } else {
-                info!("  {}", mutant.display(&target));
+                true
+            };
+
+            if include {
+                printed_any = true;
+                if is_ids_format {
+                    info!("{}", mutant.id);
+                } else {
+                    info!("  {}", mutant.display(&target));
+                }
             }
+        }
+
+        if !is_ids_format && !printed_any {
+            info!("  No mutants found for this target (after filtering)");
         }
 
         if !is_ids_format {

@@ -9,6 +9,7 @@ pub struct Mutation {
 }
 
 #[derive(Clone, Debug, Display, EnumString, PartialEq, Eq, Hash, Serialize)]
+#[strum(ascii_case_insensitive)]
 pub enum MutationSeverity {
     High,   // eg revert/throw replacement
     Medium, // eg replace line with a comment

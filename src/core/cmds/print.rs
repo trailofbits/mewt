@@ -14,6 +14,7 @@ pub struct MutantsFilters {
     pub target: Option<String>,
     pub line: Option<u32>,
     pub mutation_type: Option<String>,
+    pub severity: Option<String>,
     pub tested: bool,
     pub untested: bool,
     pub format: String,
@@ -49,7 +50,7 @@ pub async fn execute_print(
         }
         PrintCommand::Mutants(filters) => {
             if let Some(store) = store {
-                mutants::execute(store, filters).await
+                mutants::execute(store, filters, &registry).await
             } else {
                 Err(AppError::Custom(
                     "Store is required for listing mutants".to_string(),

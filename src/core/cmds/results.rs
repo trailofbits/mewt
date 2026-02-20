@@ -1,10 +1,10 @@
 use log::info;
 use serde::Serialize;
 use std::collections::BTreeMap;
-use std::str::FromStr;
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
+use crate::core::utils::parse_csv;
 use crate::types::{AppResult, Mutant, MutationSeverity, Outcome, Status, Target};
 
 pub struct ResultsFilters {
@@ -15,6 +15,7 @@ pub struct ResultsFilters {
     pub status: Option<String>,
     pub language: Option<String>,
     pub mutation_type: Option<String>,
+    pub severity: Option<String>,
     pub line: Option<u32>,
     pub format: String,
 }
@@ -130,6 +131,7 @@ impl OutcomeCounter {
 
 // Normalize status string to PascalCase using case-insensitive parsing
 fn normalize_status(status_str: Option<String>) -> Option<String> {
+    use std::str::FromStr;
     status_str.and_then(|s| Status::from_str(&s).ok().map(|status| status.to_string()))
 }
 
@@ -245,7 +247,7 @@ pub async fn execute_results(
         }
         _ => {
             // Default table format
-            print_table_format(&data, &filters, &store, registry).await?;
+            print_table_format(&data, &filters, registry).await?;
         }
     }
 
@@ -255,7 +257,7 @@ pub async fn execute_results(
 async fn get_results_data(
     store: &SqlStore,
     filters: &ResultsFilters,
-    _registry: &LanguageRegistry,
+    registry: &LanguageRegistry,
 ) -> AppResult<Vec<(Mutant, Target, Outcome)>> {
     // If mutant_id is provided, fetch and show only that specific mutant's outcome
     if let Some(id) = filters.id {
@@ -281,8 +283,8 @@ async fn get_results_data(
         || filters.mutation_type.is_some()
         || filters.line.is_some();
 
-    if use_filters {
-        return store
+    let mut results = if use_filters {
+        store
             .get_outcomes_filtered(
                 filters.target.clone(),
                 normalize_status(filters.status.clone()),
@@ -291,25 +293,39 @@ async fn get_results_data(
                 filters.line,
             )
             .await
-            .map_err(|e| e.into());
-    }
+            .map_err(|e| -> crate::types::AppError { e.into() })?
+    } else {
+        // Legacy path: no filters, use old logic with target filtering or config
+        let filtered_targets =
+            Target::filter_by_path_or_config(store, filters.target.clone()).await?;
+        let mut results_vec = Vec::new();
 
-    // Legacy path: no filters, use old logic with target filtering or config
-    let filtered_targets = Target::filter_by_path_or_config(store, filters.target.clone()).await?;
-    let mut results = Vec::new();
+        for target in filtered_targets {
+            let mut mutants = store.get_mutants(target.id).await?;
+            mutants.sort_by_key(|m| m.byte_offset);
 
-    for target in filtered_targets {
-        let mut mutants = store.get_mutants(target.id).await?;
-        mutants.sort_by_key(|m| m.byte_offset);
-
-        for mutant in mutants {
-            if let Some(outcome) = store.get_outcome(mutant.id).await? {
-                // Filter based on flags
-                if filters.all || filters.verbose || outcome.status == Status::Uncaught {
-                    results.push((mutant, target.clone(), outcome));
+            for mutant in mutants {
+                if let Some(outcome) = store.get_outcome(mutant.id).await? {
+                    // Filter based on flags
+                    if filters.all || filters.verbose || outcome.status == Status::Uncaught {
+                        results_vec.push((mutant, target.clone(), outcome));
+                    }
                 }
             }
         }
+
+        results_vec
+    };
+
+    // Apply severity filter if provided (application-layer filtering)
+    if let Some(severities) = parse_csv::<MutationSeverity>(filters.severity.as_deref()) {
+        results.retain(|(mutant, target, _outcome)| {
+            if let Some(mutation) = registry.get_mutation(&target.language, &mutant.mutation_slug) {
+                severities.contains(&mutation.severity)
+            } else {
+                false // Filter out unknown mutations
+            }
+        });
     }
 
     Ok(results)
@@ -318,7 +334,6 @@ async fn get_results_data(
 async fn print_table_format(
     data: &[(Mutant, Target, Outcome)],
     filters: &ResultsFilters,
-    store: &SqlStore,
     registry: &LanguageRegistry,
 ) -> AppResult<()> {
     // If mutant_id is provided, special handling
@@ -376,22 +391,26 @@ async fn print_table_format(
     }
 
     // Legacy path: display with per-target statistics
-    let filtered_targets = Target::filter_by_path_or_config(store, filters.target.clone()).await?;
-    if filtered_targets.is_empty() {
-        info!("No targets found");
+    // Use the already-filtered data instead of fetching from database again
+    if data.is_empty() {
+        info!("No outcomes found");
         return Ok(());
     }
 
-    for target in filtered_targets {
-        info!("Target: {}", target.display());
+    // Group data by target
+    let mut by_target: BTreeMap<String, Vec<&(Mutant, Target, Outcome)>> = BTreeMap::new();
+    for entry in data {
+        let path_key = entry.1.path.to_string_lossy().to_string();
+        by_target.entry(path_key).or_default().push(entry);
+    }
 
-        let mut mutants = store.get_mutants(target.id).await?;
-        mutants.sort_by_key(|m| m.byte_offset);
-
-        if mutants.is_empty() {
-            info!("  No mutants found for this target");
+    for entries in by_target.values() {
+        if entries.is_empty() {
             continue;
         }
+
+        let target = &entries[0].1;
+        info!("Target: {}", target.display());
 
         let mut has_outcomes = false;
         let mut overall = OutcomeCounter::new();
@@ -399,27 +418,27 @@ async fn print_table_format(
         let mut medium = OutcomeCounter::new();
         let mut low = OutcomeCounter::new();
 
-        for mutant in mutants {
-            if let Some(outcome) = store.get_outcome(mutant.id).await? {
-                let status = outcome.status.clone();
-                overall.record(&status);
+        for (mutant, target, outcome) in entries {
+            let status = &outcome.status;
+            overall.record(status);
 
-                let severity = registry
-                    .get_engine(&target.language)
-                    .unwrap()
-                    .get_severity_by_slug(&mutant.mutation_slug)
-                    .unwrap_or(MutationSeverity::Low);
-                match severity {
-                    MutationSeverity::High => high.record(&status),
-                    MutationSeverity::Medium => medium.record(&status),
-                    MutationSeverity::Low => low.record(&status),
-                };
+            // Get severity using registry
+            let severity = if let Some(mutation) =
+                registry.get_mutation(&target.language, &mutant.mutation_slug)
+            {
+                mutation.severity.clone()
+            } else {
+                MutationSeverity::Low
+            };
 
-                if filters.verbose || filters.all || status == Status::Uncaught {
-                    has_outcomes = true;
-                    print_outcome(&mutant, &target, &outcome, filters.verbose);
-                }
-            }
+            match severity {
+                MutationSeverity::High => high.record(status),
+                MutationSeverity::Medium => medium.record(status),
+                MutationSeverity::Low => low.record(status),
+            };
+
+            has_outcomes = true;
+            print_outcome(mutant, target, outcome, filters.verbose);
         }
 
         if !has_outcomes {
