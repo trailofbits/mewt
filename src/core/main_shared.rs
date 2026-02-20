@@ -34,11 +34,40 @@ pub async fn run_main(
     let args = Args::from_arg_matches(&matches)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e.to_string()))?;
 
-    // Handle global arguments
-    if let Some(cwd_arg) = args.cwd.as_ref() {
-        let cwd = PathBuf::from(cwd_arg).canonicalize()?;
-        let _ = env::set_current_dir(&cwd);
+    // Handle config file path: either explicit via --config or auto-discovered
+    let config_path = if let Some(config_path_arg) = args.config.as_ref() {
+        let config_path = PathBuf::from(config_path_arg).canonicalize()?;
+
+        // Verify it's a file
+        if !config_path.is_file() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("Config path is not a file: {}", config_path.display()),
+            )
+            .into());
+        }
+
+        Some(config_path)
+    } else {
+        // Auto-discover config file by walking up from current directory
+        crate::types::config::find_nearest_config_file()
+    };
+
+    // If we found a config file (explicitly or via discovery), set cwd to its parent
+    if let Some(config_path) = config_path {
+        crate::types::config::set_config_path(Some(config_path.clone()));
+
+        // Change working directory to the config file's parent directory
+        if let Some(parent) = config_path.parent() {
+            env::set_current_dir(parent)?;
+            debug!(
+                "Using config file: {} (cwd set to {})",
+                config_path.display(),
+                parent.display()
+            );
+        }
     }
+
     let cwd = env::current_dir()?;
     debug!("Current working directory: {}", cwd.display());
 

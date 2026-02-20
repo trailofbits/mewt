@@ -3,10 +3,10 @@ use clap::{Parser, Subcommand};
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
-    /// All relative paths will be interpreted relative to this directory.
-    /// All child processes will be run in this directory.
+    /// Path to the config file. The directory containing the config file becomes
+    /// the working directory, and relative paths in the config are resolved from there.
     #[arg(long, global = true)]
-    pub cwd: Option<String>,
+    pub config: Option<String>,
 
     /// Location of the sqlite database
     #[arg(long, global = true)]

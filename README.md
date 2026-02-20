@@ -174,7 +174,7 @@ You can also vendor manually by placing generated C sources under `mewt/grammars
 
 Configuration sources (highest to lowest priority):
 1. CLI flags
-2. Nearest `mewt.toml` found by walking up from the current working directory
+2. Config file specified via `--config` flag, or nearest `mewt.toml` found by walking up from the current working directory
 3. Built-in defaults
 
 Notes:
@@ -182,21 +182,25 @@ Notes:
 - Mutation slug whitelist overrides at the highest non-empty source; not merged.
 - Ignore targets are merged additively across sources.
 
-Config file discovery: starting from `cwd`, search for `mewt.toml` in that directory, then its parent, and so on, stopping at the first match.
+Config file discovery: 
+- If `--config <path>` is provided, uses that file and sets the working directory to the config file's parent directory
+- Otherwise, starting from the current working directory, search for `mewt.toml` in that directory, then its parent, and so on, stopping at the first match
 
 Example config:
 
 ```toml
+# Top-level fields
+db = "mewt.sqlite"
+
 [log]
 level = "info"            # one of: trace, debug, info, warn, error
 color = true               # optional boolean; omit for auto
 
-[general]
-db = "mewt.sqlite"
-ignore_targets = ["build/", "node_modules/"]  # substring matches, not globs
+[targets]
+ignore = ["build/", "node_modules/"]  # substring matches, not globs
 
-[mutations]
-slugs = ["ER", "CR"]      # global whitelist; overrides other sources if set/non-empty
+[run]
+mutations = ["ER", "CR"]  # global whitelist; overrides other sources if set/non-empty
 
 [test]
 cmd = "cargo test"
