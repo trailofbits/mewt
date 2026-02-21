@@ -371,6 +371,40 @@ pub fn is_path_excluded(path: &Path, ignore_patterns: &[String]) -> bool {
         .any(|pat| path_str.contains(pat))
 }
 
+/// Check if a path is included by current config patterns
+/// Returns false if no config is set (requires explicit configuration)
+pub fn path_is_included(path: &Path) -> bool {
+    let targets_cfg = config().targets();
+
+    // If no config, path is not included (requires explicit configuration)
+    let Some(cfg) = targets_cfg else {
+        return false;
+    };
+
+    let Some(include_patterns) = &cfg.include else {
+        return false;
+    };
+
+    // Build globset for include patterns
+    let mut builder = globset::GlobSetBuilder::new();
+    for pattern in include_patterns {
+        if let Ok(glob) = globset::Glob::new(pattern) {
+            builder.add(glob);
+        }
+    }
+
+    let Some(include_matcher) = builder.build().ok() else {
+        return false;
+    };
+
+    // Check if path matches include patterns and is not ignored
+    let ignore_patterns = cfg.ignore.as_deref().unwrap_or(&[]);
+    let is_included = include_matcher.is_match(path);
+    let is_ignored = is_path_excluded(path, ignore_patterns);
+
+    is_included && !is_ignored
+}
+
 pub fn resolve_test_for_path(
     path: &Path,
     resolved_cmd: Option<&str>,

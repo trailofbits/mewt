@@ -62,7 +62,7 @@ pub async fn execute_print(
             .map_err(AppError::Custom),
         PrintCommand::Targets(format) => {
             if let Some(store) = store {
-                targets::execute(store, format).await
+                targets::execute(store, format, &registry).await
             } else {
                 Err(AppError::Custom(
                     "Store is required for listing targets".to_string(),
