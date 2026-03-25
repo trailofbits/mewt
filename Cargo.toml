@@ -47,7 +47,7 @@ toml = "0.8"
 tree-sitter = "0.25"
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 tempfile = "3.12"
 pretty_assertions = "1.4"
 tokio-test = "0.4"
