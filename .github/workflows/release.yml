@@ -288,9 +288,14 @@ jobs:
       plan: ${{ needs.plan.outputs.val }}
     secrets: inherit
     # publish jobs get escalated permissions
+    # NOTE: contents:read is manually added and not in the cargo-dist template.
+    # If you regenerate this file with 'dist init', re-add it — without it the
+    # reusable workflow's checkout step fails (job grants contents:none, but
+    # publish-crates-io.yml declares contents:read which GitHub then rejects).
     permissions:
       "id-token": "write"
       "packages": "write"
+      "contents": "read"
 
   announce:
     needs:
