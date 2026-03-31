@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 3.0.1 - 2026-03-24
+
+### Fixed
+- Grammar cache directory now rooted in `OUT_DIR` instead of a relative `target/` path, fixing panics during Nix sandbox builds
+
 ## 3.0.0 - 2026-03-24
 
 ### Added
