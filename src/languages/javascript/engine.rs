@@ -37,32 +37,6 @@ impl JavaScriptLanguageEngine {
         mutations.extend_from_slice(JAVASCRIPT_MUTATIONS);
         Self { mutations }
     }
-
-    fn javascript_language(&self) -> TsLanguage {
-        JS_LANGUAGE
-            .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_javascript()) })
-            .clone()
-    }
-
-    fn typescript_language(&self) -> TsLanguage {
-        TS_LANGUAGE
-            .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_typescript()) })
-            .clone()
-    }
-
-    fn tsx_language(&self) -> TsLanguage {
-        TSX_LANGUAGE
-            .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_tsx()) })
-            .clone()
-    }
-
-    fn get_extension(target: &Target) -> Option<String> {
-        target
-            .path
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(|s| s.to_string())
-    }
 }
 
 impl LanguageEngine for JavaScriptLanguageEngine {
@@ -74,24 +48,28 @@ impl LanguageEngine for JavaScriptLanguageEngine {
         &["js", "ts", "jsx", "tsx"]
     }
 
-    fn tree_sitter_language(&self) -> TsLanguage {
-        // Default to JavaScript for compatibility
-        self.javascript_language()
-    }
-
     fn get_mutations(&self) -> &[Mutation] {
         &self.mutations
     }
 
-    fn apply_all_mutations(&self, target: &Target) -> Vec<Mutant> {
+    fn mutate(&self, target: &Target) -> Vec<Mutant> {
         let source = &target.text;
-        let language = match Self::get_extension(target).as_deref() {
-            Some("ts") => self.typescript_language(),
-            Some("tsx") => self.tsx_language(),
-            Some("jsx") => self.javascript_language(), // JSX uses JS grammar
-            _ => self.javascript_language(),           // Default to JS
+
+        // Determine which grammar to use based on file extension
+        let extension = target.path.extension().and_then(|e| e.to_str());
+
+        let language = match extension {
+            Some("ts") => TS_LANGUAGE
+                .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_typescript()) }),
+            Some("tsx") => {
+                TSX_LANGUAGE.get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_tsx()) })
+            }
+            // Default to JavaScript for .js, .jsx, and any other files
+            _ => JS_LANGUAGE
+                .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_javascript()) }),
         };
-        let tree = match parse_source(source, &language) {
+
+        let tree = match parse_source(source, language) {
             Some(t) => t,
             None => return Vec::new(),
         };
@@ -322,6 +300,6 @@ mod tests {
             language: "JavaScript".to_string(),
         };
         let engine = JavaScriptLanguageEngine::new();
-        let _ = engine.apply_all_mutations(&target);
+        let _ = engine.mutate(&target);
     }
 }

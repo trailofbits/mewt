@@ -11,7 +11,7 @@ This tells you something code coverage alone can't: not just whether your
 tests *execute* a line, but whether they'd actually *fail* if that line were
 wrong.
 
-**Supported languages:** 
+**Supported languages:**
 - Go
 - JavaScript/TypeScript
 - Rust

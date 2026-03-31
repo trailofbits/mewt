@@ -7,3 +7,4 @@ pub mod registry;
 pub mod runner;
 pub mod store;
 pub mod types;
+pub mod utils;

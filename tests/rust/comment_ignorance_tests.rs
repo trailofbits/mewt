@@ -36,7 +36,7 @@ fn main() {
 
     let target = rust_target_from_source(source);
     let engine = RustLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     for m in &mutants {
         let line = m.line_offset as usize;

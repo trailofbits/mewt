@@ -1,37 +1,64 @@
+use std::fs;
 use std::path::PathBuf;
 
 fn build_grammar(dir: &PathBuf, lib_name: &str) {
-    let mut build = cc::Build::new();
-    build.include(dir).file(dir.join("parser.c"));
+    let out_dir = std::env::var("OUT_DIR").unwrap();
+    let cache_dir = PathBuf::from("target/.grammar-cache");
+    fs::create_dir_all(&cache_dir).ok();
 
-    // Include external scanner if present (required by some grammars like Rust)
-    let scanner_c = dir.join("scanner.c");
-    if scanner_c.exists() {
-        build.file(scanner_c.clone());
+    let cached_lib = cache_dir.join(format!("lib{}.a", lib_name));
+    let parser_c = dir.join("parser.c");
+
+    // Check if cached library exists and is newer than source
+    let should_rebuild = if cached_lib.exists() {
+        let cache_time = fs::metadata(&cached_lib).unwrap().modified().unwrap();
+        let source_time = fs::metadata(&parser_c).unwrap().modified().unwrap();
+        source_time > cache_time
+    } else {
+        true
+    };
+
+    if !should_rebuild {
+        // Use cached library - copy to OUT_DIR (avoids recompilation across build flavors)
+        fs::copy(
+            &cached_lib,
+            PathBuf::from(&out_dir).join(format!("lib{}.a", lib_name)),
+        )
+        .unwrap();
+    } else {
+        // Compile C code from scratch
+        let mut build = cc::Build::new();
+        build.include(dir).file(dir.join("parser.c"));
+
+        // Include external scanner if present (required by some grammars like Rust)
+        let scanner_c = dir.join("scanner.c");
+        if scanner_c.exists() {
+            build.file(scanner_c.clone());
+        }
+
+        // Suppress the specific warning from vendored tree-sitter code
+        if build.get_compiler().is_like_clang() || build.get_compiler().is_like_gnu() {
+            build.flag("-Wno-unused-but-set-variable");
+        }
+
+        // Compile to object file and link directly
+        build.compile(lib_name);
+
+        // Update cache for future builds
+        let compiled_lib = PathBuf::from(&out_dir).join(format!("lib{}.a", lib_name));
+        fs::copy(&compiled_lib, &cached_lib).unwrap();
     }
-
-    // Suppress the specific warning from vendored tree-sitter code
-    if build.get_compiler().is_like_clang() || build.get_compiler().is_like_gnu() {
-        build.flag("-Wno-unused-but-set-variable");
-    }
-
-    // Compile to object file and link directly
-    build.compile(lib_name);
 
     // Link the static library explicitly
-    let out_dir = std::env::var("OUT_DIR").unwrap();
     println!("cargo:rustc-link-search=native={out_dir}");
     println!("cargo:rustc-link-arg={out_dir}/lib{lib_name}.a");
-
-    // Tell cargo to rerun if the parser/scanner source changes
-    println!("cargo:rerun-if-changed={}", dir.join("parser.c").display());
-    let scanner_c = dir.join("scanner.c");
-    if scanner_c.exists() {
-        println!("cargo:rerun-if-changed={}", scanner_c.display());
-    }
 }
 
 fn main() {
+    // Only rerun build script if these specific files change
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=grammars/");
+
     // Override target-related environment variables to align with Nix expectations
     // The issue is cc crate converts aarch64-apple-darwin -> arm64-apple-macosx
     // but Nix expects arm64-apple-darwin

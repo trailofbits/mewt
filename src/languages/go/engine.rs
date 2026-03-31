@@ -44,19 +44,18 @@ impl LanguageEngine for GoLanguageEngine {
         &["go"]
     }
 
-    fn tree_sitter_language(&self) -> TsLanguage {
-        GO_LANGUAGE
-            .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_go()) })
-            .clone()
-    }
-
     fn get_mutations(&self) -> &[Mutation] {
         &self.mutations
     }
 
-    fn apply_all_mutations(&self, target: &Target) -> Vec<Mutant> {
+    fn mutate(&self, target: &Target) -> Vec<Mutant> {
         let source = &target.text;
-        let tree = match parse_source(source, &self.tree_sitter_language()) {
+
+        // Load grammar once and cache it
+        let language =
+            GO_LANGUAGE.get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_go()) });
+
+        let tree = match parse_source(source, language) {
             Some(t) => t,
             None => return Vec::new(),
         };
@@ -252,6 +251,6 @@ func main() {
             language: "Go".to_string(),
         };
         let engine = GoLanguageEngine::new();
-        let _ = engine.apply_all_mutations(&target);
+        let _ = engine.mutate(&target);
     }
 }

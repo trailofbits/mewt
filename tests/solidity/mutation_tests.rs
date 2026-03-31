@@ -37,7 +37,7 @@ contract Test {
 
     let target = solidity_target_from_source(solidity_src);
     let engine = SolidityLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     fn count(mutants: &[mewt::types::Mutant], slug: &str) -> usize {
         mutants.iter().filter(|m| m.mutation_slug == slug).count()
@@ -72,7 +72,7 @@ contract Test {
 
     let target = solidity_target_from_source(source);
     let engine = SolidityLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     let er_mutants: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "ER").collect();
 
@@ -106,7 +106,7 @@ contract Test {
 
     let target = solidity_target_from_source(source);
     let engine = SolidityLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     let cr_mutants: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "CR").collect();
 
@@ -141,7 +141,7 @@ contract Test {
 
     let target = solidity_target_from_source(source);
     let engine = SolidityLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     // Should have mutations that target conditional expressions
     let conditional_mutants: Vec<_> = mutants
@@ -173,7 +173,7 @@ contract Test {
 
     let target = solidity_target_from_source(source);
     let engine = SolidityLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     let as_mutants: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "AS").collect();
 
@@ -206,7 +206,7 @@ contract Test {
 
     let target = solidity_target_from_source(source);
     let engine = SolidityLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     // Should have mutations that target variables and expressions
     let var_mutants: Vec<_> = mutants
@@ -240,7 +240,7 @@ contract Test {
 
     let target = solidity_target_from_source(source);
     let engine = SolidityLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     // Should have mutations that target loop constructs
     let loop_mutants: Vec<_> = mutants

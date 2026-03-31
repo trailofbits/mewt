@@ -7,6 +7,8 @@
     naersk.url = "github:nix-community/naersk";
     naersk.inputs.nixpkgs.follows = "nixpkgs";
     naersk.inputs.fenix.follows = "fenix";
+    cargo-dist-src.url = "github:axodotdev/cargo-dist";
+    cargo-dist-src.flake = false;
   };
 
   outputs = inputs: with inputs;
@@ -57,7 +59,7 @@
         fenixPkgs.targets.${targets.aarch64-linux}.stable.rust-std
       ];
 
-      naerskBuild = { targetSystem, crate }: let
+      naerskBuild = targetSystem: let
         pkgsCross = mkPkgs targetSystem;
         isNativeBuild = targetSystem == null || targetSystem == buildSystem;
       in (naersk.lib.${buildSystem}.override {
@@ -68,7 +70,6 @@
         strictDeps = true;
         doCheck = false;
         release = true;
-        cargoBuildOptions = x: x ++ [ "-p" crate ];
         postInstall = if targetSystem == null then "" else ''
           cd "$out"/bin
           for f in $(ls); do
@@ -123,17 +124,31 @@
         ];
       }));
 
+      cargoDistBin = pkgs.rustPlatform.buildRustPackage {
+        pname = "cargo-dist";
+        version = "main";
+        src = inputs.cargo-dist-src;
+        cargoLock.lockFile = "${inputs.cargo-dist-src}/Cargo.lock";
+        # aws-lc-sys (pulled in via axoasset -> reqwest -> rustls) needs cmake+perl
+        nativeBuildInputs = with pkgs; [ cmake perl pkg-config ];
+        buildInputs = with pkgs; [ bzip2 xz zstd ];
+        env.ZSTD_SYS_USE_PKG_CONFIG = true;
+        buildFlags = ["-p" "cargo-dist"];
+        doCheck = false;
+      };
+
     in rec {
 
       packages = {
         default = packages.mewt;
-        mewt = naerskBuild { targetSystem = null; crate = "mewt"; };
-        mewt-x86_64-linux = naerskBuild { targetSystem = "x86_64-linux"; crate = "mewt"; };
-        mewt-aarch64-linux = naerskBuild { targetSystem = "aarch64-linux"; crate = "mewt"; };
-        mewt-aarch64-darwin = naerskBuild { targetSystem = "aarch64-darwin"; crate = "mewt"; };
+        mewt = naerskBuild null;
+        mewt-x86_64-linux = naerskBuild "x86_64-linux";
+        mewt-aarch64-linux = naerskBuild "aarch64-linux";
+        mewt-aarch64-darwin = naerskBuild "aarch64-darwin";
       };
 
       devInputs = with pkgs; [
+        cargoDistBin
         cargo-watch
         libiconv
         openssl
@@ -143,6 +158,7 @@
         sqlite
         sqlx-cli
         toolchain
+        typos
       ];
 
       devShells = {
@@ -151,7 +167,7 @@
           buildInputs = devInputs;
           shellHook = ''
             export CARGO_HOME=$(pwd)/.cargo
-            export PATH="$CARGO_HOME/bin:$PATH"
+            export PATH="$PATH:$CARGO_HOME/bin"
           '';
         };
       };

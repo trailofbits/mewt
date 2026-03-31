@@ -3,10 +3,10 @@ use clap::{Parser, Subcommand};
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
-    /// All relative paths will be interpreted relative to this directory.
-    /// All child processes will be run in this directory.
+    /// Path to the config file. The directory containing the config file becomes
+    /// the working directory, and relative paths in the config are resolved from there.
     #[arg(long, global = true)]
-    pub cwd: Option<String>,
+    pub config: Option<String>,
 
     /// Location of the sqlite database
     #[arg(long, global = true)]
@@ -59,9 +59,10 @@ pub enum Commands {
 /// Arguments for the run command
 #[derive(Parser, Debug)]
 pub struct RunArgs {
-    /// Target(s) to mutate (files or directories).
+    /// Target(s) to mutate (files, directories, or glob patterns).
     /// If a file, mutate that file.
     /// If a directory, mutate all files inside the directory.
+    /// If a glob pattern (e.g., "**/*.rs"), mutate all matching files.
     /// If not provided, skip mutation generation and test existing mutants without outcomes.
     /// Replaces config [targets].include if provided.
     #[arg(value_name = "TARGET")]
@@ -102,17 +103,23 @@ pub struct RunArgs {
 /// Arguments for the mutate command
 #[derive(Parser, Debug)]
 pub struct MutateArgs {
-    /// Target(s) to mutate (files or directories).
+    /// Target(s) to mutate (files, directories, or glob patterns).
     /// If a file, mutate that file.
     /// If a directory, mutate all files inside the directory.
+    /// If a glob pattern (e.g., "**/*.rs"), mutate all matching files.
+    /// If not provided, uses config [targets].include.
     /// Replaces config [targets].include if provided.
-    #[arg(value_name = "TARGET", required = true)]
+    #[arg(value_name = "TARGET")]
     pub targets: Vec<String>,
 
     /// Comma-separated substrings; any target path containing any will be ignored.
     /// Replaces config [targets].ignore if provided.
     #[arg(long = "ignore-targets")]
     pub ignore_targets: Option<String>,
+
+    /// Show detailed output for each mutant generated (default: show per-target summaries)
+    #[arg(long)]
+    pub verbose: bool,
 }
 
 /// Arguments for the list-mutations command
@@ -126,7 +133,7 @@ pub struct ListMutationsArgs {
 /// Arguments for the list-outcomes command
 #[derive(Parser, Debug)]
 pub struct ListOutcomesArgs {
-    /// Filter outcomes by target path
+    /// Filter outcomes by target path or glob pattern (e.g., "src/**/*.rs")
     #[arg(long)]
     pub target: Option<String>,
 }
@@ -181,7 +188,8 @@ pub struct PrintConfigArgs {
 /// Arguments for the results command
 #[derive(Parser, Debug)]
 pub struct ResultsArgs {
-    /// Filter outcomes by target path
+    /// Filter outcomes by target path or glob pattern (e.g., "src/**/*.rs").
+    /// If not provided, uses config [targets].include.
     #[arg(long)]
     pub target: Option<String>,
 
@@ -205,9 +213,13 @@ pub struct ResultsArgs {
     #[arg(long)]
     pub language: Option<String>,
 
-    /// Filter by mutation type slug (e.g., ER, CR, BR)
+    /// Filter by mutation type slugs (comma-separated, e.g., "ER,CR,BR")
+    #[arg(long, value_name = "SLUGS")]
+    pub mutation_types: Option<String>,
+
+    /// Filter by severity level (e.g., high, medium, low). Comma-separated for multiple.
     #[arg(long)]
-    pub mutation_type: Option<String>,
+    pub severity: Option<String>,
 
     /// Filter by line number
     #[arg(long)]
@@ -229,7 +241,8 @@ pub struct PrintMutantArgs {
 /// Arguments for the print mutants subcommand
 #[derive(Parser, Debug)]
 pub struct PrintMutantsArgs {
-    /// Filter mutants by target path
+    /// Filter mutants by target path or glob pattern (e.g., "src/**/*.rs").
+    /// If not provided, uses config [targets].include.
     #[arg(long)]
     pub target: Option<String>,
 
@@ -237,9 +250,13 @@ pub struct PrintMutantsArgs {
     #[arg(long)]
     pub line: Option<u32>,
 
-    /// Filter by mutation type slug (e.g., ER, CR, BR)
+    /// Filter by mutation type slugs (comma-separated, e.g., "ER,CR,BR")
+    #[arg(long, value_name = "SLUGS")]
+    pub mutation_types: Option<String>,
+
+    /// Filter by severity level (e.g., high, medium, low). Comma-separated for multiple.
     #[arg(long)]
-    pub mutation_type: Option<String>,
+    pub severity: Option<String>,
 
     /// Show only tested mutants (those with outcomes)
     #[arg(long)]
@@ -284,9 +301,16 @@ pub struct TestArgs {
 /// Arguments for the purge command
 #[derive(Parser, Debug)]
 pub struct PurgeArgs {
-    /// Target path to purge (if not provided, will purge all targets)
+    /// Target path or glob pattern to purge (e.g., "node_modules/**" or "**/test_*.rs").
+    /// If not provided, purges targets that are NOT in config [targets].include or ARE in config [targets].ignore.
+    /// Use --all to purge all targets regardless of config.
     #[arg(long)]
     pub target: Option<String>,
+
+    /// Purge all targets in the database, regardless of config [targets] rules.
+    /// Cannot be combined with --target.
+    #[arg(long, conflicts_with = "target")]
+    pub all: bool,
 }
 
 /// Arguments for the status command

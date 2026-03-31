@@ -12,6 +12,7 @@ use indicatif::{HumanDuration, ProgressBar};
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
+use crate::core::utils::parse_csv;
 use crate::types::{CampaignSummary, Mutant, MutationSeverity, Outcome, Status, Target};
 
 pub struct TestRunner {
@@ -161,11 +162,10 @@ impl TestRunner {
         filter_slugs: Option<String>,
     ) -> io::Result<CampaignSummary> {
         // Parse mutation slugs if provided
-        let allowed_slugs: Option<Vec<String>> = filter_slugs.map(|s| {
-            let slugs: Vec<String> = s.split(',').map(|s| s.trim().to_string()).collect();
-            info!("Filtering mutations to test by slugs: {}", slugs.join(", "));
-            slugs
-        });
+        let allowed_slugs: Option<Vec<String>> = parse_csv::<String>(filter_slugs.as_deref())
+            .inspect(|slugs| {
+                info!("Filtering mutations to test by slugs: {}", slugs.join(", "));
+            });
 
         // Count total mutants to be tested across all targets for time estimation
         let mut total_untested_mutants = 0;
@@ -336,18 +336,12 @@ impl TestRunner {
         mutants.sort_by(|a, b| {
             let a_sev = self
                 .registry
-                .get_engine(language)
-                .unwrap()
-                .get_severity_by_slug(&a.mutation_slug)
-                .map(|s| s.to_numeric())
-                .unwrap_or(2); // Default to Low severity if not found
+                .get_severity(language, &a.mutation_slug)
+                .to_numeric();
             let b_sev = self
                 .registry
-                .get_engine(language)
-                .unwrap()
-                .get_severity_by_slug(&b.mutation_slug)
-                .map(|s| s.to_numeric())
-                .unwrap_or(2); // Default to Low severity if not found
+                .get_severity(language, &b.mutation_slug)
+                .to_numeric();
             a_sev.cmp(&b_sev)
         });
 
@@ -430,15 +424,7 @@ impl TestRunner {
             if !self.comprehensive {
                 let severity = self
                     .registry
-                    .get_engine(language)
-                    .unwrap()
-                    .get_severity_by_slug(&mutant.mutation_slug)
-                    .ok_or_else(|| {
-                        io::Error::new(
-                            io::ErrorKind::NotFound,
-                            format!("Mutation slug not found: {}", mutant.mutation_slug),
-                        )
-                    })?
+                    .get_severity(language, &mutant.mutation_slug)
                     .to_numeric();
                 let (line_start, line_end) = mutant.get_lines();
 
@@ -502,10 +488,11 @@ impl TestRunner {
                         continue;
                     } else if !warned_invalid_slugs.contains(&mutant.mutation_slug) {
                         // For invalid slugs, we'll warn the user but only once per slug
-                        let valid_slugs =
-                            self.registry.get_engine(language).unwrap().get_all_slugs();
-
-                        if !valid_slugs.contains(&mutant.mutation_slug) {
+                        if self
+                            .registry
+                            .get_mutation(language, &mutant.mutation_slug)
+                            .is_none()
+                        {
                             warn!("Unknown mutation slug: {}", mutant.mutation_slug);
                             warned_invalid_slugs.push(mutant.mutation_slug.clone());
                         }
@@ -582,15 +569,7 @@ impl TestRunner {
             let language = &target.language;
             let severity = self
                 .registry
-                .get_engine(language)
-                .unwrap()
-                .get_severity_by_slug(&mutant.mutation_slug)
-                .ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::NotFound,
-                        format!("Mutation slug not found: {}", mutant.mutation_slug),
-                    )
-                })?
+                .get_severity(language, &mutant.mutation_slug)
                 .to_numeric();
             // Only track High (0) and Medium (1) severity uncaught mutants
             if severity == 0 || severity == 1 {

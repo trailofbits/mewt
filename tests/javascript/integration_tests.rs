@@ -31,7 +31,7 @@ function testFunc() {
 "#;
     let (_temp_dir, target) = create_test_target(source, "test.js");
     let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     assert!(!mutants.is_empty(), "Should generate mutations");
 
@@ -56,7 +56,7 @@ function greet(user: User): string {
 "#;
     let (_temp_dir, target) = create_test_target(source, "test.ts");
     let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     assert!(
         !mutants.is_empty(),
@@ -76,7 +76,7 @@ function Welcome(props) {
 "#;
     let (_temp_dir, target) = create_test_target(source, "test.jsx");
     let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     assert!(!mutants.is_empty(), "Should generate mutations for JSX");
 }
@@ -93,7 +93,7 @@ function calc(a, b) {
 "#;
     let (_temp_dir, target) = create_test_target(source, "test.js");
     let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     let aos_count = mutants
         .iter()
@@ -131,7 +131,7 @@ const max = x >= y ? x : y;
 "#;
     let (_temp_dir, target) = create_test_target(source, "test.ts");
     let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     // Filter to just COS mutations
     let cos_mutants: Vec<_> = mutants
@@ -199,7 +199,7 @@ if (a < b && c > d) {
 "#;
     let (_temp_dir, target) = create_test_target(source, "test.tsx");
     let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.apply_all_mutations(&target);
+    let mutants = engine.mutate(&target);
 
     // Filter to just COS mutations
     let cos_mutants: Vec<_> = mutants

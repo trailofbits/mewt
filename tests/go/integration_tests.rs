@@ -36,7 +36,7 @@ func testFunc() int {
 
     // Get AST mutations
     let ast_engine = GoLanguageEngine::new();
-    let ast_mutants = ast_engine.apply_all_mutations(&target);
+    let ast_mutants = ast_engine.mutate(&target);
 
     println!("AST mutations: {}", ast_mutants.len());
 
@@ -79,7 +79,7 @@ func testFunc() int {
 
     // Get AST mutations
     let ast_engine = GoLanguageEngine::new();
-    let ast_mutants = ast_engine.apply_all_mutations(&target);
+    let ast_mutants = ast_engine.mutate(&target);
 
     // Check comment handling (checking old_text for comment patterns)
     let ast_comment_mutations = ast_mutants
@@ -139,7 +139,7 @@ func main() {
 
     // Test that AST system can handle complex Go code
     let ast_engine = GoLanguageEngine::new();
-    let ast_result = std::panic::catch_unwind(|| ast_engine.apply_all_mutations(&target));
+    let ast_result = std::panic::catch_unwind(|| ast_engine.mutate(&target));
 
     assert!(
         ast_result.is_ok(),
@@ -174,7 +174,7 @@ func testFunc() int {
     let (_temp_dir, target) = create_test_target(source);
 
     let ast_engine = GoLanguageEngine::new();
-    let ast_mutants = ast_engine.apply_all_mutations(&target);
+    let ast_mutants = ast_engine.mutate(&target);
 
     // Analyze which lines are affected by mutations
     let mut ast_lines: HashMap<usize, Vec<String>> = HashMap::new();

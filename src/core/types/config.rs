@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
+use crate::core::utils::parse_csv;
+
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct LogConfig {
     pub level: Option<String>,
@@ -142,11 +144,7 @@ impl Config {
         };
 
         let ignore = if let Some(cli_ign) = cli_ignore {
-            cli_ign
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect()
+            parse_csv::<String>(Some(cli_ign)).unwrap_or_default()
         } else {
             self.targets()
                 .and_then(|t| t.ignore.clone())
@@ -158,14 +156,7 @@ impl Config {
 
     /// Resolve mutations with CLI override (complete replacement)
     pub fn resolve_mutations(&self, cli_mutations: Option<&str>) -> Option<Vec<String>> {
-        cli_mutations
-            .map(|s| {
-                s.split(',')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect()
-            })
-            .or_else(|| self.run().and_then(|r| r.mutations.clone()))
+        parse_csv::<String>(cli_mutations).or_else(|| self.run().and_then(|r| r.mutations.clone()))
     }
 
     /// Resolve test command with CLI override
@@ -200,6 +191,7 @@ pub struct CliOverrides {
 
 static NAMESPACE: OnceCell<String> = OnceCell::new();
 static CONFIG_FILENAME: OnceCell<String> = OnceCell::new();
+static CONFIG_PATH: OnceCell<Option<PathBuf>> = OnceCell::new();
 static CONFIG: OnceCell<Config> = OnceCell::new();
 
 pub fn set_namespace(namespace: &str) {
@@ -222,6 +214,14 @@ pub fn get_config_filename() -> &'static str {
     CONFIG_FILENAME.get().map(|s| s.as_str()).unwrap()
 }
 
+pub fn set_config_path(path: Option<PathBuf>) {
+    let _ = CONFIG_PATH.set(path);
+}
+
+pub fn get_config_path() -> Option<&'static PathBuf> {
+    CONFIG_PATH.get().and_then(|opt| opt.as_ref())
+}
+
 pub fn config() -> &'static Config {
     CONFIG.get_or_init(|| {
         let mut cfg = Config::default();
@@ -238,9 +238,9 @@ pub fn config() -> &'static Config {
 pub fn init_with_overrides(overrides: &CliOverrides) {
     let mut cfg = Config::default();
 
-    // 1) Config file: walk up from cwd and use the first config file found
-    if let Some(path) = find_nearest_config_file() {
-        if let Some(file_cfg) = read_config_file(&path) {
+    // 1) Config file: use path set by main (already discovered/validated)
+    if let Some(path) = get_config_path() {
+        if let Some(file_cfg) = read_config_file(path) {
             apply_file_config(&mut cfg, &file_cfg);
         }
     }
@@ -333,9 +333,10 @@ fn apply_cli_overrides(cfg: &mut Config, overrides: &CliOverrides) {
     }
 }
 
-fn find_nearest_config_file() -> Option<PathBuf> {
+pub fn find_nearest_config_file() -> Option<PathBuf> {
     let cwd = std::env::current_dir().ok()?;
-    let config_filename = get_config_filename();
+    // Return None if config filename hasn't been set yet (e.g., in tests)
+    let config_filename = CONFIG_FILENAME.get()?.as_str();
     for dir in cwd.ancestors() {
         let candidate = dir.join(config_filename);
         if candidate.exists() {
@@ -368,6 +369,40 @@ pub fn is_path_excluded(path: &Path, ignore_patterns: &[String]) -> bool {
         .iter()
         .filter(|p| !p.is_empty())
         .any(|pat| path_str.contains(pat))
+}
+
+/// Check if a path is included by current config patterns
+/// Returns false if no config is set (requires explicit configuration)
+pub fn path_is_included(path: &Path) -> bool {
+    let targets_cfg = config().targets();
+
+    // If no config, path is not included (requires explicit configuration)
+    let Some(cfg) = targets_cfg else {
+        return false;
+    };
+
+    let Some(include_patterns) = &cfg.include else {
+        return false;
+    };
+
+    // Build globset for include patterns
+    let mut builder = globset::GlobSetBuilder::new();
+    for pattern in include_patterns {
+        if let Ok(glob) = globset::Glob::new(pattern) {
+            builder.add(glob);
+        }
+    }
+
+    let Some(include_matcher) = builder.build().ok() else {
+        return false;
+    };
+
+    // Check if path matches include patterns and is not ignored
+    let ignore_patterns = cfg.ignore.as_deref().unwrap_or(&[]);
+    let is_included = include_matcher.is_match(path);
+    let is_ignored = is_path_excluded(path, ignore_patterns);
+
+    is_included && !is_ignored
 }
 
 pub fn resolve_test_for_path(
