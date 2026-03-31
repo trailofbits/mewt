@@ -105,12 +105,11 @@ dist:
   dist init
 
 install-nix:
-  just build-nix
-  nix profile add ./result
+  nix profile add .#{{project}}
 
 uninstall-nix:
   nix profile remove {{project}}
 
-reinstall-nix: uninstall-nix
-  just install-nix
+upgrade-nix:
+  nix profile upgrade {{project}}
 
