@@ -3,8 +3,8 @@ use std::path::PathBuf;
 
 fn build_grammar(dir: &PathBuf, lib_name: &str) {
     let out_dir = std::env::var("OUT_DIR").unwrap();
-    let cache_dir = PathBuf::from("target/.grammar-cache");
-    fs::create_dir_all(&cache_dir).ok();
+    let cache_dir = PathBuf::from(&out_dir).join(".grammar-cache");
+    fs::create_dir_all(&cache_dir).unwrap();
 
     let cached_lib = cache_dir.join(format!("lib{}.a", lib_name));
     let parser_c = dir.join("parser.c");
