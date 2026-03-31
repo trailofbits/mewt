@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "cargo-dist-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1774636659,
+        "narHash": "sha256-R41aW8WrkOboe+gwvtkU7lyUP6MhcpyindeUuvv+WME=",
+        "owner": "axodotdev",
+        "repo": "cargo-dist",
+        "rev": "274852e2ac3d67f48e38bbca214a5b17daeb8808",
+        "type": "github"
+      },
+      "original": {
+        "owner": "axodotdev",
+        "repo": "cargo-dist",
+        "type": "github"
+      }
+    },
     "fenix": {
       "inputs": {
         "nixpkgs": [
@@ -62,6 +78,7 @@
     },
     "root": {
       "inputs": {
+        "cargo-dist-src": "cargo-dist-src",
         "fenix": "fenix",
         "naersk": "naersk",
         "nixpkgs": "nixpkgs",
