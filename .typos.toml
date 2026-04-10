@@ -1,0 +1,5 @@
+[default.extend-words]
+# "memeber" is a typo in the upstream Sui Move tree-sitter grammar's symbol name
+# (_spec_block_memeber). It appears in vendored parser.c and grammar.js files that
+# we do not control. Accept it to avoid false positives in typos checks.
+memeber = "memeber"
