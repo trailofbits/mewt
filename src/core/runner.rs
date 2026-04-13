@@ -615,15 +615,32 @@ impl TestRunner {
     }
 
     fn run_and_wait(&mut self) -> io::Result<(Status, String)> {
+        use std::os::unix::process::CommandExt;
         use std::sync::mpsc;
         use std::thread;
 
-        let mut child = Command::new("sh")
+        let mut command = Command::new("sh");
+        command
             .arg("-c")
             .arg(&self.test_cmd)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
+            .stderr(Stdio::piped());
+        // Safety: setsid is async-signal-safe and the only syscall we issue
+        // between fork and exec. Placing the child in a new session means it
+        // and its descendants share a process group distinct from mewt's,
+        // so we can terminate them as a unit via killpg on timeout or
+        // interrupt. Without this, child.kill() would only reach the shell
+        // and leave orphaned test-runner processes (cargo test, go test,
+        // node, ...) running after ctrl-c or a timeout.
+        unsafe {
+            command.pre_exec(|| {
+                if libc::setsid() == -1 {
+                    return Err(io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        let mut child = command.spawn()?;
 
         let start = Instant::now();
         let mut stdout = "STDOUT:\n".to_string();
@@ -672,7 +689,7 @@ impl TestRunner {
             if let Some(timeout) = self.timeout {
                 if start.elapsed() >= timeout {
                     warn!("test timeout reached, killing process");
-                    let _ = child.kill();
+                    kill_process_group(&child);
                     let _ = child.wait();
                     return Ok((Status::Timeout, format!("{stdout}\n\n{stderr}")));
                 }
@@ -681,7 +698,7 @@ impl TestRunner {
             // Check if we should terminate due to ctrl-c
             if !self.running.load(Ordering::SeqCst) {
                 warn!("Process interrupted, killing child");
-                let _ = child.kill();
+                kill_process_group(&child);
                 let _ = child.wait();
                 return Err(io::Error::new(
                     io::ErrorKind::Interrupted,
@@ -775,5 +792,176 @@ impl Drop for TestRunner {
                 error!("Error during TestRunner cleanup: {e}");
             }
         }
+    }
+}
+
+/// Send SIGKILL to the child's entire process group.
+///
+/// The child is spawned with `setsid`, so its PID is the PGID of the group
+/// containing the shell and every descendant it forked. `killpg` delivers
+/// the signal to every member of that group, preventing orphaned
+/// grandchildren (cargo test, go test, node, ...) after timeout or
+/// ctrl-c interruption. Errors are ignored to match the pre-fix posture
+/// (the group may already be gone if the shell exited concurrently).
+fn kill_process_group(child: &std::process::Child) {
+    let pgid = child.id() as i32;
+    unsafe {
+        libc::killpg(pgid, libc::SIGKILL);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::thread;
+    use std::time::Duration;
+    use tempfile::tempdir;
+
+    use super::TestRunner;
+    use crate::LanguageRegistry;
+    use crate::SqlStore;
+    use crate::types::Status;
+
+    /// Construct a TestRunner with the minimum state `run_and_wait` needs.
+    /// The store/registry are unused by `run_and_wait` itself but are
+    /// required by `TestRunner::new`.
+    async fn make_runner(
+        test_cmd: &str,
+        timeout_secs: Option<u32>,
+        running: Arc<AtomicBool>,
+    ) -> TestRunner {
+        let store = SqlStore::new("sqlite::memory:".to_string())
+            .await
+            .expect("in-memory sqlite");
+        let registry = Arc::new(LanguageRegistry::new());
+        TestRunner::new(
+            test_cmd.to_string(),
+            timeout_secs,
+            false, // comprehensive
+            false, // verbose
+            running,
+            store,
+            registry,
+        )
+    }
+
+    /// Write a shell script that records a backgrounded grandchild's PID
+    /// to `pid_path`, then blocks for far longer than any test timeout.
+    /// Returns the script path (executable).
+    fn write_leak_script(dir: &std::path::Path, pid_path: &std::path::Path) -> std::path::PathBuf {
+        let script_path = dir.join("leak.sh");
+        let script = format!(
+            "#!/bin/sh\n\
+             sleep 60 &\n\
+             echo $! > {}\n\
+             sleep 30\n",
+            pid_path.display()
+        );
+        fs::write(&script_path, script).expect("write script");
+        let mut perms = fs::metadata(&script_path).expect("stat").permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&script_path, perms).expect("chmod");
+        script_path
+    }
+
+    /// Poll up to `max` for `pid_path` to contain a parseable integer,
+    /// then return it. Panics on timeout.
+    fn read_grandchild_pid(pid_path: &std::path::Path, max: Duration) -> i32 {
+        let deadline = std::time::Instant::now() + max;
+        loop {
+            if let Ok(text) = fs::read_to_string(pid_path) {
+                if let Ok(pid) = text.trim().parse::<i32>() {
+                    return pid;
+                }
+            }
+            if std::time::Instant::now() >= deadline {
+                panic!("grandchild PID file never populated at {:?}", pid_path);
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    /// Check whether a pid is alive, using `kill(pid, 0)` which never
+    /// actually signals; returns 0 if alive, -1 with ESRCH if dead.
+    fn is_alive(pid: i32) -> bool {
+        unsafe { libc::kill(pid, 0) == 0 }
+    }
+
+    /// Wait until `pid` is dead or `max` elapses. Returns true if the
+    /// pid died within the window.
+    fn wait_until_dead(pid: i32, max: Duration) -> bool {
+        let deadline = std::time::Instant::now() + max;
+        while is_alive(pid) {
+            if std::time::Instant::now() >= deadline {
+                return false;
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
+        true
+    }
+
+    #[tokio::test]
+    async fn timeout_kills_grandchildren() {
+        let tmp = tempdir().expect("tmpdir");
+        let pid_path = tmp.path().join("gc.pid");
+        let script = write_leak_script(tmp.path(), &pid_path);
+
+        let running = Arc::new(AtomicBool::new(true));
+        // 1-second timeout: enough for the script to spawn the grandchild
+        // and write the pid file; short enough to keep the test fast.
+        let mut runner =
+            make_runner(&script.to_string_lossy(), Some(1), Arc::clone(&running)).await;
+
+        let (status, _output) = runner.run_and_wait().expect("run_and_wait");
+        assert_eq!(status, Status::Timeout, "expected timeout status");
+
+        let gc_pid = read_grandchild_pid(&pid_path, Duration::from_secs(2));
+
+        assert!(
+            wait_until_dead(gc_pid, Duration::from_secs(2)),
+            "grandchild pid {} is still alive after timeout — process group leak",
+            gc_pid
+        );
+    }
+
+    #[tokio::test]
+    async fn interrupt_kills_grandchildren() {
+        let tmp = tempdir().expect("tmpdir");
+        let pid_path = tmp.path().join("gc.pid");
+        let script = write_leak_script(tmp.path(), &pid_path);
+
+        let running = Arc::new(AtomicBool::new(true));
+        // No timeout — rely on the running flag to interrupt.
+        let mut runner = make_runner(&script.to_string_lossy(), None, Arc::clone(&running)).await;
+
+        // Flip running=false from another thread after the grandchild has
+        // had time to register its pid. Delay is generous on purpose:
+        // the run_and_wait poll cadence is 100ms and the test needs the
+        // shell to spawn its grandchild and write the pid file before
+        // the kill fires.
+        let running_flipper = Arc::clone(&running);
+        let flipper = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(2000));
+            running_flipper.store(false, Ordering::SeqCst);
+        });
+
+        let result = runner.run_and_wait();
+        flipper.join().expect("flipper thread");
+
+        match result {
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            other => panic!("expected Interrupted error, got {:?}", other),
+        }
+
+        let gc_pid = read_grandchild_pid(&pid_path, Duration::from_secs(2));
+
+        assert!(
+            wait_until_dead(gc_pid, Duration::from_secs(2)),
+            "grandchild pid {} is still alive after interrupt — process group leak",
+            gc_pid
+        );
     }
 }
