@@ -1,5 +1,6 @@
 pub mod nodes {
     pub const BINARY_EXPRESSION: &str = "binary_expression";
+    pub const ASSIGNMENT_STATEMENT: &str = "assignment_statement";
     pub const BOOLEAN: &str = "boolean_literal";
     pub const EXPRESSION_STATEMENT: &str = "expression_statement";
     pub const IF_STATEMENT: &str = "if_statement";
