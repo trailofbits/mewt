@@ -194,3 +194,65 @@ func testFunc() int {
         "AST mutations should affect multiple lines"
     );
 }
+
+#[test]
+fn er_and_cr_cover_all_simple_statements() {
+    // Regression test for .todo/c8b410d5: Go's ER/CR arms previously targeted
+    // only expression_statement / return_statement / if_statement /
+    // for_statement, leaving short-var declarations, assignments (plain and
+    // compound), and inc/dec statements without any ER/CR coverage. Each kind
+    // below must now produce at least one ER and one CR mutant.
+    let source = r#"package main
+
+func f() {
+    x := 0
+    x = 1
+    x += 1
+    x++
+    x--
+    _ = x
+}
+"#;
+    let (_tmp, target) = create_test_target(source);
+    let mutants = GoLanguageEngine::new().mutate(&target);
+
+    // For each statement form, the `old_text` of an ER/CR mutant should
+    // begin with a distinctive prefix. Collect (old_text_prefix, label)
+    // pairs and assert that every form has at least one ER and one CR.
+    let cases: &[(&str, &str)] = &[
+        ("x :=", "short_var_declaration"),
+        ("x = 1", "assignment_statement (plain)"),
+        ("x +=", "assignment_statement (compound)"),
+        ("x++", "inc_statement"),
+        ("x--", "dec_statement"),
+    ];
+
+    for (prefix, label) in cases {
+        let has_er = mutants
+            .iter()
+            .any(|m| m.mutation_slug == "ER" && m.old_text.trim_start().starts_with(prefix));
+        let has_cr = mutants
+            .iter()
+            .any(|m| m.mutation_slug == "CR" && m.old_text.trim_start().starts_with(prefix));
+        assert!(
+            has_er,
+            "expected an ER mutant for {} (prefix {:?}); got mutants: {:?}",
+            label,
+            prefix,
+            mutants
+                .iter()
+                .map(|m| (m.mutation_slug.as_str(), m.old_text.as_str()))
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            has_cr,
+            "expected a CR mutant for {} (prefix {:?}); got mutants: {:?}",
+            label,
+            prefix,
+            mutants
+                .iter()
+                .map(|m| (m.mutation_slug.as_str(), m.old_text.as_str()))
+                .collect::<Vec<_>>()
+        );
+    }
+}
