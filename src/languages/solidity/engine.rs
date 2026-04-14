@@ -1,11 +1,13 @@
 use std::sync::OnceLock;
-use tree_sitter::Language as TsLanguage;
+use tree_sitter::{Language as TsLanguage, Node};
 
 use crate::LanguageEngine;
 use crate::mutations::COMMON_MUTATIONS;
 use crate::patterns;
-use crate::types::{Mutant, Mutation, Target};
-use crate::utils::{node_text, parse_source};
+use crate::types::{Mutant, Mutation, PartialMutant, Target};
+use crate::utils::{
+    calculate_line_offset, is_in_comment, node_text, parse_source, visit_nodes_with_cursor,
+};
 
 use super::mutations::SOLIDITY_MUTATIONS;
 use super::syntax::{fields, nodes};
@@ -250,6 +252,11 @@ impl LanguageEngine for SolidityLanguageEngine {
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "LC")),
                 ),
+                "RCI" => all_mutants.extend(
+                    require_condition_inversion_mutants(root, source)
+                        .into_iter()
+                        .map(|p| Mutant::from_partial(p, target, "RCI")),
+                ),
                 _ => {
                     panic!(
                         "Unknown mutation slug encountered in Solidity engine: {}",
@@ -260,6 +267,101 @@ impl LanguageEngine for SolidityLanguageEngine {
         }
         all_mutants
     }
+}
+
+/// Generate RCI (Require Condition Inversion) mutants for Solidity.
+/// Finds `require(condition)` and `assert(condition)` calls and inverts the
+/// condition: `condition` → `!(condition)`.
+///
+/// Skips conditions that are already negated (`!expr`) to avoid generating
+/// duplicates with the NR (Negation Removal) mutator.
+fn require_condition_inversion_mutants(root: Node, source: &str) -> Vec<PartialMutant> {
+    let mut mutants = Vec::new();
+    let mut cursor = root.walk();
+    visit_nodes_with_cursor(root, &mut cursor, &mut |node| {
+        if node.kind() != "call_expression" || is_in_comment(&node) {
+            return;
+        }
+
+        // Check if the callee is "require" or "assert"
+        let mut nc = node.walk();
+        let callee = node
+            .named_children(&mut nc)
+            .find(|c| c.kind() == "identifier" || c.kind() == "expression");
+        let callee_text = match callee {
+            Some(c) => node_text(&c, source),
+            None => return,
+        };
+        if callee_text != "require" && callee_text != "assert" {
+            return;
+        }
+
+        // Get the first call_argument — the condition
+        let mut nc2 = node.walk();
+        let first_arg = match node
+            .named_children(&mut nc2)
+            .find(|c| c.kind() == "call_argument")
+        {
+            Some(arg) => arg,
+            None => return,
+        };
+
+        // Drill into the expression inside the call_argument
+        let mut nc3 = first_arg.walk();
+        let condition = match first_arg.named_children(&mut nc3).next() {
+            Some(expr) => expr,
+            None => return,
+        };
+
+        // Get the innermost meaningful expression (unwrap "expression" wrappers)
+        let inner = unwrap_expression(&condition);
+
+        // Skip if already negated — NR handles that case
+        if inner.kind() == "unary_expression" {
+            let mut uc = inner.walk();
+            let first_child = inner.children(&mut uc).next();
+            if let Some(op) = first_child {
+                if node_text(&op, source) == "!" {
+                    return;
+                }
+            }
+        }
+
+        // Skip simple comparisons — COS already shuffles the operator, and
+        // inverting e.g. `x > 0` is equivalent to COS producing `x <= 0`
+        if inner.kind() == "binary_expression" {
+            let mut bc = inner.walk();
+            let has_comparison_op = inner.children(&mut bc).any(|c| {
+                let t = node_text(&c, source);
+                matches!(t, "==" | "!=" | "<" | "<=" | ">" | ">=")
+            });
+            if has_comparison_op {
+                return;
+            }
+        }
+
+        let cond_text = node_text(&condition, source);
+        mutants.push(PartialMutant {
+            byte_offset: condition.start_byte() as u32,
+            line_offset: calculate_line_offset(source, condition.start_byte()),
+            old_text: cond_text.to_string(),
+            new_text: format!("!({cond_text})"),
+        });
+    });
+    mutants
+}
+
+/// Unwrap nested "expression" wrapper nodes to get the actual expression.
+fn unwrap_expression<'a>(node: &Node<'a>) -> Node<'a> {
+    let mut current = *node;
+    while current.kind() == "expression" {
+        let mut cursor = current.walk();
+        match current.named_children(&mut cursor).next() {
+            Some(child) => current = child,
+            None => break,
+        }
+    }
+    current
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 use mewt::LanguageEngine;
 use mewt::languages::solidity::engine::SolidityLanguageEngine;
-use mewt::types::{Hash, Target};
+use mewt::types::{Hash, Mutant, Target};
 
 fn solidity_target_from_source(source: &str) -> Target {
     use tempfile::tempdir;
@@ -299,4 +299,328 @@ contract Test {
             .any(|m| m.mutation_slug == "AAOS" && m.old_text == "%="),
         "expected an AAOS mutant with old_text `%=`"
     );
+}
+
+fn rci_mutants(mutants: &[Mutant]) -> Vec<&Mutant> {
+    mutants
+        .iter()
+        .filter(|m| m.mutation_slug == "RCI")
+        .collect()
+}
+
+// --- RCI (Require Condition Inversion) tests ---
+
+#[test]
+fn test_rci_skips_simple_comparison_in_require() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function withdraw(uint256 amount) public {
+        require(amount > 0, "zero amount");
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rci = rci_mutants(&mutants);
+
+    assert!(
+        rci.is_empty(),
+        "RCI should skip simple comparisons (COS already covers them): {rci:?}"
+    );
+}
+
+#[test]
+fn test_rci_skips_simple_comparison_in_assert() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function check(uint256 x) public pure {
+        assert(x != 0);
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rci = rci_mutants(&mutants);
+
+    assert!(
+        rci.is_empty(),
+        "RCI should skip simple comparisons in assert (COS already covers them): {rci:?}"
+    );
+}
+
+#[test]
+fn test_rci_logical_condition() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function check(uint256 x, uint256 y) public pure {
+        require(x > 0 && y > 0, "invalid");
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rci = rci_mutants(&mutants);
+
+    assert_eq!(rci.len(), 1);
+    assert_eq!(rci[0].new_text, "!(x > 0 && y > 0)");
+}
+
+#[test]
+fn test_rci_multiple_requires() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function transfer(address to, uint256 amount, bool approved) public {
+        require(approved, "not approved");
+        require(to != address(0) && amount > 0, "invalid");
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rci = rci_mutants(&mutants);
+
+    assert_eq!(
+        rci.len(),
+        2,
+        "Should generate RCI for boolean and logical conditions, not simple comparisons: {rci:?}"
+    );
+}
+
+#[test]
+fn test_rci_mixed_requires_partial_skip() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function transfer(address to, uint256 amount, bool approved) public {
+        require(amount > 0, "zero");
+        require(approved, "not approved");
+        require(to != address(0), "bad address");
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rci = rci_mutants(&mutants);
+
+    assert_eq!(
+        rci.len(),
+        1,
+        "Should only generate RCI for the boolean require, skipping both comparisons: {rci:?}"
+    );
+    assert_eq!(rci[0].new_text, "!(approved)");
+}
+
+#[test]
+fn test_rci_skips_negated_condition() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    bool public paused;
+
+    function check() public view {
+        require(!paused, "paused");
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rci = rci_mutants(&mutants);
+
+    assert!(
+        rci.is_empty(),
+        "RCI should skip already-negated conditions (NR handles those): {rci:?}"
+    );
+}
+
+#[test]
+fn test_rci_skips_regular_function_calls() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function doSomething(uint256 x) public pure returns (uint256) {
+        return transfer(x > 0);
+    }
+
+    function transfer(bool ok) internal pure returns (uint256) {
+        return 1;
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rci = rci_mutants(&mutants);
+
+    assert!(
+        rci.is_empty(),
+        "RCI should only target require/assert, not regular function calls: {rci:?}"
+    );
+}
+
+#[test]
+fn test_rci_require_in_comment_ignored() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    // require(x > 0, "bad");
+    /* assert(y != 0); */
+    function f() public {}
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rci = rci_mutants(&mutants);
+
+    assert!(
+        rci.is_empty(),
+        "RCI should not generate mutations inside comments: {rci:?}"
+    );
+}
+
+#[test]
+fn test_rci_boolean_variable_condition() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function check(bool isValid) public pure {
+        require(isValid, "invalid");
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rci = rci_mutants(&mutants);
+
+    assert_eq!(rci.len(), 1);
+    assert_eq!(rci[0].new_text, "!(isValid)");
+}
+
+#[test]
+fn test_rci_function_call_condition() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function isAllowed(address user) internal pure returns (bool) {
+        return true;
+    }
+
+    function check() public view {
+        require(isAllowed(msg.sender), "not allowed");
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rci = rci_mutants(&mutants);
+
+    assert_eq!(
+        rci.len(),
+        1,
+        "Should generate RCI for function call condition: {rci:?}"
+    );
+    assert!(
+        rci[0].new_text.contains("!(isAllowed(msg.sender))"),
+        "Should invert the function call: {rci:?}"
+    );
+}
+
+#[test]
+fn test_rci_assert_with_logical_condition() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function check(uint256 x, bool flag) public pure {
+        assert(x > 0 && flag);
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rci = rci_mutants(&mutants);
+
+    assert_eq!(
+        rci.len(),
+        1,
+        "Should generate RCI for assert with logical condition: {rci:?}"
+    );
+    assert_eq!(rci[0].new_text, "!(x > 0 && flag)");
+}
+
+#[test]
+fn test_rci_require_in_modifier() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    address public owner;
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "not owner");
+        _;
+    }
+
+    function restricted() public onlyOwner {}
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rci = rci_mutants(&mutants);
+
+    // msg.sender == owner is a simple comparison, so COS covers it — RCI should skip
+    assert!(
+        rci.is_empty(),
+        "RCI should skip simple comparisons in modifiers too: {rci:?}"
+    );
+}
+
+#[test]
+fn test_rci_require_nested_in_if() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function check(uint256 x, bool flag) public pure {
+        if (x > 10) {
+            require(flag, "not flagged");
+        }
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rci = rci_mutants(&mutants);
+
+    assert_eq!(
+        rci.len(),
+        1,
+        "Should find require inside if blocks: {rci:?}"
+    );
+    assert_eq!(rci[0].new_text, "!(flag)");
 }
