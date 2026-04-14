@@ -1,6 +1,6 @@
 use mewt::LanguageEngine;
 use mewt::languages::solidity::engine::SolidityLanguageEngine;
-use mewt::types::{Hash, Target};
+use mewt::types::{Hash, Mutant, Target};
 
 fn solidity_target_from_source(source: &str) -> Target {
     use tempfile::tempdir;
@@ -298,5 +298,96 @@ contract Test {
             .iter()
             .any(|m| m.mutation_slug == "AAOS" && m.old_text == "%="),
         "expected an AAOS mutant with old_text `%=`"
+    );
+}
+
+fn nr_mutants(mutants: &[Mutant]) -> Vec<&Mutant> {
+    mutants.iter().filter(|m| m.mutation_slug == "NR").collect()
+}
+
+#[test]
+fn test_negation_removal_basic() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    bool public paused;
+
+    function check() public view {
+        require(!paused, "paused");
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr = nr_mutants(&mutants);
+
+    assert_eq!(nr.len(), 1, "Should generate exactly 1 NR mutation");
+    assert_eq!(nr[0].old_text, "!paused");
+    assert_eq!(nr[0].new_text, "paused");
+}
+
+#[test]
+fn test_negation_removal_complex_expression() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function check(bool a, bool b) public pure {
+        require(!(a && b), "both true");
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr = nr_mutants(&mutants);
+
+    assert!(
+        nr.iter()
+            .any(|m| m.old_text == "!(a && b)" && m.new_text == "(a && b)"),
+        "NR should remove negation preserving parenthesized operand: {nr:?}"
+    );
+}
+
+#[test]
+fn test_negation_removal_ignores_other_unary_ops() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function check(uint256 x) public pure returns (uint256) {
+        return ~x;
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr = nr_mutants(&mutants);
+
+    assert!(nr.is_empty(), "NR should not trigger on ~ unary operator");
+}
+
+#[test]
+fn test_negation_removal_in_comment_ignored() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    // require(!paused);
+    /* !flag */
+    function f() public {}
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr = nr_mutants(&mutants);
+
+    assert!(
+        nr.is_empty(),
+        "NR should not generate mutations inside comments"
     );
 }
