@@ -9,6 +9,9 @@ pub mod nodes {
     pub const FOR_STATEMENT: &str = "for_statement";
     pub const BREAK_STATEMENT: &str = "break_statement";
     pub const CONTINUE_STATEMENT: &str = "continue_statement";
+    pub const SHORT_VAR_DECLARATION: &str = "short_var_declaration";
+    pub const INC_STATEMENT: &str = "inc_statement";
+    pub const DEC_STATEMENT: &str = "dec_statement";
     pub const UNARY_EXPRESSION: &str = "unary_expression";
 }
 
