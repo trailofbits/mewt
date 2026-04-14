@@ -210,3 +210,43 @@ fn test_func() -> i32 {
         "Should generate variable-related mutations"
     );
 }
+
+#[test]
+fn compound_assignment_slugs_produce_mutants() {
+    // Regression test for .todo/a3c12f04: AAOS/BAOS/SAOS were wired to
+    // `binary_expression`, but compound assignment in tree-sitter-rust parses
+    // as `compound_assignment_expr`. The slugs silently emitted zero mutants.
+    let source = r#"
+fn f() {
+    let mut x = 0;
+    x += 1;
+    x -= 1;
+    x *= 2;
+    x /= 2;
+    x %= 2;
+    x &= 1;
+    x |= 1;
+    x <<= 1;
+    x >>= 1;
+}
+"#;
+    let target = rust_target_from_source(source);
+    let mutants = RustLanguageEngine::new().mutate(&target);
+    let slugs: std::collections::HashSet<_> =
+        mutants.iter().map(|m| m.mutation_slug.as_str()).collect();
+    for slug in ["AAOS", "BAOS", "SAOS"] {
+        assert!(
+            slugs.contains(slug),
+            "expected slug {} to produce at least one mutant; got slugs: {:?}",
+            slug,
+            slugs
+        );
+    }
+    // Verify `%=` is covered in AAOS
+    assert!(
+        mutants
+            .iter()
+            .any(|m| m.mutation_slug == "AAOS" && m.old_text == "%="),
+        "expected an AAOS mutant with old_text `%=`"
+    );
+}

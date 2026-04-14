@@ -241,3 +241,48 @@ if (a < b && c > d) {
         "Should mutate actual comparison operators in TSX files"
     );
 }
+
+#[test]
+fn compound_assignment_slugs_produce_mutants() {
+    // Regression test for .todo/a3c12f04: AAOS/BAOS/SAOS were wired to
+    // `binary_expression`, but compound assignment in tree-sitter-javascript
+    // parses as `augmented_assignment_expression`. The slugs silently emitted
+    // zero mutants.
+    let source = r#"
+function f() {
+    let x = 0;
+    x += 1;
+    x -= 1;
+    x **= 2;
+    x &= 1;
+    x |= 1;
+    x <<= 1;
+    x >>= 1;
+    x >>>= 1;
+}
+"#;
+    let (_tmp, target) = create_test_target(source, "test.js");
+    let mutants = JavaScriptLanguageEngine::new().mutate(&target);
+    let slugs: HashSet<_> = mutants.iter().map(|m| m.mutation_slug.as_str()).collect();
+    for slug in ["AAOS", "BAOS", "SAOS"] {
+        assert!(
+            slugs.contains(slug),
+            "expected slug {} to produce at least one mutant; got slugs: {:?}",
+            slug,
+            slugs
+        );
+    }
+    // Verify JS-specific operators are covered
+    assert!(
+        mutants
+            .iter()
+            .any(|m| m.mutation_slug == "AAOS" && m.old_text == "**="),
+        "expected an AAOS mutant with old_text `**=`"
+    );
+    assert!(
+        mutants
+            .iter()
+            .any(|m| m.mutation_slug == "SAOS" && m.old_text == ">>>="),
+        "expected a SAOS mutant with old_text `>>>=`"
+    );
+}

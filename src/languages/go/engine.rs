@@ -207,9 +207,39 @@ impl LanguageEngine for GoLanguageEngine {
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "LC")),
                 ),
+                "AAOS" => all_mutants.extend(
+                    patterns::shuffle_operators(
+                        root,
+                        source,
+                        &[nodes::ASSIGNMENT_STATEMENT],
+                        &["+=", "-=", "*=", "/=", "%="],
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "AAOS")),
+                ),
+                "BAOS" => all_mutants.extend(
+                    patterns::shuffle_operators(
+                        root,
+                        source,
+                        &[nodes::ASSIGNMENT_STATEMENT],
+                        &["&=", "|=", "^=", "&^="],
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "BAOS")),
+                ),
+                "SAOS" => all_mutants.extend(
+                    patterns::shuffle_operators(
+                        root,
+                        source,
+                        &[nodes::ASSIGNMENT_STATEMENT],
+                        &["<<=", ">>="],
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "SAOS")),
+                ),
                 // Mutations not applicable to Go
-                "WF" | "RZ" | "AAOS" | "BAOS" | "SAOS" => {
-                    // Skip these mutations for Go
+                "WF" | "RZ" => {
+                    // Go has no `while` keyword (`WF`); `RZ` is a dead slug not in any mutation list.
                 }
                 _ => {
                     panic!("Unknown mutation slug encountered in Go engine: {}", m.slug);
