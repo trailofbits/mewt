@@ -1,11 +1,13 @@
 use std::sync::OnceLock;
-use tree_sitter::Language as TsLanguage;
+use tree_sitter::{Language as TsLanguage, Node};
 
 use crate::LanguageEngine;
 use crate::mutations::COMMON_MUTATIONS;
 use crate::patterns;
-use crate::types::{Mutant, Mutation, Target};
-use crate::utils::{node_text, parse_source};
+use crate::types::{Mutant, Mutation, PartialMutant, Target};
+use crate::utils::{
+    calculate_line_offset, is_in_comment, node_text, parse_source, visit_nodes_with_cursor,
+};
 
 use super::mutations::SOLIDITY_MUTATIONS;
 use super::syntax::{fields, nodes};
@@ -250,6 +252,11 @@ impl LanguageEngine for SolidityLanguageEngine {
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "LC")),
                 ),
+                "RDV" => all_mutants.extend(
+                    return_default_value_mutants(root, source)
+                        .into_iter()
+                        .map(|p| Mutant::from_partial(p, target, "RDV")),
+                ),
                 _ => {
                     panic!(
                         "Unknown mutation slug encountered in Solidity engine: {}",
@@ -260,6 +267,168 @@ impl LanguageEngine for SolidityLanguageEngine {
         }
         all_mutants
     }
+}
+
+/// Map a Solidity primitive type to its default/zero value.
+/// Returns None for user-defined types, mappings, and arrays (skip those).
+fn solidity_type_default(type_text: &str) -> Option<&'static str> {
+    let t = type_text.trim();
+    // Array types (e.g., uint256[], bytes32[10]) are not mappable to a simple default
+    if t.contains('[') {
+        return None;
+    }
+    match t {
+        s if s.starts_with("uint") => Some("0"),
+        s if s.starts_with("int") => Some("0"),
+        "bool" => Some("false"),
+        "address payable" => Some("payable(address(0))"),
+        "address" => Some("address(0)"),
+        "string" => Some("\"\""),
+        s if s == "bytes" || s.starts_with("bytes") && s[5..].parse::<u8>().is_ok() => Some("\"\""),
+        _ => None,
+    }
+}
+
+/// Walk up from a node to find its enclosing function_definition.
+fn enclosing_function<'a>(node: &Node<'a>) -> Option<Node<'a>> {
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        if parent.kind() == nodes::FUNCTION_DEFINITION {
+            return Some(parent);
+        }
+        current = parent.parent();
+    }
+    None
+}
+
+/// Extract the return type parameters from a function_definition node.
+/// Returns a list of type texts, e.g. ["uint256", "bool"] for `returns (uint256, bool)`.
+///
+/// The grammar structure is: return_type_definition → "returns" ( parameter, parameter )
+/// where _parameter_list is inlined (hidden rule), so parameter nodes appear as direct
+/// named children of return_type_definition.
+fn extract_return_types<'a>(func_node: &Node<'a>, source: &'a str) -> Vec<&'a str> {
+    let return_type_node = match func_node.child_by_field_name(fields::RETURN_TYPE) {
+        Some(n) => n,
+        None => return Vec::new(),
+    };
+    let mut types = Vec::new();
+    collect_param_types(&return_type_node, source, &mut types);
+    types
+}
+
+/// Recursively collect type fields from parameter nodes within a subtree.
+fn collect_param_types<'a>(node: &Node<'a>, source: &'a str, types: &mut Vec<&'a str>) {
+    if let Some(type_node) = node.child_by_field_name(fields::TYPE) {
+        types.push(node_text(&type_node, source));
+    } else {
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            collect_param_types(&child, source, types);
+        }
+    }
+}
+
+/// Generate RDV (Return Default Value) mutants for Solidity.
+/// For each return statement with a value, replaces individual returned
+/// expressions with their type-appropriate defaults based on the enclosing
+/// function's return type signature.
+///
+/// For single-return functions: one mutant replacing the expression with its default.
+/// For multi-return functions: one mutant per return position that has a mappable type,
+/// each replacing only that position while leaving the others untouched.
+fn return_default_value_mutants(root: Node, source: &str) -> Vec<PartialMutant> {
+    let mut mutants = Vec::new();
+    let mut cursor = root.walk();
+    visit_nodes_with_cursor(root, &mut cursor, &mut |node| {
+        if node.kind() != nodes::RETURN_STATEMENT || is_in_comment(&node) {
+            return;
+        }
+
+        let func = match enclosing_function(&node) {
+            Some(f) => f,
+            None => return,
+        };
+
+        let return_types = extract_return_types(&func, source);
+        if return_types.is_empty() {
+            return;
+        }
+
+        // Find the returned expression — the first named child after the "return" keyword
+        let mut nc = node.walk();
+        let return_expr = match node.children(&mut nc).find(|c| c.is_named()) {
+            Some(expr) => expr,
+            None => return,
+        };
+
+        if return_types.len() == 1 {
+            // Single return value: replace the entire expression
+            if let Some(default) = solidity_type_default(return_types[0]) {
+                let old_text = node_text(&return_expr, source);
+                if old_text != default {
+                    mutants.push(PartialMutant {
+                        byte_offset: return_expr.start_byte() as u32,
+                        line_offset: calculate_line_offset(source, return_expr.start_byte()),
+                        old_text: old_text.to_string(),
+                        new_text: default.to_string(),
+                    });
+                }
+            }
+        } else {
+            // Multi-return: the expression is a tuple_expression with individual elements.
+            // Replace each element independently where the type is mappable.
+            let tuple_elements = collect_tuple_elements(&return_expr, source);
+            for (i, elem) in tuple_elements.iter().enumerate() {
+                if i >= return_types.len() {
+                    break;
+                }
+                if let Some(default) = solidity_type_default(return_types[i]) {
+                    if elem.text != default {
+                        mutants.push(PartialMutant {
+                            byte_offset: elem.byte_offset,
+                            line_offset: calculate_line_offset(source, elem.byte_offset as usize),
+                            old_text: elem.text.to_string(),
+                            new_text: default.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    });
+    mutants
+}
+
+struct TupleElement<'a> {
+    text: &'a str,
+    byte_offset: u32,
+}
+
+/// Collect individual elements from a return expression that may be a tuple.
+/// Handles both direct `tuple_expression` and `expression` → `tuple_expression` wrapping.
+fn collect_tuple_elements<'a>(expr: &Node<'a>, source: &'a str) -> Vec<TupleElement<'a>> {
+    // Unwrap to the tuple_expression if wrapped in an expression node
+    let tuple_node = if expr.kind() == "tuple_expression" {
+        *expr
+    } else {
+        let mut cursor = expr.walk();
+        match expr
+            .named_children(&mut cursor)
+            .find(|c| c.kind() == "tuple_expression")
+        {
+            Some(t) => t,
+            None => return Vec::new(),
+        }
+    };
+    let mut elements = Vec::new();
+    let mut cursor = tuple_node.walk();
+    for child in tuple_node.named_children(&mut cursor) {
+        elements.push(TupleElement {
+            text: node_text(&child, source),
+            byte_offset: child.start_byte() as u32,
+        });
+    }
+    elements
 }
 
 #[cfg(test)]
