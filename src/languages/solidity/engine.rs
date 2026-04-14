@@ -169,8 +169,8 @@ impl LanguageEngine for SolidityLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
-                        &["+=", "-=", "*=", "/="],
+                        &[nodes::AUGMENTED_ASSIGNMENT_EXPRESSION],
+                        &["+=", "-=", "*=", "/=", "%="],
                     )
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "AAOS")),
@@ -189,7 +189,7 @@ impl LanguageEngine for SolidityLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[nodes::AUGMENTED_ASSIGNMENT_EXPRESSION],
                         &["&=", "|=", "^="],
                     )
                     .into_iter()
@@ -234,7 +234,7 @@ impl LanguageEngine for SolidityLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[nodes::AUGMENTED_ASSIGNMENT_EXPRESSION],
                         &["<<=", ">>="],
                     )
                     .into_iter()

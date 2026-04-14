@@ -194,3 +194,43 @@ func testFunc() int {
         "AST mutations should affect multiple lines"
     );
 }
+
+#[test]
+fn compound_assignment_slugs_produce_mutants() {
+    // Regression test for .todo/a3c12f04: AAOS/BAOS/SAOS were explicitly
+    // opted out as "not applicable to Go", but Go has all of these compound
+    // assignment operators (including the Go-specific `&^=`). The slugs now
+    // fire against `assignment_statement` nodes.
+    let source = r#"package main
+
+func f() {
+    x := 0
+    x += 1
+    x -= 1
+    x &= 1
+    x |= 1
+    x &^= 1
+    x <<= 1
+    x >>= 1
+    _ = x
+}
+"#;
+    let (_tmp, target) = create_test_target(source);
+    let mutants = GoLanguageEngine::new().mutate(&target);
+    let slugs: HashSet<_> = mutants.iter().map(|m| m.mutation_slug.as_str()).collect();
+    for slug in ["AAOS", "BAOS", "SAOS"] {
+        assert!(
+            slugs.contains(slug),
+            "expected slug {} to produce at least one mutant; got slugs: {:?}",
+            slug,
+            slugs
+        );
+    }
+    // Specifically verify Go's bit-clear operator `&^=` generates BAOS mutants
+    assert!(
+        mutants
+            .iter()
+            .any(|m| m.mutation_slug == "BAOS" && m.old_text == "&^="),
+        "expected a BAOS mutant with old_text `&^=`"
+    );
+}

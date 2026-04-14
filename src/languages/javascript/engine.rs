@@ -196,7 +196,7 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[nodes::AUGMENTED_ASSIGNMENT_EXPRESSION],
                         &["+=", "-=", "*=", "/=", "%=", "**="],
                     )
                     .into_iter()
@@ -216,7 +216,7 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[nodes::AUGMENTED_ASSIGNMENT_EXPRESSION],
                         &["&=", "|=", "^="],
                     )
                     .into_iter()
@@ -256,7 +256,7 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[nodes::AUGMENTED_ASSIGNMENT_EXPRESSION],
                         &["<<=", ">>=", ">>>="],
                     )
                     .into_iter()

@@ -147,6 +147,7 @@ Use this skill when:
        pub const ARGUMENTS: &str = "arguments";
    }
    ```
+   - For every operator-focused slug (AOS, AAOS, BOS, BAOS, LOS, SAOS, COS), confirm which node kinds the grammar uses for those operators (e.g., `augmented_assignment_expression` versus `binary_expression`). Only plug a node kind into `patterns::shuffle_*` after verifying it in `node-types.json`, and include any language-specific operator tokens (such as Go's `&^=` or JavaScript's `**=`/`>>>=`).
 
 4. Create mutations file (`src/languages/<language>/mutations.rs`):
    ```rust
@@ -340,6 +341,7 @@ Use this skill when:
        assert!(!mutants.is_empty(), "Should generate mutations");
    }
    ```
+   - Add a regression test that exercises every compound or augmented assignment form the language supports and assert that each related slug (AAOS, BAOS, SAOS) produces at least one mutant. Apply the same "every slug emits at least one mutant" check to any other mutation families that rely on non-trivial node kinds.
 
 **Exit Criteria**:
 - [ ] Example file created with diverse syntax
@@ -446,6 +448,11 @@ Use Read on `src/languages/rust/engine.rs` for complete examples of:
 
 **Problem**: Adding language-specific mutations before verifying common ones work  
 **Solution**: Start with COMMON_MUTATIONS only. Most languages need zero custom mutations.
+
+### Compound Assignment Node Kinds
+
+**Problem**: Assuming compound assignments share the `binary_expression` node kind  
+**Solution**: Check `node-types.json` for the exact node kind (e.g., `augmented_assignment_expression`, `compound_assignment_expr`) and wire AAOS/BAOS/SAOS to that. Include all language-specific operator tokens when configuring `patterns::shuffle_operators`.
 
 ## Success Checklist
 
