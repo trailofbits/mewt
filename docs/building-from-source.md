@@ -15,11 +15,13 @@ mewt --version
 
 ## Native toolchain
 
-Requirements:
+Requirements (Linux/macOS):
 - Rust toolchain (via rustup)
 - C toolchain (gcc/clang) and `make`
 - `pkg-config`
 - SQLite development headers (`libsqlite3-dev`/`sqlite`)
+
+Windows is currently unsupported.
 
 Install common prerequisites:
 
