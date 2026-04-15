@@ -21,7 +21,7 @@ path = "src/lib.rs"
 [dependencies]
 # Shared dependencies across all crates
 chrono = { version = "0.4.44", features = ["serde"] }
-clap = { version = "4.5.60", features = ["derive"] }
+clap = { version = "4.6.1", features = ["derive"] }
 console = "0.16"
 ctrlc = { version = "3.5.2", features = ["termination"] }
 dirs-next = "2.0"
