@@ -1,4 +1,4 @@
-use std::sync::OnceLock;
+use std::{borrow::Cow, sync::OnceLock};
 use tree_sitter::{Language as TsLanguage, Node};
 
 use crate::LanguageEngine;
@@ -294,22 +294,52 @@ impl LanguageEngine for SolidityLanguageEngine {
 
 /// Map a Solidity primitive type to its default/zero value.
 /// Returns None for user-defined types, mappings, and arrays (skip those).
-fn solidity_type_default(type_text: &str) -> Option<&'static str> {
+fn solidity_type_default(type_text: &str) -> Option<Cow<'static, str>> {
     let t = type_text.trim();
     // Array types (e.g., uint256[], bytes32[10]) are not mappable to a simple default
     if t.contains('[') {
         return None;
     }
-    match t {
-        s if s.starts_with("uint") => Some("0"),
-        s if s.starts_with("int") => Some("0"),
-        "bool" => Some("false"),
-        "address payable" => Some("payable(address(0))"),
-        "address" => Some("address(0)"),
-        "string" => Some("\"\""),
-        s if s == "bytes" || s.starts_with("bytes") && s[5..].parse::<u8>().is_ok() => Some("\"\""),
-        _ => None,
+
+    if t.starts_with("address payable") {
+        return Some(Cow::Borrowed("payable(address(0))"));
     }
+    if t.starts_with("address") {
+        return Some(Cow::Borrowed("address(0)"));
+    }
+    if t.starts_with("uint") || t.starts_with("int") {
+        return Some(Cow::Borrowed("0"));
+    }
+    if t.starts_with("bool") {
+        return Some(Cow::Borrowed("false"));
+    }
+    if t.starts_with("string") {
+        return Some(Cow::Borrowed("\"\""));
+    }
+    if let Some(rest) = t.strip_prefix("bytes") {
+        let rest_trimmed = rest.trim_start();
+        // Dynamic bytes (e.g., "bytes", "bytes memory")
+        if rest_trimmed.is_empty() {
+            return Some(Cow::Borrowed("bytes(\"\")"));
+        }
+
+        let digits: String = rest_trimmed
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
+        if digits.is_empty() {
+            return Some(Cow::Borrowed("\"\""));
+        }
+
+        if let Ok(size) = digits.parse::<u8>() {
+            if (1..=32).contains(&size) {
+                return Some(Cow::Owned(format!("bytes{digits}(0)")));
+            }
+        }
+        return None;
+    }
+
+    None
 }
 
 /// Walk up from a node to find its enclosing function_definition.
@@ -389,12 +419,13 @@ fn return_default_value_mutants(root: Node, source: &str) -> Vec<PartialMutant> 
             // Single return value: replace the entire expression
             if let Some(default) = solidity_type_default(return_types[0]) {
                 let old_text = node_text(&return_expr, source);
-                if old_text != default {
+                let default_str = default.as_ref();
+                if old_text != default_str {
                     mutants.push(PartialMutant {
                         byte_offset: return_expr.start_byte() as u32,
                         line_offset: calculate_line_offset(source, return_expr.start_byte()),
                         old_text: old_text.to_string(),
-                        new_text: default.to_string(),
+                        new_text: default.into_owned(),
                     });
                 }
             }
@@ -407,12 +438,13 @@ fn return_default_value_mutants(root: Node, source: &str) -> Vec<PartialMutant> 
                     break;
                 }
                 if let Some(default) = solidity_type_default(return_types[i]) {
-                    if elem.text != default {
+                    let default_str = default.as_ref();
+                    if elem.text != default_str {
                         mutants.push(PartialMutant {
                             byte_offset: elem.byte_offset,
                             line_offset: calculate_line_offset(source, elem.byte_offset as usize),
                             old_text: elem.text.to_string(),
-                            new_text: default.to_string(),
+                            new_text: default.into_owned(),
                         });
                     }
                 }

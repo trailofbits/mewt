@@ -947,6 +947,26 @@ contract Test {
 }
 
 #[test]
+fn test_rdv_bytes_return() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function data() public pure returns (bytes memory) {
+        return hex"abcdef";
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert_eq!(rdv.len(), 1);
+    assert_eq!(rdv[0].new_text, "bytes(\"\")");
+}
+
+#[test]
 fn test_rdv_bytes32_return() {
     let source = r#"
 pragma solidity ^0.8.0;
@@ -963,7 +983,7 @@ contract Test {
     let rdv = rdv_mutants(&mutants);
 
     assert_eq!(rdv.len(), 1);
-    assert_eq!(rdv[0].new_text, "\"\"");
+    assert_eq!(rdv[0].new_text, "bytes32(0)");
 }
 
 #[test]
