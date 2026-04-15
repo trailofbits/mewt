@@ -3,25 +3,25 @@ use mewt::LanguageEngine;
 use mewt::languages::go::engine::GoLanguageEngine;
 
 #[test]
-fn saos_mutates_shift_assignments() {
+fn bos_mutates_bitwise_operators() {
     let source = r#"
 package main
-func f(a int) int {
-    a <<= 1
-    return a
+
+func combine(a, b int) int {
+    return a & b
 }
 "#;
 
-    assert_only_slug_and_expected_new_texts(source, "SAOS", &[">>="]);
+    assert_only_slug_and_expected_new_texts(source, "BOS", &["|", "^", "&^"]);
 }
 
 #[test]
-fn saos_swaps_right_shift_assignment_to_left() {
+fn bos_handles_bit_clear_operator() {
     let source = r#"
 package main
-func g(a int) int {
-    a >>= 1
-    return a
+
+func clear(a, b int) int {
+    return a &^ b
 }
 "#;
 
@@ -29,13 +29,11 @@ func g(a int) int {
     let mutants = GoLanguageEngine::new()
         .mutate(&target)
         .into_iter()
-        .filter(|m| m.mutation_slug == "SAOS")
+        .filter(|m| m.mutation_slug == "BOS")
         .collect::<Vec<_>>();
 
     assert!(
-        mutants
-            .iter()
-            .any(|m| m.old_text == ">>=" && m.new_text == "<<="),
-        "expected SAOS to turn >>= into <<=: {mutants:?}"
+        mutants.iter().any(|m| m.old_text == "&^"),
+        "expected BOS to target the Go-specific &^ operator: {mutants:?}"
     );
 }

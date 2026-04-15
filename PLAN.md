@@ -3,8 +3,8 @@
 1. ✅ **`2b3c4d5e` – Rust mutation test reorg**  
    Stood up dedicated modules for all 17 Rust slugs, migrated the legacy assertions, removed `mutation_tests.rs`, and refreshed the slug inventory documentation.
 
-2. **`3c4d5e6f` – Go mutation test reorg**  
-   Mirror the Rust approach, adding Go-specific fixtures where needed and paring down the integration suite to smoke checks plus the per-slug guard.
+2. ✅ **`3c4d5e6f` – Go mutation test reorg**  
+   Mirrored the Rust layout with per-slug modules, moved slug assertions out of the integration suite, and added a guard to ensure every active Go slug has a dedicated test.
 
 3. **`4d5e6f70` – JavaScript mutation test reorg**  
    Create per-slug modules covering JS/TS/JSX edge cases, factor shared helpers, and leave integration tests focused on general engine coverage.
