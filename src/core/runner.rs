@@ -817,7 +817,7 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::thread;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
     use tempfile::tempdir;
 
     use super::TestRunner;
@@ -870,15 +870,29 @@ mod tests {
     /// Poll up to `max` for `pid_path` to contain a parseable integer,
     /// then return it. Panics on timeout.
     fn read_grandchild_pid(pid_path: &std::path::Path, max: Duration) -> i32 {
-        let deadline = std::time::Instant::now() + max;
+        let deadline = Instant::now() + max;
         loop {
             if let Ok(text) = fs::read_to_string(pid_path) {
                 if let Ok(pid) = text.trim().parse::<i32>() {
                     return pid;
                 }
             }
-            if std::time::Instant::now() >= deadline {
+            if Instant::now() >= deadline {
                 panic!("grandchild PID file never populated at {:?}", pid_path);
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    /// Wait up to `max` for the pid file to appear.
+    fn wait_for_pid_file(pid_path: &std::path::Path, max: Duration) -> bool {
+        let deadline = Instant::now() + max;
+        loop {
+            if pid_path.exists() {
+                return true;
+            }
+            if Instant::now() >= deadline {
+                return false;
             }
             thread::sleep(Duration::from_millis(20));
         }
@@ -937,14 +951,17 @@ mod tests {
         // No timeout — rely on the running flag to interrupt.
         let mut runner = make_runner(&script.to_string_lossy(), None, Arc::clone(&running)).await;
 
-        // Flip running=false from another thread after the grandchild has
-        // had time to register its pid. Delay is generous on purpose:
-        // the run_and_wait poll cadence is 100ms and the test needs the
-        // shell to spawn its grandchild and write the pid file before
-        // the kill fires.
         let running_flipper = Arc::clone(&running);
+        let pid_wait_path = pid_path.clone();
         let flipper = thread::spawn(move || {
-            thread::sleep(Duration::from_millis(2000));
+            let saw_pid = wait_for_pid_file(&pid_wait_path, Duration::from_millis(750));
+            if saw_pid {
+                // Let run_and_wait observe the active child before we flip the flag.
+                thread::sleep(Duration::from_millis(100));
+            } else {
+                // Fall back to a conservative delay if the pid file never materialized.
+                thread::sleep(Duration::from_millis(750));
+            }
             running_flipper.store(false, Ordering::SeqCst);
         });
 
