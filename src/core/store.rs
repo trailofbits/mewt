@@ -312,6 +312,73 @@ impl SqlStore {
             .collect())
     }
 
+    pub async fn get_mutant_slugs(&self, mutant_id: i64) -> StoreResult<Vec<String>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT slug
+            FROM mutant_slugs
+            WHERE mutant_id = ?
+            ORDER BY is_primary DESC, slug
+        "#,
+            mutant_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows.into_iter().map(|row| row.slug).collect())
+    }
+
+    async fn fetch_matching_slugs(
+        &self,
+        mutant_ids: &[i64],
+        filter_slugs: &[String],
+    ) -> StoreResult<HashMap<i64, String>> {
+        if mutant_ids.is_empty() || filter_slugs.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let mut order_map: HashMap<&str, usize> = HashMap::new();
+        for (idx, slug) in filter_slugs.iter().enumerate() {
+            order_map.insert(slug.as_str(), idx);
+        }
+        let fallback_order = filter_slugs.len();
+
+        let mut query_builder = QueryBuilder::<Sqlite>::new(
+            "SELECT mutant_id, slug FROM mutant_slugs WHERE mutant_id IN (",
+        );
+        let mut separated_ids = query_builder.separated(", ");
+        for id in mutant_ids {
+            separated_ids.push_bind(*id);
+        }
+        query_builder.push(") AND slug IN (");
+        let mut separated_slugs = query_builder.separated(", ");
+        for slug in filter_slugs {
+            separated_slugs.push_bind(slug);
+        }
+        query_builder.push(")");
+
+        let query = query_builder.build();
+        let rows = query.fetch_all(&self.pool).await?;
+
+        let mut best: HashMap<i64, (usize, String)> = HashMap::new();
+        for row in rows {
+            let mutant_id: i64 = row.try_get("mutant_id")?;
+            let slug: String = row.try_get("slug")?;
+            let order = *order_map.get(slug.as_str()).unwrap_or(&fallback_order);
+
+            if let Some((existing_order, existing_slug)) = best.get_mut(&mutant_id) {
+                if order < *existing_order {
+                    *existing_order = order;
+                    *existing_slug = slug;
+                }
+            } else {
+                best.insert(mutant_id, (order, slug));
+            }
+        }
+
+        Ok(best.into_iter().map(|(id, (_, slug))| (id, slug)).collect())
+    }
+
     pub async fn get_outcome(&self, mutant_id: i64) -> StoreResult<Option<Outcome>> {
         let record = sqlx::query!(
             r#"
@@ -508,9 +575,9 @@ impl SqlStore {
         tested: bool,
         untested: bool,
     ) -> StoreResult<Vec<(Mutant, Target)>> {
-        // Get target IDs matching the pattern (if provided)
         let target_ids = self.match_target_ids(target).await?;
-        // Build the SQL query dynamically with proper parameter binding
+        let mutation_types_clone = mutation_types.clone();
+
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
             r#"
             SELECT
@@ -521,14 +588,11 @@ impl SqlStore {
             "#,
         );
 
-        // Add tested/untested filter via LEFT JOIN with outcomes
         if tested || untested {
             query_builder.push(" LEFT JOIN outcomes o ON m.id = o.mutant_id ");
         }
 
         let mut has_where = false;
-
-        // Helper to add WHERE or AND
         let add_separator = |qb: &mut QueryBuilder<Sqlite>, has_where: &mut bool| {
             if !*has_where {
                 qb.push(" WHERE ");
@@ -538,7 +602,6 @@ impl SqlStore {
             }
         };
 
-        // Add tested/untested condition
         if tested && !untested {
             add_separator(&mut query_builder, &mut has_where);
             query_builder.push("o.mutant_id IS NOT NULL");
@@ -547,10 +610,8 @@ impl SqlStore {
             query_builder.push("o.mutant_id IS NULL");
         }
 
-        // Add target filter (if target IDs were matched)
         if let Some(ids) = &target_ids {
             if ids.is_empty() {
-                // No matching targets, return empty result
                 return Ok(vec![]);
             }
             add_separator(&mut query_builder, &mut has_where);
@@ -562,23 +623,22 @@ impl SqlStore {
             query_builder.push(")");
         }
 
-        // Add mutation types filter (supports multiple slugs via IN clause)
-        if let Some(mutation_slugs) = mutation_types {
+        if let Some(mutation_slugs) = mutation_types.as_ref() {
             if !mutation_slugs.is_empty() {
                 add_separator(&mut query_builder, &mut has_where);
-                query_builder.push("m.mutation_slug IN (");
+                query_builder.push(
+                    "EXISTS (SELECT 1 FROM mutant_slugs ms WHERE ms.mutant_id = m.id AND ms.slug IN (",
+                );
                 let mut separated = query_builder.separated(", ");
                 for slug in mutation_slugs {
                     separated.push_bind(slug);
                 }
-                query_builder.push(")");
+                query_builder.push("))");
             }
         }
 
-        // Sort by target path, then by byte offset within each target
         query_builder.push(" ORDER BY t.path, m.byte_offset");
 
-        // Execute the query
         let query = query_builder.build();
         let records = query.fetch_all(&self.pool).await?;
 
@@ -603,7 +663,20 @@ impl SqlStore {
             results.push((mutant, target));
         }
 
-        // Apply line filter in Rust to check if line falls within mutation span
+        if let Some(mutation_slugs) = mutation_types_clone {
+            if !mutation_slugs.is_empty() && !results.is_empty() {
+                let mutant_ids: Vec<i64> = results.iter().map(|(mutant, _)| mutant.id).collect();
+                let matched_slugs = self
+                    .fetch_matching_slugs(&mutant_ids, &mutation_slugs)
+                    .await?;
+                for (mutant, _) in results.iter_mut() {
+                    if let Some(slug) = matched_slugs.get(&mutant.id) {
+                        mutant.mutation_slug = slug.clone();
+                    }
+                }
+            }
+        }
+
         if let Some(line_num) = line {
             results.retain(|(mutant, _)| {
                 let (start_line, end_line) = mutant.get_lines();
@@ -623,9 +696,9 @@ impl SqlStore {
         mutation_types: Option<Vec<String>>,
         line: Option<u32>,
     ) -> StoreResult<Vec<(Mutant, Target, Outcome)>> {
-        // Get target IDs matching the pattern (if provided)
         let target_ids = self.match_target_ids(target).await?;
-        // Build the SQL query dynamically with proper parameter binding
+        let mutation_types_clone = mutation_types.clone();
+
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
             r#"
             SELECT
@@ -639,8 +712,6 @@ impl SqlStore {
         );
 
         let mut has_where = false;
-
-        // Helper to add WHERE or AND
         let add_separator = |qb: &mut QueryBuilder<Sqlite>, has_where: &mut bool| {
             if !*has_where {
                 qb.push(" WHERE ");
@@ -650,35 +721,32 @@ impl SqlStore {
             }
         };
 
-        // Add status filter
         if let Some(status_str) = status {
             add_separator(&mut query_builder, &mut has_where);
             query_builder.push("o.status = ").push_bind(status_str);
         }
 
-        // Add language filter
         if let Some(lang) = language {
             add_separator(&mut query_builder, &mut has_where);
             query_builder.push("t.language = ").push_bind(lang);
         }
 
-        // Add mutation types filter (supports multiple slugs via IN clause)
-        if let Some(mutation_slugs) = mutation_types {
+        if let Some(mutation_slugs) = mutation_types.as_ref() {
             if !mutation_slugs.is_empty() {
                 add_separator(&mut query_builder, &mut has_where);
-                query_builder.push("m.mutation_slug IN (");
+                query_builder.push(
+                    "EXISTS (SELECT 1 FROM mutant_slugs ms WHERE ms.mutant_id = m.id AND ms.slug IN (",
+                );
                 let mut separated = query_builder.separated(", ");
                 for slug in mutation_slugs {
                     separated.push_bind(slug);
                 }
-                query_builder.push(")");
+                query_builder.push("))");
             }
         }
 
-        // Add target filter (if target IDs were matched)
         if let Some(ids) = &target_ids {
             if ids.is_empty() {
-                // No matching targets, return empty result
                 return Ok(vec![]);
             }
             add_separator(&mut query_builder, &mut has_where);
@@ -690,10 +758,8 @@ impl SqlStore {
             query_builder.push(")");
         }
 
-        // Sort by target path, then by byte offset within each target
         query_builder.push(" ORDER BY t.path, m.byte_offset");
 
-        // Execute the query
         let query = query_builder.build();
         let records = query.fetch_all(&self.pool).await?;
 
@@ -729,7 +795,20 @@ impl SqlStore {
             results.push((mutant, target, outcome));
         }
 
-        // Apply line filter in Rust to check if line falls within mutation span
+        if let Some(mutation_slugs) = mutation_types_clone {
+            if !mutation_slugs.is_empty() && !results.is_empty() {
+                let mutant_ids: Vec<i64> = results.iter().map(|(mutant, _, _)| mutant.id).collect();
+                let matched_slugs = self
+                    .fetch_matching_slugs(&mutant_ids, &mutation_slugs)
+                    .await?;
+                for (mutant, _, _) in results.iter_mut() {
+                    if let Some(slug) = matched_slugs.get(&mutant.id) {
+                        mutant.mutation_slug = slug.clone();
+                    }
+                }
+            }
+        }
+
         if let Some(line_num) = line {
             results.retain(|(mutant, _, _)| {
                 let (start_line, end_line) = mutant.get_lines();
@@ -780,8 +859,9 @@ impl SqlStore {
         // This will be computed from the database in a separate query
         let severity_records = sqlx::query!(
             r#"
-            SELECT m.mutation_slug, o.status
+            SELECT ms.slug AS mutation_slug, o.status
             FROM mutants m
+            JOIN mutant_slugs ms ON ms.mutant_id = m.id
             JOIN outcomes o ON m.id = o.mutant_id
             WHERE m.target_id = ? AND o.status IN ('TestFail', 'Uncaught')
             "#,
@@ -814,8 +894,9 @@ impl SqlStore {
     pub async fn get_campaign_severity_stats(&self) -> StoreResult<CampaignSeverityStats> {
         let records = sqlx::query!(
             r#"
-            SELECT m.mutation_slug, o.status
+            SELECT ms.slug AS mutation_slug, o.status
             FROM mutants m
+            JOIN mutant_slugs ms ON ms.mutant_id = m.id
             JOIN outcomes o ON m.id = o.mutant_id
             WHERE o.status IN ('TestFail', 'Uncaught')
             "#
