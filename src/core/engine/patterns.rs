@@ -296,6 +296,56 @@ pub fn swap_args(
     mutants
 }
 
+/// Remove a unary operator from expressions of the given kind where the operator matches.
+/// Replaces the entire unary expression with its operand (e.g., `!x` -> `x`).
+/// Uses field-based child access with positional fallback for grammars without field names.
+pub fn remove_unary_operator(
+    root: Node,
+    source: &str,
+    node_kind: &str,
+    operator_field: &str,
+    operand_field: &str,
+    target_operator: &str,
+) -> Vec<PartialMutant> {
+    let mut mutants = Vec::new();
+    let mut cursor = root.walk();
+    visit_nodes_with_cursor(root, &mut cursor, &mut |node| {
+        if node.kind() != node_kind || is_in_comment(&node) {
+            return;
+        }
+
+        // Try field-based access first, fall back to positional for grammars without fields
+        let (op_text, operand_text) = if let (Some(op_node), Some(arg_node)) = (
+            node.child_by_field_name(operator_field),
+            node.child_by_field_name(operand_field),
+        ) {
+            (node_text(&op_node, source), node_text(&arg_node, source))
+        } else {
+            // Positional fallback: child(0) is operator, first named child is operand
+            let op_node = match node.child(0) {
+                Some(c) => c,
+                None => return,
+            };
+            let mut nc = node.walk();
+            let operand = node.children(&mut nc).find(|c| c.is_named());
+            match operand {
+                Some(arg_node) => (node_text(&op_node, source), node_text(&arg_node, source)),
+                None => return,
+            }
+        };
+
+        if op_text == target_operator {
+            mutants.push(PartialMutant {
+                byte_offset: node.start_byte() as u32,
+                line_offset: calculate_line_offset(source, node.start_byte()),
+                old_text: node_text(&node, source).to_string(),
+                new_text: operand_text.to_string(),
+            });
+        }
+    });
+    mutants
+}
+
 ////////////////////////////////////////
 // Internal helpers
 
