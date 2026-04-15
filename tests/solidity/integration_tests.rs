@@ -2,7 +2,6 @@ use mewt::LanguageEngine;
 use mewt::languages::solidity::engine::SolidityLanguageEngine;
 use mewt::types::{Mutant, Target};
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
 use tempfile::tempdir;
 
 /// Helper to create a temporary Solidity target for tests.
@@ -59,68 +58,6 @@ pub(crate) fn assert_only_slug_and_expected_new_texts(
             "missing expected {slug} mutant containing: {expected}"
         );
     }
-}
-
-const SOLIDITY_EXPECTED_SLUG_TESTS: &[(&str, &str)] = &[
-    ("AAOS", "AAOS.rs"),
-    ("AOS", "AOS.rs"),
-    ("AS", "AS.rs"),
-    ("BAOS", "BAOS.rs"),
-    ("BOS", "BOS.rs"),
-    ("BL", "BL.rs"),
-    ("COS", "COS.rs"),
-    ("CR", "CR.rs"),
-    ("ER", "ER.rs"),
-    ("IF", "IF.rs"),
-    ("IT", "IT.rs"),
-    ("LC", "LC.rs"),
-    ("LOS", "LOS.rs"),
-    ("NR", "NR.rs"),
-    ("RCI", "RCI.rs"),
-    ("RDV", "RDV.rs"),
-    ("SAOS", "SAOS.rs"),
-    ("SOS", "SOS.rs"),
-    ("WF", "WF.rs"),
-];
-
-const SOLIDITY_ALLOWED_UNTESTED_SLUGS: &[&str] = &[];
-
-#[test]
-fn solidity_slug_modules_exist_for_active_mutations() {
-    let engine = SolidityLanguageEngine::new();
-    let defined: HashSet<&str> = engine.get_mutations().iter().map(|m| m.slug).collect();
-
-    for (slug, file) in SOLIDITY_EXPECTED_SLUG_TESTS {
-        assert!(
-            defined.contains(slug),
-            "Solidity engine is missing expected mutation slug {slug}"
-        );
-        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests")
-            .join("solidity")
-            .join("mutations")
-            .join(file);
-        assert!(
-            path.exists(),
-            "missing per-slug test file for {slug}: {path:?}"
-        );
-    }
-
-    let allowed: HashSet<&str> = SOLIDITY_ALLOWED_UNTESTED_SLUGS.iter().copied().collect();
-    let unexpected: Vec<&str> = defined
-        .into_iter()
-        .filter(|slug| {
-            !SOLIDITY_EXPECTED_SLUG_TESTS
-                .iter()
-                .any(|(expected, _)| expected == slug)
-                && !allowed.contains(slug)
-        })
-        .collect();
-
-    assert!(
-        unexpected.is_empty(),
-        "found mutation slugs without dedicated tests: {unexpected:?}"
-    );
 }
 
 #[test]

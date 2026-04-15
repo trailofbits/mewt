@@ -12,8 +12,8 @@
 4. ✅ **`5e6f7081` – Solidity mutation test reorg**  
    Broke out per-slug modules (including Solidity-only RCI/RDV), rebuilt the integration helpers and slug guard, and removed the monolithic `mutation_tests.rs` suite.
 
-5. **`6f708192` – Enforce per-slug module coverage**  
-   Add a shared assertion ensuring every engine-exposed slug has a matching test module across all languages.
+5. ✅ **`6f708192` – Enforce per-slug module coverage**  
+   Added `tests/slug_module_guard.rs` to assert every engine slug has a per-language module, cleaned up the duplicated per-language guards, and backfilled Go's missing `WF` stub.
 
 6. **`865c298b` – Compound assignment follow-up**  
    Confirm remaining checklist items after the reorgs, update progress, and close out any lingering compound-assignment tasks.

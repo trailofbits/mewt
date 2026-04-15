@@ -32,3 +32,5 @@ mod nr;
 mod saos;
 #[path = "SOS.rs"]
 mod sos;
+#[path = "WF.rs"]
+mod wf;

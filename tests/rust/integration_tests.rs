@@ -2,7 +2,6 @@ use mewt::LanguageEngine;
 use mewt::languages::rust::engine::RustLanguageEngine;
 use mewt::types::Target;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
 use tempfile::tempdir;
 
 /// Helper to create test target
@@ -220,29 +219,6 @@ pub(crate) fn assert_only_slug_and_expected_new_texts(
         assert!(
             selected.iter().any(|m| m.new_text.contains(expected)),
             "missing expected {slug} mutant containing: {expected}"
-        );
-    }
-}
-
-#[test]
-fn compound_assignment_slug_tests_are_present() {
-    let engine = RustLanguageEngine::new();
-    let compound_slugs: Vec<&str> = engine
-        .get_mutations()
-        .iter()
-        .map(|m| m.slug)
-        .filter(|slug| *slug != "AOS" && slug.ends_with("AOS"))
-        .collect();
-
-    for slug in compound_slugs {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests")
-            .join("rust")
-            .join("mutations")
-            .join(format!("{}.rs", slug.to_lowercase()));
-        assert!(
-            path.exists(),
-            "missing per-slug test file for {slug}: {path:?}"
         );
     }
 }
