@@ -82,4 +82,9 @@ pub const COMMON_MUTATIONS: &[Mutation] = &[
         description: "Shift Assignment Operator Shuffle: Replace shift assignment operators (<<=, >>=)",
         severity: MutationSeverity::Low,
     },
+    Mutation {
+        slug: "NR",
+        description: "Negation Removal: Remove logical negation operator (!x -> x)",
+        severity: MutationSeverity::Medium,
+    },
 ];

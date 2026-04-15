@@ -263,6 +263,18 @@ impl LanguageEngine for RustLanguageEngine {
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "LC")),
                 ),
+                "NR" => all_mutants.extend(
+                    patterns::remove_unary_operator(
+                        root,
+                        source,
+                        nodes::UNARY_EXPRESSION,
+                        "operator",
+                        "value",
+                        "!",
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "NR")),
+                ),
                 _ => {
                     panic!(
                         "Unknown mutation slug encountered in Rust engine: {}",

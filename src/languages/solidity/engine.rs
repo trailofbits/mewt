@@ -252,6 +252,18 @@ impl LanguageEngine for SolidityLanguageEngine {
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "LC")),
                 ),
+                "NR" => all_mutants.extend(
+                    patterns::remove_unary_operator(
+                        root,
+                        source,
+                        nodes::UNARY_EXPRESSION,
+                        fields::OPERATOR,
+                        fields::ARGUMENT,
+                        "!",
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "NR")),
+                ),
                 "RCI" => all_mutants.extend(
                     require_condition_inversion_mutants(root, source)
                         .into_iter()

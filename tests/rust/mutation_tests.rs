@@ -1,6 +1,6 @@
 use mewt::LanguageEngine;
 use mewt::languages::rust::engine::RustLanguageEngine;
-use mewt::types::{Hash, Target};
+use mewt::types::{Hash, Mutant, Target};
 
 fn rust_target_from_source(source: &str) -> Target {
     use tempfile::tempdir;
@@ -248,5 +248,87 @@ fn f() {
             .iter()
             .any(|m| m.mutation_slug == "AAOS" && m.old_text == "%="),
         "expected an AAOS mutant with old_text `%=`"
+    );
+}
+
+fn nr_mutants(mutants: &[Mutant]) -> Vec<&Mutant> {
+    mutants.iter().filter(|m| m.mutation_slug == "NR").collect()
+}
+
+#[test]
+fn test_negation_removal_basic() {
+    let source = r#"
+fn main() {
+    let x = true;
+    if !x {
+        println!("negated");
+    }
+}
+"#;
+    let target = rust_target_from_source(source);
+    let engine = RustLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr = nr_mutants(&mutants);
+
+    assert_eq!(nr.len(), 1, "Should generate exactly 1 NR mutation");
+    assert_eq!(nr[0].old_text, "!x");
+    assert_eq!(nr[0].new_text, "x");
+}
+
+#[test]
+fn test_negation_removal_complex_expression() {
+    let source = r#"
+fn check(a: bool, b: bool) -> bool {
+    !(a && b)
+}
+"#;
+    let target = rust_target_from_source(source);
+    let engine = RustLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr = nr_mutants(&mutants);
+
+    assert!(
+        nr.iter()
+            .any(|m| m.old_text == "!(a && b)" && m.new_text == "(a && b)"),
+        "NR should remove negation preserving parenthesized operand: {nr:?}"
+    );
+}
+
+#[test]
+fn test_negation_removal_ignores_other_unary_ops() {
+    let source = r#"
+fn main() {
+    let x = -1;
+    let y = *x;
+}
+"#;
+    let target = rust_target_from_source(source);
+    let engine = RustLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr = nr_mutants(&mutants);
+
+    assert!(
+        nr.is_empty(),
+        "NR should not trigger on - or * unary operators"
+    );
+}
+
+#[test]
+fn test_negation_removal_in_comment_ignored() {
+    let source = r#"
+fn main() {
+    // if !x { }
+    /* !flag */
+    let y = true;
+}
+"#;
+    let target = rust_target_from_source(source);
+    let engine = RustLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr = nr_mutants(&mutants);
+
+    assert!(
+        nr.is_empty(),
+        "NR should not generate mutations inside comments"
     );
 }
