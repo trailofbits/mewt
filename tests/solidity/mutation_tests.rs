@@ -717,3 +717,524 @@ contract Test {
     );
     assert_eq!(rci[0].new_text, "!(flag)");
 }
+
+fn rdv_mutants(mutants: &[Mutant]) -> Vec<&Mutant> {
+    mutants
+        .iter()
+        .filter(|m| m.mutation_slug == "RDV")
+        .collect()
+}
+
+#[test]
+fn test_rdv_uint_return() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function balance() public pure returns (uint256) {
+        return 42;
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert_eq!(rdv.len(), 1, "Should generate exactly 1 RDV mutation");
+    assert_eq!(rdv[0].old_text, "42");
+    assert_eq!(rdv[0].new_text, "0");
+}
+
+#[test]
+fn test_rdv_bool_return() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function isValid() public pure returns (bool) {
+        return true;
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert!(
+        rdv.iter()
+            .any(|m| m.old_text == "true" && m.new_text == "false"),
+        "RDV should replace true with false: {rdv:?}"
+    );
+}
+
+#[test]
+fn test_rdv_address_return() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function owner() public pure returns (address) {
+        return msg.sender;
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert!(
+        rdv.iter()
+            .any(|m| m.old_text == "msg.sender" && m.new_text == "address(0)"),
+        "RDV should replace address return with address(0): {rdv:?}"
+    );
+}
+
+#[test]
+fn test_rdv_address_payable_return() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function recipient() public pure returns (address payable) {
+        return payable(msg.sender);
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert!(
+        rdv.iter().any(|m| m.new_text == "payable(address(0))"),
+        "RDV should replace address payable return with payable(address(0)): {rdv:?}"
+    );
+}
+
+#[test]
+fn test_rdv_multi_return() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function getInfo() public pure returns (uint256, bool) {
+        return (42, true);
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert_eq!(
+        rdv.len(),
+        2,
+        "Should generate 2 RDV mutations for (uint256, bool)"
+    );
+    assert!(
+        rdv.iter().any(|m| m.old_text == "42" && m.new_text == "0"),
+        "RDV should replace uint256 value with 0: {rdv:?}"
+    );
+    assert!(
+        rdv.iter()
+            .any(|m| m.old_text == "true" && m.new_text == "false"),
+        "RDV should replace bool value with false: {rdv:?}"
+    );
+}
+
+#[test]
+fn test_rdv_multi_return_partial_mapping() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+struct Data { uint256 x; }
+
+contract Test {
+    function getInfo() public pure returns (uint256, Data memory, bool) {
+        Data memory d = Data(1);
+        return (42, d, true);
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert_eq!(
+        rdv.len(),
+        2,
+        "Should generate 2 RDV mutations (uint256 and bool), skipping the struct: {rdv:?}"
+    );
+    assert!(
+        rdv.iter().any(|m| m.old_text == "42" && m.new_text == "0"),
+        "RDV should replace uint256 value with 0: {rdv:?}"
+    );
+    assert!(
+        rdv.iter()
+            .any(|m| m.old_text == "true" && m.new_text == "false"),
+        "RDV should replace bool value with false: {rdv:?}"
+    );
+}
+
+#[test]
+fn test_rdv_skips_already_default() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function zero() public pure returns (uint256) {
+        return 0;
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert!(
+        rdv.is_empty(),
+        "RDV should not generate mutation when return value is already the default"
+    );
+}
+
+#[test]
+fn test_rdv_no_return_value() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function doNothing() public pure {
+        return;
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert!(
+        rdv.is_empty(),
+        "RDV should not generate mutation for void return"
+    );
+}
+
+#[test]
+fn test_rdv_string_return() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function name() public pure returns (string memory) {
+        return "hello";
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert_eq!(rdv.len(), 1);
+    assert_eq!(rdv[0].old_text, "\"hello\"");
+    assert_eq!(rdv[0].new_text, "\"\"");
+}
+
+#[test]
+fn test_rdv_bytes_return() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function data() public pure returns (bytes memory) {
+        return hex"abcdef";
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert_eq!(rdv.len(), 1);
+    assert_eq!(rdv[0].new_text, "bytes(\"\")");
+}
+
+#[test]
+fn test_rdv_bytes32_return() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function hash() public pure returns (bytes32) {
+        return keccak256("data");
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert_eq!(rdv.len(), 1);
+    assert_eq!(rdv[0].new_text, "bytes32(0)");
+}
+
+#[test]
+fn test_rdv_int256_return() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function delta() public pure returns (int256) {
+        return -42;
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert_eq!(rdv.len(), 1);
+    assert_eq!(rdv[0].new_text, "0");
+}
+
+#[test]
+fn test_rdv_multiple_return_statements() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function abs(int256 x) public pure returns (int256) {
+        if (x >= 0) {
+            return x;
+        }
+        return -x;
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert_eq!(
+        rdv.len(),
+        2,
+        "Should generate one RDV mutant per return statement: {rdv:?}"
+    );
+    assert!(
+        rdv.iter().any(|m| m.old_text == "x" && m.new_text == "0"),
+        "Should replace 'return x' with 'return 0': {rdv:?}"
+    );
+    assert!(
+        rdv.iter().any(|m| m.old_text == "-x" && m.new_text == "0"),
+        "Should replace 'return -x' with 'return 0': {rdv:?}"
+    );
+}
+
+#[test]
+fn test_rdv_multi_return_partial_default() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function getInfo() public pure returns (uint256, bool) {
+        return (0, true);
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert_eq!(
+        rdv.len(),
+        1,
+        "Should skip the uint256 (already 0) and only mutate the bool: {rdv:?}"
+    );
+    assert_eq!(rdv[0].old_text, "true");
+    assert_eq!(rdv[0].new_text, "false");
+}
+
+// --- Negative tests: types that should NOT produce RDV mutants ---
+
+#[test]
+fn test_rdv_skips_user_defined_type() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+struct Point { uint256 x; uint256 y; }
+
+contract Test {
+    function origin() public pure returns (Point memory) {
+        return Point(0, 0);
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert!(
+        rdv.is_empty(),
+        "RDV should not generate mutations for user-defined struct return types: {rdv:?}"
+    );
+}
+
+#[test]
+fn test_rdv_skips_enum_return() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    enum Status { Active, Inactive }
+
+    function getStatus() public pure returns (Status) {
+        return Status.Active;
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert!(
+        rdv.is_empty(),
+        "RDV should not generate mutations for enum return types: {rdv:?}"
+    );
+}
+
+#[test]
+fn test_rdv_skips_array_return() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function getIds() public pure returns (uint256[] memory) {
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = 42;
+        return ids;
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert!(
+        rdv.is_empty(),
+        "RDV should not generate mutations for array return types: {rdv:?}"
+    );
+}
+
+#[test]
+fn test_rdv_skips_mapping_return() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    mapping(address => uint256) internal balances;
+
+    function getBalances() internal view returns (mapping(address => uint256) storage) {
+        return balances;
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert!(
+        rdv.is_empty(),
+        "RDV should not generate mutations for mapping return types: {rdv:?}"
+    );
+}
+
+#[test]
+fn test_rdv_skips_named_return_implicit() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    mapping(address => uint256) internal balances;
+
+    function balance(address owner) public view returns (uint256 amount) {
+        amount = balances[owner];
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert!(
+        rdv.is_empty(),
+        "RDV should not generate mutations for implicit returns via named variables: {rdv:?}"
+    );
+}
+
+#[test]
+fn test_rdv_named_return_with_explicit_return() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    mapping(address => uint256) internal balances;
+
+    function balance(address owner) public view returns (uint256 amount) {
+        amount = balances[owner];
+        return amount;
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert_eq!(rdv.len(), 1, "Should mutate the explicit return: {rdv:?}");
+    assert_eq!(rdv[0].old_text, "amount");
+    assert_eq!(rdv[0].new_text, "0");
+}
+
+#[test]
+fn test_rdv_skips_bare_return_in_named_return_function() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    mapping(address => uint256) internal balances;
+
+    function balance(address owner) public view returns (uint256 amount) {
+        amount = balances[owner];
+        if (amount > 0) {
+            return;
+        }
+        amount = 0;
+    }
+}
+"#;
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let rdv = rdv_mutants(&mutants);
+
+    assert!(
+        rdv.is_empty(),
+        "RDV should not generate mutations for bare 'return;' in named return functions: {rdv:?}"
+    );
+}
