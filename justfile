@@ -99,7 +99,10 @@ dogfood:
   cargo run --bin {{project}} -- run src --test.cmd "just test" --db dogfood.sqlite
 
 ########################################
-# Nix Installation
+# Install/Release
+
+dist:
+  dist init
 
 install-nix:
   just build-nix
