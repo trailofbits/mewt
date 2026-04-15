@@ -7,7 +7,7 @@ Generated from src/bin/slug_inventory.rs on 2026-04-15
 | --- | --- | --- | --- |
 | Go | 17 | 3 | 14 |
 | JavaScript | 17 | 3 | 14 |
-| Rust | 17 | 3 | 14 |
+| Rust | 17 | 17 | 0 |
 | Solidity | 19 | 3 | 16 |
 
 
@@ -65,30 +65,30 @@ Missing slugs: `AOS`, `AS`, `BL`, `BOS`, `COS`, `CR`, `ER`, `IF`, `IT`, `LC`, `L
 | `WF` | ⬜️ | — |
 
 
-### Rust (3/17 covered, 14 missing)
+### Rust (17/17 covered, 0 missing)
 
-Missing slugs: `AOS`, `AS`, `BL`, `BOS`, `COS`, `CR`, `ER`, `IF`, `IT`, `LC`, `LOS`, `NR`, `SOS`, `WF`.
+Missing slugs: —
 
 
 | Slug | Covered? | Test module |
 | --- | --- | --- |
-| `AAOS` | ✅ | tests/rust/mutations/aaos.rs |
-| `AOS` | ⬜️ | — |
-| `AS` | ⬜️ | — |
-| `BAOS` | ✅ | tests/rust/mutations/baos.rs |
-| `BL` | ⬜️ | — |
-| `BOS` | ⬜️ | — |
-| `COS` | ⬜️ | — |
-| `CR` | ⬜️ | — |
-| `ER` | ⬜️ | — |
-| `IF` | ⬜️ | — |
-| `IT` | ⬜️ | — |
-| `LC` | ⬜️ | — |
-| `LOS` | ⬜️ | — |
-| `NR` | ⬜️ | — |
-| `SAOS` | ✅ | tests/rust/mutations/saos.rs |
-| `SOS` | ⬜️ | — |
-| `WF` | ⬜️ | — |
+| `AAOS` | ✅ | tests/rust/mutations/AAOS.rs |
+| `AOS` | ✅ | tests/rust/mutations/AOS.rs |
+| `AS` | ✅ | tests/rust/mutations/AS.rs |
+| `BAOS` | ✅ | tests/rust/mutations/BAOS.rs |
+| `BL` | ✅ | tests/rust/mutations/BL.rs |
+| `BOS` | ✅ | tests/rust/mutations/BOS.rs |
+| `COS` | ✅ | tests/rust/mutations/COS.rs |
+| `CR` | ✅ | tests/rust/mutations/CR.rs |
+| `ER` | ✅ | tests/rust/mutations/ER.rs |
+| `IF` | ✅ | tests/rust/mutations/IF.rs |
+| `IT` | ✅ | tests/rust/mutations/IT.rs |
+| `LC` | ✅ | tests/rust/mutations/LC.rs |
+| `LOS` | ✅ | tests/rust/mutations/LOS.rs |
+| `NR` | ✅ | tests/rust/mutations/NR.rs |
+| `SAOS` | ✅ | tests/rust/mutations/SAOS.rs |
+| `SOS` | ✅ | tests/rust/mutations/SOS.rs |
+| `WF` | ✅ | tests/rust/mutations/WF.rs |
 
 
 ### Solidity (3/19 covered, 16 missing)

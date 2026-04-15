@@ -3,11 +3,11 @@ use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use mewt::LanguageEngine;
 use mewt::languages::go::engine::GoLanguageEngine;
 use mewt::languages::javascript::engine::JavaScriptLanguageEngine;
 use mewt::languages::rust::engine::RustLanguageEngine;
 use mewt::languages::solidity::engine::SolidityLanguageEngine;
-use mewt::LanguageEngine;
 use serde::Serialize;
 
 #[derive(Serialize)]
