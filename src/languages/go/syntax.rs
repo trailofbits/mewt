@@ -21,4 +21,5 @@ pub mod fields {
     pub const LEFT: &str = "left";
     pub const RIGHT: &str = "right";
     pub const OPERATOR: &str = "operator";
+    pub const OPERAND: &str = "operand";
 }

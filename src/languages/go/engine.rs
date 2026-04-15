@@ -237,6 +237,18 @@ impl LanguageEngine for GoLanguageEngine {
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "SAOS")),
                 ),
+                "NR" => all_mutants.extend(
+                    patterns::remove_unary_operator(
+                        root,
+                        source,
+                        nodes::UNARY_EXPRESSION,
+                        fields::OPERATOR,
+                        fields::OPERAND,
+                        "!",
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "NR")),
+                ),
                 // Mutations not applicable to Go
                 "WF" | "RZ" => {
                     // Go has no `while` keyword (`WF`); `RZ` is a dead slug not in any mutation list.

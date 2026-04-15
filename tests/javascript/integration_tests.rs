@@ -286,3 +286,64 @@ function f() {
         "expected a SAOS mutant with old_text `>>>=`"
     );
 }
+
+#[test]
+fn test_negation_removal() {
+    let source = r#"
+function check(flag) {
+    if (!flag) {
+        throw new Error("bad");
+    }
+    return !(flag && true);
+}
+"#;
+    let (_dir, target) = create_test_target(source, "test.js");
+    let engine = JavaScriptLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "NR").collect();
+
+    assert_eq!(nr.len(), 2, "Should generate exactly 2 NR mutations");
+    assert!(
+        nr.iter()
+            .any(|m| m.old_text == "!flag" && m.new_text == "flag"),
+        "NR should replace !flag with flag: {nr:?}"
+    );
+    assert!(
+        nr.iter()
+            .any(|m| m.old_text == "!(flag && true)" && m.new_text == "(flag && true)"),
+        "NR should replace !(flag && true) with (flag && true): {nr:?}"
+    );
+}
+
+#[test]
+fn test_negation_removal_ignores_other_unary_ops() {
+    let source = r#"
+function f(x) {
+    return -x;
+}
+"#;
+    let (_dir, target) = create_test_target(source, "test.js");
+    let engine = JavaScriptLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "NR").collect();
+
+    assert!(nr.is_empty(), "NR should not trigger on - unary operator");
+}
+
+#[test]
+fn test_negation_removal_in_comment_ignored() {
+    let source = r#"
+// if (!flag) { throw new Error(); }
+/* !x */
+function f() {}
+"#;
+    let (_dir, target) = create_test_target(source, "test.js");
+    let engine = JavaScriptLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "NR").collect();
+
+    assert!(
+        nr.is_empty(),
+        "NR should not generate mutations inside comments"
+    );
+}

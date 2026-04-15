@@ -12,6 +12,7 @@ pub mod nodes {
     pub const BREAK_STATEMENT: &str = "break_expression";
     pub const CONTINUE_STATEMENT: &str = "continue_expression";
     pub const FOREACH_STATEMENT: &str = "for_expression";
+    pub const UNARY_EXPRESSION: &str = "unary_expression";
 }
 
 pub mod fields {
