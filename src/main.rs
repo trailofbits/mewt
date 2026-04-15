@@ -13,6 +13,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     registry.register(mewt::languages::solidity::engine::SolidityLanguageEngine::new());
 
     // Run the shared main function
-    run_main(Arc::new(registry), "mewt", "Mutation testing framework").await?;
+    run_main(
+        Arc::new(registry),
+        "mewt",
+        "Mutation testing framework",
+        None,
+    )
+    .await?;
     Ok(())
 }

@@ -18,6 +18,7 @@ pub async fn run_main(
     registry: Arc<LanguageRegistry>,
     namespace: &str,
     description: &str,
+    version: Option<&str>,
 ) -> AppResult<()> {
     // Set namespace at start (derives config/db filenames)
     set_namespace(namespace);
@@ -30,6 +31,10 @@ pub async fn run_main(
 
     let mut cmd = Args::command();
     cmd = cmd.name(namespace_static).about(description_static);
+    if let Some(version) = version {
+        let version_static: &'static str = Box::leak(version.to_string().into_boxed_str());
+        cmd = cmd.version(version_static);
+    }
     let matches = cmd.get_matches();
     let args = Args::from_arg_matches(&matches)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e.to_string()))?;
