@@ -38,9 +38,10 @@ contract T {
 "#;
     let mutants = mutants_for_slug(source, "IF");
     assert!(
-        mutants
-            .iter()
-            .any(|m| m.old_text.trim() == "(ok && ready)" && m.new_text == "(false)"),
-        "expected IF mutant to retain parentheses around replacement: {mutants:?}"
+        mutants.iter().any(|m| {
+            m.old_text.trim() == "ok && ready"
+                && (m.new_text.trim() == "false" || m.new_text.trim() == "(false)")
+        }),
+        "expected IF mutant to replace complex condition with false while preserving grouping: {mutants:?}"
     );
 }

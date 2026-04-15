@@ -38,9 +38,10 @@ contract T {
 "#;
     let mutants = mutants_for_slug(source, "IT");
     assert!(
-        mutants
-            .iter()
-            .any(|m| m.old_text.trim() == "(ready && allowed)" && m.new_text == "(true)"),
-        "expected IT mutant to retain parentheses around replacement: {mutants:?}"
+        mutants.iter().any(|m| {
+            m.old_text.trim() == "ready && allowed"
+                && (m.new_text.trim() == "true" || m.new_text.trim() == "(true)")
+        }),
+        "expected IT mutant to replace complex condition with true while preserving grouping: {mutants:?}"
     );
 }

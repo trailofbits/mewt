@@ -19,9 +19,15 @@ function shouldRetry(errorCount) {
         .filter(|m| m.mutation_slug == "IT")
         .collect::<Vec<_>>();
 
+    let replacements: Vec<String> = mutants
+        .iter()
+        .map(|m| m.new_text.trim().to_string())
+        .collect();
     assert!(
-        mutants.iter().any(|m| m.new_text.trim() == "true"),
-        "expected IT mutant to replace condition with true"
+        replacements
+            .iter()
+            .any(|text| text == "true" || text == "(true)"),
+        "expected IT mutant to replace condition with true; found {replacements:?}"
     );
 }
 

@@ -18,9 +18,15 @@ function poll(queue) {
         .filter(|m| m.mutation_slug == "WF")
         .collect::<Vec<_>>();
 
+    let replacements: Vec<String> = mutants
+        .iter()
+        .map(|m| m.new_text.trim().to_string())
+        .collect();
     assert!(
-        mutants.iter().any(|m| m.new_text.trim() == "false"),
-        "expected WF to replace while condition with false"
+        replacements
+            .iter()
+            .any(|text| text == "false" || text == "(false)"),
+        "expected WF to replace while condition with false; found {replacements:?}"
     );
 }
 

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::solidity::integration_tests::mutants_for_slug;
 
 #[test]
@@ -20,14 +22,20 @@ contract T {
 }
 "#;
     let mutants = mutants_for_slug(source, "AS");
+
     assert!(
         !mutants.is_empty(),
-        "expected AS mutants to swap adjacent arguments"
+        "expected AS mutants to swap adjacent arguments: {mutants:?}"
     );
-    assert!(
-        mutants
-            .iter()
-            .any(|m| m.new_text.contains("2, 1") || m.new_text.contains("3, 2")),
-        "expected swapped argument ordering in AS mutants: {mutants:?}"
-    );
+
+    let new_texts: HashSet<_> = mutants
+        .iter()
+        .map(|m| m.new_text.trim().to_string())
+        .collect();
+    for expected in ["2, 1", "3, 2"] {
+        assert!(
+            new_texts.contains(expected),
+            "expected swapped argument text `{expected}`; new_texts: {new_texts:?}"
+        );
+    }
 }

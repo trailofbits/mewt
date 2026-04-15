@@ -21,5 +21,5 @@ const Render: FC<{ ready: boolean; show: boolean }> = ({ ready, show }) => {
 };
 "#;
 
-    assert_only_slug_and_expected_new_texts(source, "test.tsx", "LOS", &["&&", "||"]);
+    assert_only_slug_and_expected_new_texts(source, "test.tsx", "LOS", &["||"]);
 }

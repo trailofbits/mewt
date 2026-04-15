@@ -145,19 +145,36 @@ pub(crate) fn assert_only_slug_and_expected_new_texts(
 
     let selected: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == slug).collect();
     assert!(!selected.is_empty(), "expected at least one {slug} mutant");
-    assert!(
-        mutants
+
+    let normalize = |text: &str| text.trim().replace('\r', "");
+
+    let mut covered_tokens: HashSet<&str> = HashSet::new();
+    let mut unexpected_mutants: Vec<String> = Vec::new();
+
+    for mutant in &selected {
+        let matches: Vec<&str> = expected_new_texts
             .iter()
-            .filter(|m| expected_new_texts
-                .iter()
-                .any(|text| m.new_text.contains(text)))
-            .all(|m| m.mutation_slug == slug),
-        "expected snippets should only come from {slug} mutants"
+            .copied()
+            .filter(|needle| mutant.new_text.contains(needle))
+            .collect();
+
+        if matches.is_empty() {
+            unexpected_mutants.push(normalize(&mutant.new_text));
+        } else {
+            for needle in matches {
+                covered_tokens.insert(needle);
+            }
+        }
+    }
+
+    assert!(
+        unexpected_mutants.is_empty(),
+        "found {slug} mutants with unexpected replacements: {unexpected_mutants:?}"
     );
 
     for expected in expected_new_texts {
         assert!(
-            selected.iter().any(|m| m.new_text.contains(expected)),
+            covered_tokens.contains(expected),
             "missing expected {slug} mutant containing: {expected}"
         );
     }

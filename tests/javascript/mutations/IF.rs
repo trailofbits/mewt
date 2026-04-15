@@ -19,9 +19,15 @@ function check(a, b) {
         .filter(|m| m.mutation_slug == "IF")
         .collect::<Vec<_>>();
 
+    let replacements: Vec<String> = mutants
+        .iter()
+        .map(|m| m.new_text.trim().to_string())
+        .collect();
     assert!(
-        mutants.iter().any(|m| m.new_text.trim() == "false"),
-        "expected IF mutant to replace condition with false"
+        replacements
+            .iter()
+            .any(|text| text == "false" || text == "(false)"),
+        "expected IF mutant to replace condition with false; found {replacements:?}"
     );
 }
 

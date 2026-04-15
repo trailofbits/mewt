@@ -13,7 +13,7 @@ func f(a int, b int) int {
 }
 "#;
 
-    assert_only_slug_and_expected_new_texts(source, "BAOS", &["|=", "^=", "&^="]);
+    assert_only_slug_and_expected_new_texts(source, "BAOS", &["|=", "^=", "&^=", "&="]);
 }
 
 #[test]

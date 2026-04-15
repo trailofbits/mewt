@@ -15,8 +15,8 @@
 5. ✅ **`6f708192` – Enforce per-slug module coverage**  
    Added `tests/slug_module_guard.rs` to assert every engine slug has a per-language module, cleaned up the duplicated per-language guards, and backfilled Go's missing `WF` stub.
 
-6. **`865c298b` – Compound assignment follow-up**  
-   Confirm remaining checklist items after the reorgs, update progress, and close out any lingering compound-assignment tasks.
+6. ✅ **`865c298b` – Compound assignment follow-up**  
+   Hardened the per-language helpers to require the expected replacement tokens, updated slug tests to accept language-specific formatting (e.g., parenthesized replacements), added Go/Solidity assertions for the full operator sets, and fixed Solidity’s argument-swap/RCI coverage gaps.
 
 7. **`0f119077` – Allow consumers to override version**  
    Extend `run_main` with an optional version parameter so downstream binaries can surface their own version strings.
