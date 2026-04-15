@@ -9,5 +9,5 @@ function f(a) {
 }
 "#;
 
-    assert_only_slug_and_expected_new_texts(source, "test.js", "SAOS", &[">>="]);
+    assert_only_slug_and_expected_new_texts(source, "test.js", "SAOS", &[">>=", ">>>="]);
 }

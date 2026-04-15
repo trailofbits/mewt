@@ -1,7 +1,7 @@
-use crate::go::integration_tests::assert_slug_has_no_mutants;
+use crate::go::integration_tests::assert_only_slug_and_expected_new_texts;
 
 #[test]
-fn saos_is_not_generated_for_go() {
+fn saos_mutates_shift_assignments() {
     let source = r#"
 package main
 func f(a int) int {
@@ -10,5 +10,5 @@ func f(a int) int {
 }
 "#;
 
-    assert_slug_has_no_mutants(source, "SAOS");
+    assert_only_slug_and_expected_new_texts(source, "SAOS", &[">>="]);
 }

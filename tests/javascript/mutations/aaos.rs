@@ -9,5 +9,10 @@ function f(a, b) {
 }
 "#;
 
-    assert_only_slug_and_expected_new_texts(source, "test.js", "AAOS", &["-=", "*=", "/="]);
+    assert_only_slug_and_expected_new_texts(
+        source,
+        "test.js",
+        "AAOS",
+        &["-=", "*=", "/=", "%=", "**="],
+    );
 }

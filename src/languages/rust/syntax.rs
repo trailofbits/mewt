@@ -1,5 +1,6 @@
 pub mod nodes {
     pub const BINARY_EXPRESSION: &str = "binary_expression";
+    pub const COMPOUND_ASSIGNMENT_EXPR: &str = "compound_assignment_expr";
     pub const BOOLEAN: &str = "boolean_literal";
     pub const EXPRESSION_STATEMENT: &str = "expression_statement";
     pub const IF_STATEMENT: &str = "if_expression";
@@ -11,6 +12,7 @@ pub mod nodes {
     pub const BREAK_STATEMENT: &str = "break_expression";
     pub const CONTINUE_STATEMENT: &str = "continue_expression";
     pub const FOREACH_STATEMENT: &str = "for_expression";
+    pub const UNARY_EXPRESSION: &str = "unary_expression";
 }
 
 pub mod fields {

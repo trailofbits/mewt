@@ -1,5 +1,6 @@
 pub mod nodes {
     pub const BINARY_EXPRESSION: &str = "binary_expression";
+    pub const AUGMENTED_ASSIGNMENT_EXPRESSION: &str = "augmented_assignment_expression";
     pub const CALL_EXPRESSION: &str = "call_expression";
     pub const EXPRESSION_STATEMENT: &str = "expression_statement";
     pub const IF_STATEMENT: &str = "if_statement";
@@ -11,6 +12,7 @@ pub mod nodes {
     pub const VARIABLE_DECLARATION: &str = "variable_declaration";
     pub const BREAK_STATEMENT: &str = "break_statement";
     pub const CONTINUE_STATEMENT: &str = "continue_statement";
+    pub const UNARY_EXPRESSION: &str = "unary_expression";
     // TypeScript-specific node types
     pub const TYPE_ARGUMENTS: &str = "type_arguments";
     pub const TYPE_PARAMETERS: &str = "type_parameters";
@@ -19,4 +21,6 @@ pub mod nodes {
 pub mod fields {
     pub const CONDITION: &str = "condition";
     pub const ARGUMENTS: &str = "arguments";
+    pub const OPERATOR: &str = "operator";
+    pub const ARGUMENT: &str = "argument";
 }

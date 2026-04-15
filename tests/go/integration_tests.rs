@@ -196,27 +196,219 @@ func testFunc() int {
     );
 }
 
-pub(crate) fn assert_slug_has_no_mutants(source: &str, slug: &str) {
+pub(crate) fn assert_only_slug_and_expected_new_texts(
+    source: &str,
+    slug: &str,
+    expected_new_texts: &[&str],
+) {
     let (_tmp, target) = create_test_target(source);
     let engine = GoLanguageEngine::new();
     let mutants = engine.mutate(&target);
 
+    let selected: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == slug).collect();
+    assert!(!selected.is_empty(), "expected at least one {slug} mutant");
     assert!(
-        mutants.iter().all(|m| m.mutation_slug != slug),
-        "expected no {slug} mutants in Go"
+        mutants
+            .iter()
+            .filter(|m| expected_new_texts
+                .iter()
+                .any(|text| m.new_text.contains(text)))
+            .all(|m| m.mutation_slug == slug),
+        "expected snippets should only come from {slug} mutants"
+    );
+
+    for expected in expected_new_texts {
+        assert!(
+            selected.iter().any(|m| m.new_text.contains(expected)),
+            "missing expected {slug} mutant containing: {expected}"
+        );
+    }
+}
+
+#[test]
+fn er_and_cr_cover_all_simple_statements() {
+    // Regression test for .todo/c8b410d5: Go's ER/CR arms previously targeted
+    // only expression_statement / return_statement / if_statement /
+    // for_statement, leaving short-var declarations, assignments (plain and
+    // compound), and inc/dec statements without any ER/CR coverage. Each kind
+    // below must now produce at least one ER and one CR mutant.
+    let source = r#"package main
+
+func f() {
+    x := 0
+    x = 1
+    x += 1
+    x++
+    x--
+    _ = x
+}
+"#;
+    let (_tmp, target) = create_test_target(source);
+    let mutants = GoLanguageEngine::new().mutate(&target);
+
+    // For each statement form, the `old_text` of an ER/CR mutant should
+    // begin with a distinctive prefix. Collect (old_text_prefix, label)
+    // pairs and assert that every form has at least one ER and one CR.
+    let cases: &[(&str, &str)] = &[
+        ("x :=", "short_var_declaration"),
+        ("x = 1", "assignment_statement (plain)"),
+        ("x +=", "assignment_statement (compound)"),
+        ("x++", "inc_statement"),
+        ("x--", "dec_statement"),
+    ];
+
+    for (prefix, label) in cases {
+        let has_er = mutants
+            .iter()
+            .any(|m| m.mutation_slug == "ER" && m.old_text.trim_start().starts_with(prefix));
+        let has_cr = mutants
+            .iter()
+            .any(|m| m.mutation_slug == "CR" && m.old_text.trim_start().starts_with(prefix));
+        assert!(
+            has_er,
+            "expected an ER mutant for {} (prefix {:?}); got mutants: {:?}",
+            label,
+            prefix,
+            mutants
+                .iter()
+                .map(|m| (m.mutation_slug.as_str(), m.old_text.as_str()))
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            has_cr,
+            "expected a CR mutant for {} (prefix {:?}); got mutants: {:?}",
+            label,
+            prefix,
+            mutants
+                .iter()
+                .map(|m| (m.mutation_slug.as_str(), m.old_text.as_str()))
+                .collect::<Vec<_>>()
+        );
+    }
+}
+
+#[test]
+fn compound_assignment_slugs_produce_mutants() {
+    // Regression test for .todo/a3c12f04: AAOS/BAOS/SAOS were explicitly
+    // opted out as "not applicable to Go", but Go has all of these compound
+    // assignment operators (including the Go-specific `&^=`). The slugs now
+    // fire against `assignment_statement` nodes.
+    let source = r#"package main
+
+func f() {
+    x := 0
+    x += 1
+    x -= 1
+    x &= 1
+    x |= 1
+    x &^= 1
+    x <<= 1
+    x >>= 1
+    _ = x
+}
+"#;
+    let (_tmp, target) = create_test_target(source);
+    let mutants = GoLanguageEngine::new().mutate(&target);
+    let slugs: HashSet<_> = mutants.iter().map(|m| m.mutation_slug.as_str()).collect();
+    for slug in ["AAOS", "BAOS", "SAOS"] {
+        assert!(
+            slugs.contains(slug),
+            "expected slug {} to produce at least one mutant; got slugs: {:?}",
+            slug,
+            slugs
+        );
+    }
+    // Specifically verify Go's bit-clear operator `&^=` generates BAOS mutants
+    assert!(
+        mutants
+            .iter()
+            .any(|m| m.mutation_slug == "BAOS" && m.old_text == "&^="),
+        "expected a BAOS mutant with old_text `&^=`"
+    );
+}
+
+#[test]
+fn test_negation_removal() {
+    let source = r#"package main
+
+func check(ok bool) bool {
+    if !ok {
+        return false
+    }
+    return !(ok && true)
+}
+"#;
+    let (_temp_dir, target) = create_test_target(source);
+    let engine = GoLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "NR").collect();
+
+    assert_eq!(nr.len(), 2, "Should generate exactly 2 NR mutations");
+    assert!(
+        nr.iter().any(|m| m.old_text == "!ok" && m.new_text == "ok"),
+        "NR should replace !ok with ok: {nr:?}"
+    );
+    assert!(
+        nr.iter()
+            .any(|m| m.old_text == "!(ok && true)" && m.new_text == "(ok && true)"),
+        "NR should replace !(ok && true) with (ok && true): {nr:?}"
+    );
+}
+
+#[test]
+fn test_negation_removal_ignores_other_unary_ops() {
+    let source = r#"package main
+
+func f(x int) int {
+    return -x
+}
+"#;
+    let (_temp_dir, target) = create_test_target(source);
+    let engine = GoLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "NR").collect();
+
+    assert!(nr.is_empty(), "NR should not trigger on - unary operator");
+}
+
+#[test]
+fn test_negation_removal_in_comment_ignored() {
+    let source = r#"package main
+
+// if !ok { return }
+/* !flag */
+func f() {}
+"#;
+    let (_temp_dir, target) = create_test_target(source);
+    let engine = GoLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "NR").collect();
+
+    assert!(
+        nr.is_empty(),
+        "NR should not generate mutations inside comments"
     );
 }
 
 #[test]
 fn compound_assignment_slug_tests_are_present() {
-    let expected_slugs = ["AAOS", "BAOS", "SAOS"];
-    for slug in expected_slugs {
-        let slug_file = format!("{}.rs", slug.to_lowercase());
+    let engine = GoLanguageEngine::new();
+    let compound_slugs: Vec<&str> = engine
+        .get_mutations()
+        .iter()
+        .map(|m| m.slug)
+        .filter(|slug| *slug != "AOS" && slug.ends_with("AOS"))
+        .collect();
+
+    for slug in compound_slugs {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests")
             .join("go")
             .join("mutations")
-            .join(slug_file);
-        assert!(path.exists(), "missing per-slug test file for {slug}: {path:?}");
+            .join(format!("{}.rs", slug.to_lowercase()));
+        assert!(
+            path.exists(),
+            "missing per-slug test file for {slug}: {path:?}"
+        );
     }
 }

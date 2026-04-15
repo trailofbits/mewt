@@ -8,5 +8,5 @@ fn demo(mut a: i32, b: i32) {
 }
 "#;
 
-    assert_only_slug_and_expected_new_texts(source, "AAOS", &["-=", "*=", "/="]);
+    assert_only_slug_and_expected_new_texts(source, "AAOS", &["-=", "*=", "/=", "%="]);
 }

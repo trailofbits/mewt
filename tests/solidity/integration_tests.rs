@@ -223,6 +223,15 @@ pub(crate) fn assert_only_slug_and_expected_new_texts(
 
     let selected: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == slug).collect();
     assert!(!selected.is_empty(), "expected at least one {slug} mutant");
+    assert!(
+        mutants
+            .iter()
+            .filter(|m| expected_new_texts
+                .iter()
+                .any(|text| m.new_text.contains(text)))
+            .all(|m| m.mutation_slug == slug),
+        "expected snippets should only come from {slug} mutants"
+    );
 
     for expected in expected_new_texts {
         assert!(
@@ -234,14 +243,23 @@ pub(crate) fn assert_only_slug_and_expected_new_texts(
 
 #[test]
 fn compound_assignment_slug_tests_are_present() {
-    let expected_slugs = ["AAOS", "BAOS", "SAOS"];
-    for slug in expected_slugs {
-        let slug_file = format!("{}.rs", slug.to_lowercase());
+    let engine = SolidityLanguageEngine::new();
+    let compound_slugs: Vec<&str> = engine
+        .get_mutations()
+        .iter()
+        .map(|m| m.slug)
+        .filter(|slug| *slug != "AOS" && slug.ends_with("AOS"))
+        .collect();
+
+    for slug in compound_slugs {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests")
             .join("solidity")
             .join("mutations")
-            .join(slug_file);
-        assert!(path.exists(), "missing per-slug test file for {slug}: {path:?}");
+            .join(format!("{}.rs", slug.to_lowercase()));
+        assert!(
+            path.exists(),
+            "missing per-slug test file for {slug}: {path:?}"
+        );
     }
 }

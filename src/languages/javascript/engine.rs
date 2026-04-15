@@ -196,7 +196,7 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[nodes::AUGMENTED_ASSIGNMENT_EXPRESSION],
                         &["+=", "-=", "*=", "/=", "%=", "**="],
                     )
                     .into_iter()
@@ -216,7 +216,7 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[nodes::AUGMENTED_ASSIGNMENT_EXPRESSION],
                         &["&=", "|=", "^="],
                     )
                     .into_iter()
@@ -256,11 +256,23 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[nodes::AUGMENTED_ASSIGNMENT_EXPRESSION],
                         &["<<=", ">>=", ">>>="],
                     )
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "SAOS")),
+                ),
+                "NR" => all_mutants.extend(
+                    patterns::remove_unary_operator(
+                        root,
+                        source,
+                        nodes::UNARY_EXPRESSION,
+                        fields::OPERATOR,
+                        fields::ARGUMENT,
+                        "!",
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "NR")),
                 ),
                 _ => panic!("Unknown mutation slug: {}", m.slug),
             }

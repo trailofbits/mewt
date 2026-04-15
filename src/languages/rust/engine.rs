@@ -181,8 +181,8 @@ impl LanguageEngine for RustLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
-                        &["+=", "-=", "*=", "/="],
+                        &[nodes::COMPOUND_ASSIGNMENT_EXPR],
+                        &["+=", "-=", "*=", "/=", "%="],
                     )
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "AAOS")),
@@ -201,7 +201,7 @@ impl LanguageEngine for RustLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[nodes::COMPOUND_ASSIGNMENT_EXPR],
                         &["&=", "|=", "^="],
                     )
                     .into_iter()
@@ -247,7 +247,7 @@ impl LanguageEngine for RustLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[nodes::COMPOUND_ASSIGNMENT_EXPR],
                         &["<<=", ">>="],
                     )
                     .into_iter()
@@ -262,6 +262,18 @@ impl LanguageEngine for RustLanguageEngine {
                     )
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "LC")),
+                ),
+                "NR" => all_mutants.extend(
+                    patterns::remove_unary_operator(
+                        root,
+                        source,
+                        nodes::UNARY_EXPRESSION,
+                        "operator",
+                        "value",
+                        "!",
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "NR")),
                 ),
                 _ => {
                     panic!(
