@@ -296,3 +296,66 @@ func f() {
         "expected a BAOS mutant with old_text `&^=`"
     );
 }
+
+#[test]
+fn test_negation_removal() {
+    let source = r#"package main
+
+func check(ok bool) bool {
+    if !ok {
+        return false
+    }
+    return !(ok && true)
+}
+"#;
+    let (_temp_dir, target) = create_test_target(source);
+    let engine = GoLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "NR").collect();
+
+    assert_eq!(nr.len(), 2, "Should generate exactly 2 NR mutations");
+    assert!(
+        nr.iter().any(|m| m.old_text == "!ok" && m.new_text == "ok"),
+        "NR should replace !ok with ok: {nr:?}"
+    );
+    assert!(
+        nr.iter()
+            .any(|m| m.old_text == "!(ok && true)" && m.new_text == "(ok && true)"),
+        "NR should replace !(ok && true) with (ok && true): {nr:?}"
+    );
+}
+
+#[test]
+fn test_negation_removal_ignores_other_unary_ops() {
+    let source = r#"package main
+
+func f(x int) int {
+    return -x
+}
+"#;
+    let (_temp_dir, target) = create_test_target(source);
+    let engine = GoLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "NR").collect();
+
+    assert!(nr.is_empty(), "NR should not trigger on - unary operator");
+}
+
+#[test]
+fn test_negation_removal_in_comment_ignored() {
+    let source = r#"package main
+
+// if !ok { return }
+/* !flag */
+func f() {}
+"#;
+    let (_temp_dir, target) = create_test_target(source);
+    let engine = GoLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+    let nr: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "NR").collect();
+
+    assert!(
+        nr.is_empty(),
+        "NR should not generate mutations inside comments"
+    );
+}

@@ -13,6 +13,7 @@ pub mod nodes {
     pub const BREAK_STATEMENT: &str = "break_statement";
     pub const CONTINUE_STATEMENT: &str = "continue_statement";
     pub const FUNCTION_DEFINITION: &str = "function_definition";
+    pub const UNARY_EXPRESSION: &str = "unary_expression";
 }
 
 pub mod fields {
@@ -20,4 +21,6 @@ pub mod fields {
     pub const ARGUMENTS: &str = "arguments";
     pub const RETURN_TYPE: &str = "return_type";
     pub const TYPE: &str = "type";
+    pub const OPERATOR: &str = "operator";
+    pub const ARGUMENT: &str = "argument";
 }
