@@ -2,10 +2,11 @@ use mewt::LanguageEngine;
 use mewt::languages::solidity::engine::SolidityLanguageEngine;
 use mewt::types::Target;
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use tempfile::tempdir;
 
 /// Helper to create test target
-fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
+pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
     let temp_dir = tempdir().expect("Failed to create temp directory");
     let file_path = temp_dir.path().join("test.sol");
     std::fs::write(&file_path, content).expect("Failed to write test file");
@@ -209,4 +210,38 @@ contract Test {
         ast_lines.len() > 1,
         "AST mutations should affect multiple lines"
     );
+}
+
+pub(crate) fn assert_only_slug_and_expected_new_texts(
+    source: &str,
+    slug: &str,
+    expected_new_texts: &[&str],
+) {
+    let (_tmp, target) = create_test_target(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    let selected: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == slug).collect();
+    assert!(!selected.is_empty(), "expected at least one {slug} mutant");
+
+    for expected in expected_new_texts {
+        assert!(
+            selected.iter().any(|m| m.new_text.contains(expected)),
+            "missing expected {slug} mutant containing: {expected}"
+        );
+    }
+}
+
+#[test]
+fn compound_assignment_slug_tests_are_present() {
+    let expected_slugs = ["AAOS", "BAOS", "SAOS"];
+    for slug in expected_slugs {
+        let slug_file = format!("{}.rs", slug.to_lowercase());
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("solidity")
+            .join("mutations")
+            .join(slug_file);
+        assert!(path.exists(), "missing per-slug test file for {slug}: {path:?}");
+    }
 }

@@ -2,10 +2,11 @@ use mewt::LanguageEngine;
 use mewt::languages::go::engine::GoLanguageEngine;
 use mewt::types::Target;
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use tempfile::tempdir;
 
 /// Helper to create test target
-fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
+pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
     let temp_dir = tempdir().expect("Failed to create temp directory");
     let file_path = temp_dir.path().join("test.go");
     std::fs::write(&file_path, content).expect("Failed to write test file");
@@ -193,4 +194,29 @@ func testFunc() int {
         ast_lines.len() > 1,
         "AST mutations should affect multiple lines"
     );
+}
+
+pub(crate) fn assert_slug_has_no_mutants(source: &str, slug: &str) {
+    let (_tmp, target) = create_test_target(source);
+    let engine = GoLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    assert!(
+        mutants.iter().all(|m| m.mutation_slug != slug),
+        "expected no {slug} mutants in Go"
+    );
+}
+
+#[test]
+fn compound_assignment_slug_tests_are_present() {
+    let expected_slugs = ["AAOS", "BAOS", "SAOS"];
+    for slug in expected_slugs {
+        let slug_file = format!("{}.rs", slug.to_lowercase());
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("go")
+            .join("mutations")
+            .join(slug_file);
+        assert!(path.exists(), "missing per-slug test file for {slug}: {path:?}");
+    }
 }
