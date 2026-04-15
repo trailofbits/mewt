@@ -16,3 +16,20 @@ function f(a, b) {
         &["-=", "*=", "/=", "%=", "**="],
     );
 }
+
+#[test]
+fn aaos_mutates_arithmetic_assignments_in_ts() {
+    let source = r#"
+export function update(counter: number, delta: number): number {
+  counter += delta;
+  return counter;
+}
+"#;
+
+    assert_only_slug_and_expected_new_texts(
+        source,
+        "test.ts",
+        "AAOS",
+        &["-=", "*=", "/=", "%=", "**="],
+    );
+}

@@ -83,6 +83,28 @@ function Welcome(props) {
 }
 
 #[test]
+fn test_tsx_support() {
+    let source = r#"
+import type { FC } from "react";
+
+const Button: FC<{ label: string; onClick(): void }> = ({ label, onClick }) => {
+    if (onClick) {
+        return <button onClick={onClick}>{label}</button>;
+    }
+    return null;
+};
+"#;
+    let (_temp_dir, target) = create_test_target(source, "test.tsx");
+    let engine = JavaScriptLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    assert!(
+        !mutants.is_empty(),
+        "Should generate mutations for TSX files"
+    );
+}
+
+#[test]
 fn test_operator_mutations() {
     let source = r#"
 function calc(a, b) {
@@ -112,134 +134,63 @@ function calc(a, b) {
     assert!(los_count > 0, "Should generate logical operator mutations");
 }
 
+const JS_EXPECTED_SLUG_TESTS: &[(&str, &str)] = &[
+    ("AAOS", "AAOS.rs"),
+    ("AOS", "AOS.rs"),
+    ("AS", "AS.rs"),
+    ("BAOS", "BAOS.rs"),
+    ("BL", "BL.rs"),
+    ("BOS", "BOS.rs"),
+    ("COS", "COS.rs"),
+    ("CR", "CR.rs"),
+    ("ER", "ER.rs"),
+    ("IF", "IF.rs"),
+    ("IT", "IT.rs"),
+    ("LC", "LC.rs"),
+    ("LOS", "LOS.rs"),
+    ("NR", "NR.rs"),
+    ("SAOS", "SAOS.rs"),
+    ("SOS", "SOS.rs"),
+    ("WF", "WF.rs"),
+];
+
+const JS_ALLOWED_UNTESTED_SLUGS: &[&str] = &[];
+
 #[test]
-fn test_typescript_generics_not_mutated() {
-    let source = r#"
-// TypeScript generics should NOT be mutated
-const emitter = module.get<EventEmitter2>(EventEmitter2);
-const result = foo<string, number>(arg1, arg2);
-
-function generic<T>(value: T): T {
-    return value;
-}
-
-// Real comparisons SHOULD be mutated
-if (a < b && c > d) {
-    return true;
-}
-
-const max = x >= y ? x : y;
-"#;
-    let (_temp_dir, target) = create_test_target(source, "test.ts");
+fn javascript_slug_modules_exist_for_active_mutations() {
     let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.mutate(&target);
+    let defined: HashSet<&str> = engine.get_mutations().iter().map(|m| m.slug).collect();
 
-    // Filter to just COS mutations
-    let cos_mutants: Vec<_> = mutants
-        .iter()
-        .filter(|m| m.mutation_slug.starts_with("COS"))
-        .collect();
-
-    // Should have COS mutations (from the actual comparison operators)
-    assert!(
-        !cos_mutants.is_empty(),
-        "Should generate COS mutations for real comparison operators"
-    );
-
-    // Verify no mutations contain "get<", "foo<", or "generic<"
-    // (these would indicate mutations of TypeScript generics)
-    for mutant in &cos_mutants {
+    for (slug, file) in JS_EXPECTED_SLUG_TESTS {
         assert!(
-            !mutant.new_text.contains("get<")
-                && !mutant.new_text.contains("get==")
-                && !mutant.new_text.contains("get!=")
-                && !mutant.new_text.contains("get<=")
-                && !mutant.new_text.contains("get>=")
-                && !mutant.new_text.contains("foo<")
-                && !mutant.new_text.contains("foo==")
-                && !mutant.new_text.contains("foo!=")
-                && !mutant.new_text.contains("foo<=")
-                && !mutant.new_text.contains("foo>=")
-                && !mutant.new_text.contains("generic<")
-                && !mutant.new_text.contains("generic==")
-                && !mutant.new_text.contains("generic!=")
-                && !mutant.new_text.contains("generic<=")
-                && !mutant.new_text.contains("generic>="),
-            "COS mutation should not mutate TypeScript generic brackets: {}",
-            mutant.new_text
+            defined.contains(slug),
+            "JavaScript engine is missing expected mutation slug {slug}"
+        );
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("javascript")
+            .join("mutations")
+            .join(file);
+        assert!(
+            path.exists(),
+            "missing per-slug test file for {slug}: {path:?}"
         );
     }
 
-    // Verify we have mutations for the actual comparison operators
-    // (The old_text will just be the operator, not the full expression)
-    let has_less_than_mutation = cos_mutants.iter().any(|m| m.old_text == "<");
-    let has_greater_than_mutation = cos_mutants.iter().any(|m| m.old_text == ">");
-    let has_gte_mutation = cos_mutants.iter().any(|m| m.old_text == ">=");
-
-    assert!(
-        has_less_than_mutation && has_greater_than_mutation && has_gte_mutation,
-        "Should mutate actual comparison operators (<, >, >=) in conditions"
-    );
-}
-
-#[test]
-fn test_tsx_jsx_and_generics_not_mutated() {
-    let source = r#"
-// TSX with both JSX elements and TypeScript generics
-function App<T>(props: { value: T }) {
-    return <div>Hello</div>;
-}
-
-const result = foo<string, number>(arg1, arg2);
-const element = <Component prop="value" />;
-
-// Real comparisons SHOULD be mutated
-if (a < b && c > d) {
-    return true;
-}
-"#;
-    let (_temp_dir, target) = create_test_target(source, "test.tsx");
-    let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    // Filter to just COS mutations
-    let cos_mutants: Vec<_> = mutants
-        .iter()
-        .filter(|m| m.mutation_slug.starts_with("COS"))
+    let allowed: HashSet<&str> = JS_ALLOWED_UNTESTED_SLUGS.iter().copied().collect();
+    let unexpected: Vec<&str> = defined
+        .into_iter()
+        .filter(|slug| {
+            !JS_EXPECTED_SLUG_TESTS
+                .iter()
+                .any(|(expected, _)| expected == slug)
+                && !allowed.contains(slug)
+        })
         .collect();
 
-    // Should have COS mutations (from the actual comparison operators)
     assert!(
-        !cos_mutants.is_empty(),
-        "Should generate COS mutations for real comparison operators"
-    );
-
-    // Verify no mutations contain JSX tags or generic brackets
-    for mutant in &cos_mutants {
-        let text = &mutant.new_text;
-        assert!(
-            !text.contains("<div")
-                && !text.contains("</div")
-                && !text.contains("<Component")
-                && !text.contains("App<")
-                && !text.contains("foo<")
-                && !text.contains("foo==")
-                && !text.contains("foo!=")
-                && !text.contains("App==")
-                && !text.contains("App!="),
-            "COS mutation should not mutate TSX JSX elements or TypeScript generics: {}",
-            text
-        );
-    }
-
-    // Verify we have mutations for the actual comparison operators
-    let has_comparison_mutations = cos_mutants
-        .iter()
-        .any(|m| m.old_text == "<" || m.old_text == ">" || m.old_text == ">=");
-
-    assert!(
-        has_comparison_mutations,
-        "Should mutate actual comparison operators in TSX files"
+        unexpected.is_empty(),
+        "found mutation slugs without dedicated tests: {unexpected:?}"
     );
 }
 
@@ -269,135 +220,6 @@ pub(crate) fn assert_only_slug_and_expected_new_texts(
         assert!(
             selected.iter().any(|m| m.new_text.contains(expected)),
             "missing expected {slug} mutant containing: {expected}"
-        );
-    }
-}
-
-#[test]
-fn compound_assignment_slugs_produce_mutants() {
-    // Regression test for .todo/a3c12f04: AAOS/BAOS/SAOS were wired to
-    // `binary_expression`, but compound assignment in tree-sitter-javascript
-    // parses as `augmented_assignment_expression`. The slugs silently emitted
-    // zero mutants.
-    let source = r#"
-function f() {
-    let x = 0;
-    x += 1;
-    x -= 1;
-    x **= 2;
-    x &= 1;
-    x |= 1;
-    x <<= 1;
-    x >>= 1;
-    x >>>= 1;
-}
-"#;
-    let (_tmp, target) = create_test_target(source, "test.js");
-    let mutants = JavaScriptLanguageEngine::new().mutate(&target);
-    let slugs: HashSet<_> = mutants.iter().map(|m| m.mutation_slug.as_str()).collect();
-    for slug in ["AAOS", "BAOS", "SAOS"] {
-        assert!(
-            slugs.contains(slug),
-            "expected slug {} to produce at least one mutant; got slugs: {:?}",
-            slug,
-            slugs
-        );
-    }
-    // Verify JS-specific operators are covered
-    assert!(
-        mutants
-            .iter()
-            .any(|m| m.mutation_slug == "AAOS" && m.old_text == "**="),
-        "expected an AAOS mutant with old_text `**=`"
-    );
-    assert!(
-        mutants
-            .iter()
-            .any(|m| m.mutation_slug == "SAOS" && m.old_text == ">>>="),
-        "expected a SAOS mutant with old_text `>>>=`"
-    );
-}
-
-#[test]
-fn test_negation_removal() {
-    let source = r#"
-function check(flag) {
-    if (!flag) {
-        throw new Error("bad");
-    }
-    return !(flag && true);
-}
-"#;
-    let (_dir, target) = create_test_target(source, "test.js");
-    let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-    let nr: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "NR").collect();
-
-    assert_eq!(nr.len(), 2, "Should generate exactly 2 NR mutations");
-    assert!(
-        nr.iter()
-            .any(|m| m.old_text == "!flag" && m.new_text == "flag"),
-        "NR should replace !flag with flag: {nr:?}"
-    );
-    assert!(
-        nr.iter()
-            .any(|m| m.old_text == "!(flag && true)" && m.new_text == "(flag && true)"),
-        "NR should replace !(flag && true) with (flag && true): {nr:?}"
-    );
-}
-
-#[test]
-fn test_negation_removal_ignores_other_unary_ops() {
-    let source = r#"
-function f(x) {
-    return -x;
-}
-"#;
-    let (_dir, target) = create_test_target(source, "test.js");
-    let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-    let nr: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "NR").collect();
-
-    assert!(nr.is_empty(), "NR should not trigger on - unary operator");
-}
-
-#[test]
-fn test_negation_removal_in_comment_ignored() {
-    let source = r#"
-// if (!flag) { throw new Error(); }
-/* !x */
-function f() {}
-"#;
-    let (_dir, target) = create_test_target(source, "test.js");
-    let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-    let nr: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "NR").collect();
-
-    assert!(
-        nr.is_empty(),
-        "NR should not generate mutations inside comments"
-    );
-}
-
-#[test]
-fn compound_assignment_slug_tests_are_present() {
-    let engine = JavaScriptLanguageEngine::new();
-    let compound_slugs: Vec<&str> = engine
-        .get_mutations()
-        .iter()
-        .map(|m| m.slug)
-        .filter(|slug| *slug != "AOS" && slug.ends_with("AOS"))
-        .collect();
-
-    for slug in compound_slugs {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests")
-            .join("javascript")
-            .join("mutations")
-            .join(format!("{}.rs", slug.to_lowercase()));
-        assert!(
-            path.exists(),
-            "missing per-slug test file for {slug}: {path:?}"
         );
     }
 }
