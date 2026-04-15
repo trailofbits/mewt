@@ -9,8 +9,8 @@
 3. ✅ **`4d5e6f70` – JavaScript mutation test reorg**  
    Mirrored the Rust/Go layout with per-slug modules spanning JS/TS/TSX, moved slug assertions out of the integration suite, centralized the helpers, and added coverage guards for all active slugs.
 
-4. **`5e6f7081` – Solidity mutation test reorg**  
-   Port slug assertions into dedicated modules, handle Solidity-only slugs (RCI/RDV, etc.), and retire the legacy mutation test file.
+4. ✅ **`5e6f7081` – Solidity mutation test reorg**  
+   Broke out per-slug modules (including Solidity-only RCI/RDV), rebuilt the integration helpers and slug guard, and removed the monolithic `mutation_tests.rs` suite.
 
 5. **`6f708192` – Enforce per-slug module coverage**  
    Add a shared assertion ensuring every engine-exposed slug has a matching test module across all languages.

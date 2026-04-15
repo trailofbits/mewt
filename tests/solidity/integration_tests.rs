@@ -1,11 +1,11 @@
 use mewt::LanguageEngine;
 use mewt::languages::solidity::engine::SolidityLanguageEngine;
-use mewt::types::Target;
+use mewt::types::{Mutant, Target};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use tempfile::tempdir;
 
-/// Helper to create test target
+/// Helper to create a temporary Solidity target for tests.
 pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
     let temp_dir = tempdir().expect("Failed to create temp directory");
     let file_path = temp_dir.path().join("test.sol");
@@ -20,198 +20,18 @@ pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
     (temp_dir, target)
 }
 
-#[test]
-fn test_mutation_count_comparison() {
-    let source = r#"
-pragma solidity ^0.8.0;
-
-contract Test {
-    function testFunc() public pure returns (uint256) {
-        uint256 x = 42;
-        if (x > 0) {
-            return x;
-        }
-        return 0;
-    }
-}
-"#;
-
-    let (_temp_dir, target) = create_test_target(source);
-
-    // Get AST mutations
-    let ast_engine = SolidityLanguageEngine::new();
-    let ast_mutants = ast_engine.mutate(&target);
-
-    println!("AST mutations: {}", ast_mutants.len());
-
-    // AST should generate reasonable number of mutations
-    assert!(
-        !ast_mutants.is_empty(),
-        "AST should generate some mutations"
-    );
-
-    // Check mutation types
-    let ast_slugs: HashSet<_> = ast_mutants
-        .iter()
-        .map(|m| m.mutation_slug.chars().take(2).collect::<String>())
-        .collect();
-
-    println!("AST mutation types: {ast_slugs:?}");
-
-    // Should generate diverse mutation types
-    assert!(
-        ast_slugs.len() > 1,
-        "AST should generate diverse mutation types"
-    );
+/// Collect all mutants for the given slug from a Solidity source string.
+pub(crate) fn mutants_for_slug(source: &str, slug: &str) -> Vec<Mutant> {
+    let (_tmp, target) = create_test_target(source);
+    let engine = SolidityLanguageEngine::new();
+    engine
+        .mutate(&target)
+        .into_iter()
+        .filter(|m| m.mutation_slug == slug)
+        .collect()
 }
 
-#[test]
-fn test_mutation_quality_comparison() {
-    let source = r#"
-pragma solidity ^0.8.0;
-
-contract Test {
-    function testFunc() public pure returns (uint256) {
-        // This is a comment
-        uint256 x = 42;
-        if (x > 0) {
-            return x;
-        }
-        return 0;
-    }
-}
-"#;
-
-    let (_temp_dir, target) = create_test_target(source);
-
-    // Get AST mutations
-    let ast_engine = SolidityLanguageEngine::new();
-    let ast_mutants = ast_engine.mutate(&target);
-
-    // Check comment handling (checking old_text for comment patterns)
-    let ast_comment_mutations = ast_mutants
-        .iter()
-        .filter(|m| m.old_text.trim().starts_with("//"))
-        .count();
-
-    println!("AST comment mutations: {ast_comment_mutations}");
-
-    // AST should avoid mutating comment-only lines
-    assert_eq!(
-        ast_comment_mutations, 0,
-        "AST should not mutate comment-only lines"
-    );
-}
-
-#[test]
-fn test_complex_code_handling() {
-    let source = r#"
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-
-contract ComplexToken is ERC20, Ownable {
-    mapping(address => bool) public blacklisted;
-    uint256 public maxTransferAmount;
-    
-    event BlacklistUpdated(address user, bool status);
-    event MaxTransferAmountUpdated(uint256 amount);
-    
-    constructor(
-        string memory name,
-        string memory symbol,
-        uint256 initialSupply,
-        uint256 _maxTransferAmount
-    ) ERC20(name, symbol) {
-        _mint(msg.sender, initialSupply * 10**decimals());
-        maxTransferAmount = _maxTransferAmount;
-    }
-    
-    function transfer(address to, uint256 amount) public override returns (bool) {
-        require(!blacklisted[msg.sender], "Sender is blacklisted");
-        require(!blacklisted[to], "Recipient is blacklisted");
-        require(amount <= maxTransferAmount, "Transfer amount exceeds maximum");
-        
-        return super.transfer(to, amount);
-    }
-    
-    function updateBlacklist(address user, bool status) external onlyOwner {
-        blacklisted[user] = status;
-        emit BlacklistUpdated(user, status);
-    }
-    
-    function updateMaxTransferAmount(uint256 _maxTransferAmount) external onlyOwner {
-        maxTransferAmount = _maxTransferAmount;
-        emit MaxTransferAmountUpdated(_maxTransferAmount);
-    }
-}
-"#;
-
-    let (_temp_dir, target) = create_test_target(source);
-
-    // Test that AST system can handle complex Solidity code
-    let ast_engine = SolidityLanguageEngine::new();
-    let ast_result = std::panic::catch_unwind(|| ast_engine.mutate(&target));
-
-    assert!(
-        ast_result.is_ok(),
-        "AST system should handle complex code without panicking"
-    );
-
-    if let Ok(ast_mutants) = ast_result {
-        println!("Complex code - AST mutations: {}", ast_mutants.len());
-
-        // Should generate substantial mutations for complex code
-        assert!(
-            ast_mutants.len() > 10,
-            "AST should generate substantial mutations for complex code"
-        );
-    }
-}
-
-#[test]
-fn test_mutation_overlap_analysis() {
-    let source = r#"
-pragma solidity ^0.8.0;
-
-contract Test {
-    function testFunc() public pure returns (uint256) {
-        uint256 x = 42;
-        uint256 y = x + 1;
-        if (x > 0) {
-            return x;
-        }
-        return y;
-    }
-}
-"#;
-
-    let (_temp_dir, target) = create_test_target(source);
-
-    let ast_engine = SolidityLanguageEngine::new();
-    let ast_mutants = ast_engine.mutate(&target);
-
-    // Analyze which lines are affected by mutations
-    let mut ast_lines: HashMap<usize, Vec<String>> = HashMap::new();
-
-    for mutant in &ast_mutants {
-        ast_lines
-            .entry(mutant.line_offset as usize)
-            .or_default()
-            .push(mutant.mutation_slug.clone());
-    }
-
-    println!("AST mutations by line: {ast_lines:?}");
-
-    // Should affect multiple lines for decent coverage
-    assert!(
-        ast_lines.len() > 1,
-        "AST mutations should affect multiple lines"
-    );
-}
-
+/// Assert that only the provided slug produces specific snippets of text.
 pub(crate) fn assert_only_slug_and_expected_new_texts(
     source: &str,
     slug: &str,
@@ -241,25 +61,216 @@ pub(crate) fn assert_only_slug_and_expected_new_texts(
     }
 }
 
-#[test]
-fn compound_assignment_slug_tests_are_present() {
-    let engine = SolidityLanguageEngine::new();
-    let compound_slugs: Vec<&str> = engine
-        .get_mutations()
-        .iter()
-        .map(|m| m.slug)
-        .filter(|slug| *slug != "AOS" && slug.ends_with("AOS"))
-        .collect();
+const SOLIDITY_EXPECTED_SLUG_TESTS: &[(&str, &str)] = &[
+    ("AAOS", "AAOS.rs"),
+    ("AOS", "AOS.rs"),
+    ("AS", "AS.rs"),
+    ("BAOS", "BAOS.rs"),
+    ("BOS", "BOS.rs"),
+    ("BL", "BL.rs"),
+    ("COS", "COS.rs"),
+    ("CR", "CR.rs"),
+    ("ER", "ER.rs"),
+    ("IF", "IF.rs"),
+    ("IT", "IT.rs"),
+    ("LC", "LC.rs"),
+    ("LOS", "LOS.rs"),
+    ("NR", "NR.rs"),
+    ("RCI", "RCI.rs"),
+    ("RDV", "RDV.rs"),
+    ("SAOS", "SAOS.rs"),
+    ("SOS", "SOS.rs"),
+    ("WF", "WF.rs"),
+];
 
-    for slug in compound_slugs {
+const SOLIDITY_ALLOWED_UNTESTED_SLUGS: &[&str] = &[];
+
+#[test]
+fn solidity_slug_modules_exist_for_active_mutations() {
+    let engine = SolidityLanguageEngine::new();
+    let defined: HashSet<&str> = engine.get_mutations().iter().map(|m| m.slug).collect();
+
+    for (slug, file) in SOLIDITY_EXPECTED_SLUG_TESTS {
+        assert!(
+            defined.contains(slug),
+            "Solidity engine is missing expected mutation slug {slug}"
+        );
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests")
             .join("solidity")
             .join("mutations")
-            .join(format!("{}.rs", slug.to_lowercase()));
+            .join(file);
         assert!(
             path.exists(),
             "missing per-slug test file for {slug}: {path:?}"
         );
     }
+
+    let allowed: HashSet<&str> = SOLIDITY_ALLOWED_UNTESTED_SLUGS.iter().copied().collect();
+    let unexpected: Vec<&str> = defined
+        .into_iter()
+        .filter(|slug| {
+            !SOLIDITY_EXPECTED_SLUG_TESTS
+                .iter()
+                .any(|(expected, _)| expected == slug)
+                && !allowed.contains(slug)
+        })
+        .collect();
+
+    assert!(
+        unexpected.is_empty(),
+        "found mutation slugs without dedicated tests: {unexpected:?}"
+    );
+}
+
+#[test]
+fn test_basic_solidity_mutations() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function demo(uint256 x) public pure returns (uint256) {
+        if (x > 0) {
+            return x;
+        }
+        return 0;
+    }
+}
+"#;
+    let (_tmp, target) = create_test_target(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    assert!(!mutants.is_empty(), "Should generate mutations");
+
+    let slugs: HashSet<_> = mutants
+        .iter()
+        .map(|m| m.mutation_slug.chars().take(2).collect::<String>())
+        .collect();
+    assert!(slugs.len() > 1, "Should generate diverse mutation types");
+}
+
+#[test]
+fn test_solidity_mutations_skip_comment_only_lines() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function demo(uint256 x) public pure returns (uint256) {
+        // This is a comment
+        if (x > 0) {
+            return x;
+        }
+        return 0;
+    }
+}
+"#;
+    let (_tmp, target) = create_test_target(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    let comment_mutations = mutants
+        .iter()
+        .filter(|m| m.old_text.trim_start().starts_with("//"))
+        .count();
+
+    assert_eq!(
+        comment_mutations, 0,
+        "Mutations should not target comment-only lines"
+    );
+}
+
+#[test]
+fn test_solidity_engine_handles_complex_contracts() {
+    let source = r#"
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract ComplexToken is ERC20, Ownable {
+    mapping(address => bool) public blacklisted;
+    uint256 public maxTransferAmount;
+
+    event BlacklistUpdated(address user, bool status);
+    event MaxTransferAmountUpdated(uint256 amount);
+
+    constructor(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        uint256 _maxTransferAmount
+    ) ERC20(name, symbol) {
+        _mint(msg.sender, initialSupply * 10**decimals());
+        maxTransferAmount = _maxTransferAmount;
+    }
+
+    function transfer(address to, uint256 amount) public override returns (bool) {
+        require(!blacklisted[msg.sender], "Sender is blacklisted");
+        require(!blacklisted[to], "Recipient is blacklisted");
+        require(amount <= maxTransferAmount, "Transfer amount exceeds maximum");
+
+        return super.transfer(to, amount);
+    }
+
+    function updateBlacklist(address user, bool status) external onlyOwner {
+        blacklisted[user] = status;
+        emit BlacklistUpdated(user, status);
+    }
+
+    function updateMaxTransferAmount(uint256 _maxTransferAmount) external onlyOwner {
+        maxTransferAmount = _maxTransferAmount;
+        emit MaxTransferAmountUpdated(_maxTransferAmount);
+    }
+}
+"#;
+    let (_tmp, target) = create_test_target(source);
+    let engine = SolidityLanguageEngine::new();
+    let result = std::panic::catch_unwind(|| engine.mutate(&target));
+
+    assert!(
+        result.is_ok(),
+        "Solidity engine should handle complex contracts without panicking"
+    );
+
+    if let Ok(mutants) = result {
+        assert!(
+            mutants.len() > 10,
+            "Complex contracts should yield many mutations"
+        );
+    }
+}
+
+#[test]
+fn test_solidity_mutations_cover_multiple_lines() {
+    let source = r#"
+pragma solidity ^0.8.0;
+
+contract Test {
+    function demo(uint256 x) public pure returns (uint256) {
+        uint256 y = x + 1;
+        if (x > 0) {
+            return x;
+        }
+        return y;
+    }
+}
+"#;
+    let (_tmp, target) = create_test_target(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    let mut lines: HashMap<usize, Vec<String>> = HashMap::new();
+    for mutant in &mutants {
+        lines
+            .entry(mutant.line_offset as usize)
+            .or_default()
+            .push(mutant.mutation_slug.clone());
+    }
+
+    assert!(
+        lines.len() > 1,
+        "Mutations should touch multiple lines for reasonable coverage"
+    );
 }
