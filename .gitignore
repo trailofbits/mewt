@@ -3,6 +3,7 @@
 .direnv/
 .env
 mewt.toml
+.todo/
 
 # Cache
 .cargo
