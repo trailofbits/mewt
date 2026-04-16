@@ -1,0 +1,23 @@
+name: Tests
+
+on:
+  workflow_call:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable (2024-10-22)
+        with:
+          components: rustfmt, clippy
+      - name: Install just
+        run: sudo apt-get update && sudo apt-get install -y just
+      - name: Run test suite
+        run: just test

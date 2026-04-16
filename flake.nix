@@ -148,8 +148,9 @@
       };
 
       devInputs = with pkgs; [
-        cargoDistBin
+        actionlint
         cargo-watch
+        cargoDistBin
         libiconv
         openssl
         pkg-config
