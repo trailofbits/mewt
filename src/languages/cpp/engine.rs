@@ -134,18 +134,32 @@ impl LanguageEngine for CppLanguageEngine {
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "IT")),
                 ),
-                "WF" => all_mutants.extend(
-                    patterns::replace_condition(
-                        root,
-                        source,
-                        nodes::WHILE_STATEMENT,
-                        fields::CONDITION,
-                        &["while"],
-                        "false",
-                    )
-                    .into_iter()
-                    .map(|p| Mutant::from_partial(p, target, "WF")),
-                ),
+                "WF" => {
+                    all_mutants.extend(
+                        patterns::replace_condition(
+                            root,
+                            source,
+                            nodes::WHILE_STATEMENT,
+                            fields::CONDITION,
+                            &["while"],
+                            "false",
+                        )
+                        .into_iter()
+                        .map(|p| Mutant::from_partial(p, target, "WF")),
+                    );
+                    all_mutants.extend(
+                        patterns::replace_condition(
+                            root,
+                            source,
+                            nodes::DO_STATEMENT,
+                            fields::CONDITION,
+                            &["while"],
+                            "false",
+                        )
+                        .into_iter()
+                        .map(|p| Mutant::from_partial(p, target, "WF")),
+                    );
+                }
                 "AS" => all_mutants.extend(
                     patterns::swap_args(root, source, &[nodes::CALL_EXPRESSION], fields::ARGUMENTS)
                         .into_iter()

@@ -159,6 +159,85 @@ int main() {
 }
 
 #[test]
+fn test_do_while_condition_mutation() {
+    let source = r#"
+int sum_to(int n) {
+    int total = 0;
+    int i = 1;
+    do {
+        total += i;
+        i++;
+    } while (i <= n);
+    return total;
+}
+"#;
+    let (_dir, target) = create_test_target(source);
+    let engine = CppLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    let wf: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "WF").collect();
+    assert_eq!(
+        wf.len(),
+        1,
+        "Should generate WF mutation for do-while condition: {wf:?}"
+    );
+    assert!(
+        wf[0].new_text.contains("false"),
+        "WF should replace do-while condition with false: {}",
+        wf[0].new_text
+    );
+}
+
+#[test]
+fn test_range_for_loop() {
+    let source = r#"
+int sum_vec(int* arr, int n) {
+    int total = 0;
+    for (int i = 0; i < n; i++) {
+        total += arr[i];
+    }
+    return total;
+}
+"#;
+    let (_dir, target) = create_test_target(source);
+    let engine = CppLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    // for_statement should get ER and CR
+    let slugs: HashSet<_> = mutants.iter().map(|m| m.mutation_slug.as_str()).collect();
+    assert!(slugs.contains("ER"), "for loop should get ER mutations");
+    assert!(slugs.contains("CR"), "for loop should get CR mutations");
+}
+
+#[test]
+fn test_range_based_for_gets_er_cr() {
+    let source = r#"
+#include <vector>
+int sum(const std::vector<int>& vec) {
+    int total = 0;
+    for (const auto& v : vec) {
+        total += v;
+    }
+    return total;
+}
+"#;
+    let (_dir, target) = create_test_target(source);
+    let engine = CppLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    // Range-based for should get ER and CR (the whole loop can be replaced/commented)
+    let range_for_er = mutants
+        .iter()
+        .any(|m| m.mutation_slug == "ER" && m.old_text.contains("for"));
+    let range_for_cr = mutants
+        .iter()
+        .any(|m| m.mutation_slug == "CR" && m.old_text.contains("for"));
+
+    assert!(range_for_er, "Range-based for should get ER mutations");
+    assert!(range_for_cr, "Range-based for should get CR mutations");
+}
+
+#[test]
 fn test_example_file() {
     let source = std::fs::read_to_string("tests/cpp/examples/hello-world.cpp")
         .expect("Failed to read example file");
