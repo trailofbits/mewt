@@ -98,4 +98,8 @@ fn main() {
     // Build TSX grammar (TypeScript + JSX)
     let tsx_dir: PathBuf = ["grammars", "tsx", "src"].iter().collect();
     build_grammar(&tsx_dir, "tree-sitter-tsx");
+
+    // Build C++ grammar
+    let cpp_dir: PathBuf = ["grammars", "cpp", "src"].iter().collect();
+    build_grammar(&cpp_dir, "tree-sitter-cpp");
 }
