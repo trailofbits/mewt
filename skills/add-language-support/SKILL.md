@@ -41,6 +41,8 @@ Use this skill when:
 
 **Common First**: Start with COMMON_MUTATIONS only. Add language-specific mutations only for unique constructs not covered by common patterns. Most languages need zero custom mutations.
 
+**Per-Slug Mutation Tests**: Every mutation slug exposed by the engine must have a dedicated test module under `tests/<language>/mutations/<SLUG>.rs`. The guard test (`tests/slug_module_guard.rs`) enforces this convention. New languages must be wired into the guard before landing.
+
 **Verification Required**: Each phase has explicit exit criteria. Do not proceed to the next phase until all validation passes.
 
 ## When to Use
@@ -294,35 +296,59 @@ Use this skill when:
 
 **Actions**:
 
-1. Create test directory structure:
+1. Scaffold the test directories:
    ```bash
    mkdir -p tests/<language>/examples
+   mkdir -p tests/<language>/mutations
    ```
+   The mutation folder must contain one Rust module per slug (e.g., `tests/<language>/mutations/AOS.rs`).
 
-2. Write example file (`tests/<language>/examples/hello-world.<ext>`):
+2. Write the example program (`tests/<language>/examples/hello-world.<ext>`):
    - Include diverse constructs: if/else, loops, functions, variables, returns
-   - Keep it simple and valid syntax
+   - Keep it simple and valid syntax so it can feed both integration tests and CLI demos
 
-3. Create test module file (`tests/<language>_tests.rs`):
+3. Create the outer test module (`tests/<language>_tests.rs`):
    ```rust
-   mod <language> {
-       mod integration_tests;
-   }
+   mod <language>;
    ```
 
-4. Create test file (`tests/<language>/integration_tests.rs`):
+4. Create `tests/<language>/mod.rs` to expose both integration and per-slug suites:
+   ```rust
+   mod integration_tests;
+   mod mutations;
+   ```
+
+5. Author `tests/<language>/mutations/mod.rs` that re-exports every slug module:
+   ```rust
+   #![allow(non_snake_case)]
+
+   #[path = "AAOS.rs"]
+   mod aaos;
+   #[path = "AOS.rs"]
+   mod aos;
+   // Repeat for every slug returned by engine.get_mutations()
+   ```
+   - Use uppercase filenames that match the slug (with `.rs` extension) and map them to lowercase module names via `#[path = ...]` where needed.
+   - Copy an existing language's mutations module as a template and adjust the slug list.
+
+6. For each slug surfaced by `engine.get_mutations()`, create `tests/<language>/mutations/<SLUG>.rs`:
+   - Structure the test like the Rust/Go versions: arrange inputs, call `LanguageEngine::mutate`, filter by slug, and assert at least one mutant with the expected replacement tokens/structures.
+   - For operator families (AAOS/BAOS/SAOS/AOS/BOS/COS/LOS), cover every operator token supported by the grammar and assert both positive and negative cases (e.g., ensure forbidden replacements are rejected).
+   - Prefer helper functions or fixtures shared across slug modules instead of bespoke logic per test.
+
+7. Create `tests/<language>/integration_tests.rs` for higher-level sanity checks:
    ```rust
    use mewt::LanguageEngine;
    use mewt::languages::<language>::engine::<Language>LanguageEngine;
    use mewt::types::{Hash, Target};
    use std::fs;
    use tempfile::tempdir;
-   
+
    fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
        let temp_dir = tempdir().expect("Failed to create temp directory");
        let file_path = temp_dir.path().join("test.<ext>");
        fs::write(&file_path, content).expect("Failed to write test file");
-       
+
        (temp_dir, Target {
            id: 1,
            path: file_path.clone(),
@@ -331,9 +357,9 @@ Use this skill when:
            language: "<Language>".to_string(),
        })
    }
-   
+
    #[test]
-   fn test_basic_mutations() {
+   fn smoke_test_mutation_generation() {
        let source = "if (true) { return 42; }";
        let (_temp_dir, target) = create_test_target(source);
        let engine = <Language>LanguageEngine::new();
@@ -341,13 +367,16 @@ Use this skill when:
        assert!(!mutants.is_empty(), "Should generate mutations");
    }
    ```
-   - Add a regression test that exercises every compound or augmented assignment form the language supports and assert that each related slug (AAOS, BAOS, SAOS) produces at least one mutant. Apply the same "every slug emits at least one mutant" check to any other mutation families that rely on non-trivial node kinds.
+   - Add targeted regression tests that cover language-specific parsing edge cases (e.g., optional semicolons, pattern matching, etc.).
+
+8. Update `tests/slug_module_guard.rs` so the new language participates in the per-slug coverage check. Import the engine and add a `check_language` invocation mirroring the existing ones.
 
 **Exit Criteria**:
-- [ ] Example file created with diverse syntax
-- [ ] Test module structure created
-- [ ] At least one integration test written
-- [ ] `cargo test` passes all tests
+- [ ] Example program created with diverse syntax
+- [ ] Integration and per-slug test modules compiled into `tests/<language>_tests.rs`
+- [ ] Every slug exposed by the engine has a dedicated test module under `tests/<language>/mutations`
+- [ ] Guard test passes without missing or unexpected modules
+- [ ] `cargo test` (or `just test`) passes the full suite
 
 ### Phase 6: Validation
 
