@@ -5,8 +5,8 @@ pub mod nodes {
     pub const EXPRESSION_STATEMENT: &str = "expression_statement";
     pub const IF_STATEMENT: &str = "if_statement";
     pub const LET_STATEMENT: &str = "variable_declaration_statement";
-    pub const METHOD_CALL_EXPRESSION: &str = "function_call";
-    pub const STATIC_CALL_EXPRESSION: &str = "function_call";
+    pub const METHOD_CALL_EXPRESSION: &str = "call_expression";
+    pub const STATIC_CALL_EXPRESSION: &str = "call_expression";
     pub const RETURN_STATEMENT: &str = "return_statement";
     pub const WHILE_STATEMENT: &str = "while_statement";
     pub const FOR_STATEMENT: &str = "for_statement";
