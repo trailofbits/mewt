@@ -29,6 +29,8 @@ For details on how campaigns work under the hood, see
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/trailofbits/mewt/releases/latest/download/mewt-installer.sh | sh
 ```
 
+Prebuilt installers are currently provided for macOS (aarch64) and Linux (x86_64).
+
 To build from source instead, see [Building from source](docs/building-from-source.md).
 
 ## Quick start
