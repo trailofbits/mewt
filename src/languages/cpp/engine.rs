@@ -1,11 +1,13 @@
 use std::sync::OnceLock;
-use tree_sitter::Language as TsLanguage;
+use tree_sitter::{Language as TsLanguage, Node};
 
 use crate::LanguageEngine;
 use crate::mutations::COMMON_MUTATIONS;
 use crate::patterns;
-use crate::types::{Mutant, Mutation, Target};
-use crate::utils::{node_text, parse_source};
+use crate::types::{Mutant, Mutation, PartialMutant, Target};
+use crate::utils::{
+    calculate_line_offset, is_in_comment, node_text, parse_source, visit_nodes_with_cursor,
+};
 
 use super::mutations::CPP_MUTATIONS;
 use super::syntax::{fields, nodes};
@@ -277,6 +279,21 @@ impl LanguageEngine for CppLanguageEngine {
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "NR")),
                 ),
+                "DAS" => all_mutants.extend(
+                    delete_array_swap_mutants(root, source)
+                        .into_iter()
+                        .map(|p| Mutant::from_partial(p, target, "DAS")),
+                ),
+                "MR" => all_mutants.extend(
+                    move_removal_mutants(root, source)
+                        .into_iter()
+                        .map(|p| Mutant::from_partial(p, target, "MR")),
+                ),
+                "VR" => all_mutants.extend(
+                    virtual_removal_mutants(root, source)
+                        .into_iter()
+                        .map(|p| Mutant::from_partial(p, target, "VR")),
+                ),
                 // Not applicable to C++
                 "RZ" | "RDV" | "RCI" => {}
                 _ => {
@@ -289,6 +306,133 @@ impl LanguageEngine for CppLanguageEngine {
         }
         all_mutants
     }
+}
+
+/// DAS: Swap `delete ptr` ↔ `delete[] ptr` to detect scalar/array mismatch.
+fn delete_array_swap_mutants(root: Node, source: &str) -> Vec<PartialMutant> {
+    let mut mutants = Vec::new();
+    let mut cursor = root.walk();
+    visit_nodes_with_cursor(root, &mut cursor, &mut |node| {
+        if node.kind() != "delete_expression" || is_in_comment(&node) {
+            return;
+        }
+
+        let old_text = node_text(&node, source);
+        let has_brackets = {
+            let mut c = node.walk();
+            node.children(&mut c).any(|child| child.kind() == "[")
+        };
+
+        // Find the operand — the first named child (the expression being deleted)
+        let mut nc = node.walk();
+        let operand = match node.named_children(&mut nc).next() {
+            Some(op) => node_text(&op, source),
+            None => return,
+        };
+
+        let new_text = if has_brackets {
+            // delete[] x → delete x
+            format!("delete {operand}")
+        } else {
+            // delete x → delete[] x
+            format!("delete[] {operand}")
+        };
+
+        mutants.push(PartialMutant {
+            byte_offset: node.start_byte() as u32,
+            line_offset: calculate_line_offset(source, node.start_byte()),
+            old_text: old_text.to_string(),
+            new_text,
+        });
+    });
+    mutants
+}
+
+/// MR: Remove std::move() wrapper, replacing `std::move(x)` with `x`.
+fn move_removal_mutants(root: Node, source: &str) -> Vec<PartialMutant> {
+    let mut mutants = Vec::new();
+    let mut cursor = root.walk();
+    visit_nodes_with_cursor(root, &mut cursor, &mut |node| {
+        if node.kind() != "call_expression" || is_in_comment(&node) {
+            return;
+        }
+
+        // Check if the callee is std::move or just move
+        let mut nc = node.walk();
+        let callee = match node.named_children(&mut nc).next() {
+            Some(c) => c,
+            None => return,
+        };
+        let callee_text = node_text(&callee, source);
+        if callee_text != "std::move" && callee_text != "move" {
+            return;
+        }
+
+        // Find the argument list and extract the single argument
+        let mut nc2 = node.walk();
+        let arg_list = match node
+            .named_children(&mut nc2)
+            .find(|c| c.kind() == "argument_list")
+        {
+            Some(al) => al,
+            None => return,
+        };
+
+        let mut nc3 = arg_list.walk();
+        let args: Vec<_> = arg_list.named_children(&mut nc3).collect();
+        if args.len() != 1 {
+            return;
+        }
+
+        let arg_text = node_text(&args[0], source);
+        mutants.push(PartialMutant {
+            byte_offset: node.start_byte() as u32,
+            line_offset: calculate_line_offset(source, node.start_byte()),
+            old_text: node_text(&node, source).to_string(),
+            new_text: arg_text.to_string(),
+        });
+    });
+    mutants
+}
+
+/// VR: Remove `virtual` keyword from method declarations/definitions.
+/// Targets `field_declaration` and `function_definition` nodes that have
+/// a `virtual` keyword as their first child.
+fn virtual_removal_mutants(root: Node, source: &str) -> Vec<PartialMutant> {
+    let mut mutants = Vec::new();
+    let mut cursor = root.walk();
+    visit_nodes_with_cursor(root, &mut cursor, &mut |node| {
+        let kind = node.kind();
+        if (kind != "field_declaration" && kind != "function_definition") || is_in_comment(&node) {
+            return;
+        }
+
+        // Check if the first child is the `virtual` keyword
+        let first_child = match node.child(0) {
+            Some(c) => c,
+            None => return,
+        };
+        if first_child.kind() != "virtual" {
+            return;
+        }
+
+        let old_text = node_text(&node, source);
+        // Remove "virtual " (keyword + trailing space) from the beginning
+        let new_text = old_text
+            .strip_prefix("virtual ")
+            .unwrap_or(old_text)
+            .to_string();
+
+        if new_text != old_text {
+            mutants.push(PartialMutant {
+                byte_offset: node.start_byte() as u32,
+                line_offset: calculate_line_offset(source, node.start_byte()),
+                old_text: old_text.to_string(),
+                new_text,
+            });
+        }
+    });
+    mutants
 }
 
 #[cfg(test)]
@@ -315,7 +459,7 @@ mod tests {
 
     #[test]
     fn all_defined_slugs_have_match_arms() {
-        let text = "int main() { if (true) return 42; }";
+        let text = "class B { virtual void f(); }; void g(int* p) { delete p; auto x = std::move(p); if (true) return; }";
         let target = Target {
             id: 0,
             path: PathBuf::from("test.cpp"),
