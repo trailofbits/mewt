@@ -10,6 +10,9 @@ on:
 permissions:
   contents: read
 
+env:
+  SQLX_OFFLINE: "true"
+
 jobs:
   publish:
     runs-on: ubuntu-22.04
