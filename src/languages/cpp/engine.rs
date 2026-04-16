@@ -294,8 +294,13 @@ impl LanguageEngine for CppLanguageEngine {
                         .into_iter()
                         .map(|p| Mutant::from_partial(p, target, "VR")),
                 ),
+                "RDV" => all_mutants.extend(
+                    return_default_value_mutants(root, source)
+                        .into_iter()
+                        .map(|p| Mutant::from_partial(p, target, "RDV")),
+                ),
                 // Not applicable to C++
-                "RZ" | "RDV" | "RCI" => {}
+                "RZ" | "RCI" => {}
                 _ => {
                     panic!(
                         "Unknown mutation slug encountered in C++ engine: {}",
@@ -435,6 +440,135 @@ fn virtual_removal_mutants(root: Node, source: &str) -> Vec<PartialMutant> {
     mutants
 }
 
+/// Walk up from a node to find its enclosing function_definition.
+fn enclosing_function<'a>(node: &Node<'a>) -> Option<Node<'a>> {
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        if parent.kind() == "function_definition" {
+            return Some(parent);
+        }
+        current = parent.parent();
+    }
+    None
+}
+
+/// Determine the effective return type of a C++ function_definition.
+/// Returns the type text (e.g., "int", "bool") and whether the declarator
+/// is a pointer (e.g., `int* f()` → type="int", is_pointer=true).
+fn cpp_return_type_info<'a>(func_node: &Node<'a>, source: &'a str) -> Option<(&'a str, bool)> {
+    let type_node = func_node.child_by_field_name("type")?;
+    let type_text = node_text(&type_node, source);
+
+    // Check if the declarator is a pointer_declarator
+    let declarator = func_node.child_by_field_name("declarator");
+    let is_pointer = declarator
+        .map(|d| d.kind() == "pointer_declarator")
+        .unwrap_or(false);
+
+    Some((type_text, is_pointer))
+}
+
+/// Map a C++ type to its default/zero value.
+/// Uses keyword-based matching to handle multi-word types like
+/// `unsigned int`, `long long`, `unsigned long long`, `long double`, etc.
+fn cpp_type_default(type_text: &str, is_pointer: bool) -> Option<&'static str> {
+    if is_pointer {
+        return Some("nullptr");
+    }
+    let t = type_text.trim();
+
+    // Exact matches first
+    match t {
+        "bool" => return Some("false"),
+        "void" => return None,
+        _ => {}
+    }
+
+    // Split into words for keyword matching to avoid false positives
+    // (e.g., "Point" contains "int" but is not an integer type)
+    let words: Vec<&str> = t.split_whitespace().collect();
+    let has_word = |word: &str| words.iter().any(|w| *w == word);
+
+    // Floating-point: "float", "double", "long double"
+    if has_word("double") || has_word("float") {
+        return Some("0.0");
+    }
+
+    // Integer types: multi-word types like "unsigned int", "long long", etc.
+    let integer_keywords = [
+        "int",
+        "long",
+        "short",
+        "char",
+        "unsigned",
+        "signed",
+        "size_t",
+        "ssize_t",
+        "int8_t",
+        "int16_t",
+        "int32_t",
+        "int64_t",
+        "uint8_t",
+        "uint16_t",
+        "uint32_t",
+        "uint64_t",
+        "ptrdiff_t",
+        "intptr_t",
+        "uintptr_t",
+    ];
+    if integer_keywords.iter().any(|kw| has_word(kw)) {
+        return Some("0");
+    }
+
+    None
+}
+
+/// Generate RDV (Return Default Value) mutants for C++.
+fn return_default_value_mutants(root: Node, source: &str) -> Vec<PartialMutant> {
+    let mut mutants = Vec::new();
+    let mut cursor = root.walk();
+    visit_nodes_with_cursor(root, &mut cursor, &mut |node| {
+        if node.kind() != "return_statement" || is_in_comment(&node) {
+            return;
+        }
+
+        let func = match enclosing_function(&node) {
+            Some(f) => f,
+            None => return,
+        };
+
+        let (type_text, is_pointer) = match cpp_return_type_info(&func, source) {
+            Some(info) => info,
+            None => return,
+        };
+
+        let default = match cpp_type_default(type_text, is_pointer) {
+            Some(d) => d,
+            None => return,
+        };
+
+        // Find the returned expression — the first named child
+        let mut nc = node.walk();
+        let return_expr = match node.named_children(&mut nc).next() {
+            Some(expr) => expr,
+            None => return, // bare `return;`
+        };
+
+        let old_text = node_text(&return_expr, source);
+        if old_text == default {
+            return;
+        }
+
+        mutants.push(PartialMutant {
+            byte_offset: return_expr.start_byte() as u32,
+            line_offset: calculate_line_offset(source, return_expr.start_byte()),
+            old_text: old_text.to_string(),
+            new_text: default.to_string(),
+        });
+    });
+    mutants
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -459,7 +593,7 @@ mod tests {
 
     #[test]
     fn all_defined_slugs_have_match_arms() {
-        let text = "class B { virtual void f(); }; void g(int* p) { delete p; auto x = std::move(p); if (true) return; }";
+        let text = "class B { virtual void f(); }; void g(int* p) { delete p; auto x = std::move(p); if (true) return; } int h() { return 42; }";
         let target = Target {
             id: 0,
             path: PathBuf::from("test.cpp"),

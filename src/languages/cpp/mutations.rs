@@ -16,4 +16,9 @@ pub const CPP_MUTATIONS: &[Mutation] = &[
         description: "Virtual Removal: Remove virtual specifier from method declarations",
         severity: MutationSeverity::High,
     },
+    Mutation {
+        slug: "RDV",
+        description: "Return Default Value: Replace return value with type-appropriate default",
+        severity: MutationSeverity::Medium,
+    },
 ];
