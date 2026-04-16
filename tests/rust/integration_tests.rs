@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use tempfile::tempdir;
 
 /// Helper to create test target
-fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
+pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
     let temp_dir = tempdir().expect("Failed to create temp directory");
     let file_path = temp_dir.path().join("test.rs");
     std::fs::write(&file_path, content).expect("Failed to write test file");
@@ -192,4 +192,50 @@ fn test_func() -> i32 {
         ast_lines.len() > 1,
         "AST mutations should affect multiple lines"
     );
+}
+
+pub(crate) fn assert_only_slug_and_expected_new_texts(
+    source: &str,
+    slug: &str,
+    expected_new_texts: &[&str],
+) {
+    let (_tmp, target) = create_test_target(source);
+    let engine = RustLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    let selected: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == slug).collect();
+    assert!(!selected.is_empty(), "expected at least one {slug} mutant");
+
+    let normalize = |text: &str| text.trim().replace('\r', "");
+
+    let mut covered_tokens: HashSet<&str> = HashSet::new();
+    let mut unexpected_mutants: Vec<String> = Vec::new();
+
+    for mutant in &selected {
+        let matches: Vec<&str> = expected_new_texts
+            .iter()
+            .copied()
+            .filter(|needle| mutant.new_text.contains(needle))
+            .collect();
+
+        if matches.is_empty() {
+            unexpected_mutants.push(normalize(&mutant.new_text));
+        } else {
+            for needle in matches {
+                covered_tokens.insert(needle);
+            }
+        }
+    }
+
+    assert!(
+        unexpected_mutants.is_empty(),
+        "found {slug} mutants with unexpected replacements: {unexpected_mutants:?}"
+    );
+
+    for expected in expected_new_texts {
+        assert!(
+            covered_tokens.contains(expected),
+            "missing expected {slug} mutant containing: {expected}"
+        );
+    }
 }

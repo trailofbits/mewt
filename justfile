@@ -5,12 +5,6 @@ export DATABASE_URL := "sqlite:" + SQLITE_FILE
 ########################################
 # Common dev commands
 
-lint:
-  cargo clippy --lib -p {{project}} --tests || { echo "clippy linter checks failed"; exit 1; }
-
-lint-fix:
-  cargo clippy --lib -p {{project}} --tests --fix
-
 check:
   cargo check || { echo "cargo check failed"; exit 1; }
 
@@ -20,13 +14,23 @@ fmt-check:
 fmt:
   cargo fmt --all
 
+lint:
+  cargo clippy --lib -p {{project}} --tests || { echo "clippy linter checks failed"; exit 1; }
+
+lint-fix:
+  cargo clippy --lib -p {{project}} --tests --fix
+
+actionlint:
+  actionlint
+
 typos:
   typos || { echo "typos check failed"; exit 1; }
 
 pre-commit:
-  just fmt-check
   just check
+  just fmt-check
   just lint
+  just actionlint
   just typos
 
 install-pre-commit:
