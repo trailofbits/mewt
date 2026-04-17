@@ -36,11 +36,11 @@ You can also vendor manually by placing generated C sources under `grammars/<lan
 
 ## 5. Tests and examples
 
-- Add example files under `tests/<language>/examples/`
+- Add a canonical example file at `tests/<language>/example.<ext>`
 - Add tests under `tests/<language>/`
 
 ## 6. Validate
 
 - `just check`
 - `mewt print mutations --language <language>` shows your slugs
-- `mewt print mutants --target tests/<language>/examples/...` generates mutants for example files
+- `mewt print mutants --target tests/<language>/example.<ext>` generates mutants for the canonical example file

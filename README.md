@@ -19,7 +19,9 @@ wrong.
 
 For details on how campaigns work under the hood, see
 [How it works](docs/how-it-works.md). To add support for a new language, see
-[Adding a language](docs/adding-a-language.md).
+[Adding a language](docs/adding-a-language.md). For mutation test suite
+structure and shared test helper conventions, see
+[`tests/README.md`](tests/README.md).
 
 ## Installation
 
@@ -81,10 +83,10 @@ See [Configuration](docs/configuration.md) for the full reference and [`src/exam
 
 This repo includes example files you can try:
 
-- Go: `tests/go/examples/hello-world.go`
-- JavaScript/TypeScript: `tests/javascript/examples/simple.js`
-- Rust: `tests/rust/examples/hello-world.rs`
-- Solidity: `tests/solidity/examples/hello-world.sol`
+- Go: `tests/go/example.go`
+- JavaScript/TypeScript/JSX/TSX: `tests/javascript/example.js` (plus `example.ts`, `example.jsx`, `example.tsx`)
+- Rust: `tests/rust/example.rs`
+- Solidity: `tests/solidity/example.sol`
 
 ## Notes
 

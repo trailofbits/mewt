@@ -19,6 +19,7 @@ declare -A REPO_URLS=(
   ["javascript"]="https://github.com/tree-sitter/tree-sitter-javascript"
   ["typescript"]="https://github.com/tree-sitter/tree-sitter-typescript"
   ["tsx"]="https://github.com/tree-sitter/tree-sitter-typescript"
+  ["move"]="https://github.com/MystenLabs/sui"
 )
 
 declare -A GRAMMAR_PATHS=(
@@ -28,6 +29,13 @@ declare -A GRAMMAR_PATHS=(
   ["javascript"]="" # repo root
   ["typescript"]="typescript" # grammar is in typescript/ subdirectory
   ["tsx"]="tsx" # grammar is in tsx/ subdirectory
+  ["move"]="external-crates/move/tooling/tree-sitter" # grammar in Sui monorepo
+)
+
+# Languages that require sparse checkout (large monorepos)
+# Maps language -> subdirectory path to sparse-checkout
+declare -A SPARSE_PATHS=(
+  ["move"]="external-crates/move/tooling/tree-sitter"
 )
 
 # Validate language argument
@@ -79,7 +87,13 @@ fi
 echo "Cloning upstream grammar repository..."
 TEMP_DIR="/tmp/$language-grammar-update"
 rm -rf "$TEMP_DIR"
-git clone "$repo_url" "$TEMP_DIR"
+if [[ -v SPARSE_PATHS["$language"] && -n "${SPARSE_PATHS[$language]}" ]]; then
+  echo "Using sparse checkout for monorepo (path: ${SPARSE_PATHS[$language]})..."
+  git clone --depth=1 --filter=blob:none --sparse "$repo_url" "$TEMP_DIR"
+  git -C "$TEMP_DIR" sparse-checkout set "${SPARSE_PATHS[$language]}"
+else
+  git clone "$repo_url" "$TEMP_DIR"
+fi
 # Capture the vendored commit (latest of default branch)
 vendored_commit="$(git -C "$TEMP_DIR" rev-parse HEAD)"
 

@@ -7,8 +7,6 @@
     naersk.url = "github:nix-community/naersk";
     naersk.inputs.nixpkgs.follows = "nixpkgs";
     naersk.inputs.fenix.follows = "fenix";
-    cargo-dist-src.url = "github:axodotdev/cargo-dist";
-    cargo-dist-src.flake = false;
   };
 
   outputs = inputs: with inputs;
@@ -124,19 +122,6 @@
         ];
       }));
 
-      cargoDistBin = pkgs.rustPlatform.buildRustPackage {
-        pname = "cargo-dist";
-        version = "main";
-        src = inputs.cargo-dist-src;
-        cargoLock.lockFile = "${inputs.cargo-dist-src}/Cargo.lock";
-        # aws-lc-sys (pulled in via axoasset -> reqwest -> rustls) needs cmake+perl
-        nativeBuildInputs = with pkgs; [ cmake perl pkg-config ];
-        buildInputs = with pkgs; [ bzip2 xz zstd ];
-        env.ZSTD_SYS_USE_PKG_CONFIG = true;
-        buildFlags = ["-p" "cargo-dist"];
-        doCheck = false;
-      };
-
     in rec {
 
       packages = {
@@ -150,7 +135,6 @@
       devInputs = with pkgs; [
         actionlint
         cargo-watch
-        cargoDistBin
         just
         libiconv
         openssl

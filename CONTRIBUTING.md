@@ -10,6 +10,7 @@ Thanks for your interest in contributing!
 
 ## Coding standards
 - Follow conventions used in the codebase
+- For mutation test structure and helper conventions, see [`tests/README.md`](tests/README.md)
 
 ## Development commands
 - `just fmt` — format
