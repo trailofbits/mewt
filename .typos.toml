@@ -1,0 +1,5 @@
+[default.extend-words]
+# "seh" is Structured Exception Handling (Microsoft __try/__except/__finally).
+# It appears in the vendored tree-sitter C++ grammar's symbol names
+# (sym_seh_try_statement, sym_seh_leave_statement, etc.).
+seh = "seh"
