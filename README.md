@@ -19,7 +19,9 @@ wrong.
 
 For details on how campaigns work under the hood, see
 [How it works](docs/how-it-works.md). To add support for a new language, see
-[Adding a language](docs/adding-a-language.md).
+[Adding a language](docs/adding-a-language.md). For mutation test suite
+structure and shared test helper conventions, see
+[`tests/README.md`](tests/README.md).
 
 ## Installation
 

@@ -1,19 +1,10 @@
+use crate::common;
 use mewt::LanguageEngine;
 use mewt::languages::rust::engine::RustLanguageEngine;
-use mewt::types::{Hash, Target};
+use mewt::types::Target;
 
 fn rust_target_from_source(source: &str) -> Target {
-    use tempfile::tempdir;
-    let tmp = tempdir().expect("tmpdir");
-    let path = tmp.path().join("test.rs");
-    std::fs::write(&path, source).unwrap();
-    Target {
-        id: 1,
-        path,
-        file_hash: Hash::digest(source.to_string()),
-        text: source.to_string(),
-        language: "Rust".to_string(),
-    }
+    common::target_fixture_for_extension("Rust", "rs", source).into_target()
 }
 
 #[test]

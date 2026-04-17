@@ -1,31 +1,17 @@
+use crate::common;
 use mewt::LanguageEngine;
 use mewt::languages::sui_move::engine::MoveLanguageEngine;
 use mewt::types::{Mutant, Target};
 use std::collections::{HashMap, HashSet};
-use tempfile::tempdir;
 
 pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
-    let temp_dir = tempdir().expect("Failed to create temp directory");
-    let file_path = temp_dir.path().join("test.move");
-    std::fs::write(&file_path, content).expect("Failed to write test file");
-    let target = Target {
-        id: 1,
-        path: file_path,
-        file_hash: mewt::types::Hash::digest(content.to_string()),
-        text: content.to_string(),
-        language: "SuiMove".to_string(),
-    };
-    (temp_dir, target)
+    common::target_fixture_for_extension("SuiMove", "move", content).into_parts()
 }
 
 pub(crate) fn mutants_for_slug(source: &str, slug: &str) -> Vec<Mutant> {
     let (_tmp, target) = create_test_target(source);
     let engine = MoveLanguageEngine::new();
-    engine
-        .mutate(&target)
-        .into_iter()
-        .filter(|m| m.mutation_slug == slug)
-        .collect()
+    common::mutants_for_slug(&engine, &target, slug)
 }
 
 pub(crate) fn assert_only_slug_and_expected_new_texts(
@@ -35,43 +21,7 @@ pub(crate) fn assert_only_slug_and_expected_new_texts(
 ) {
     let (_tmp, target) = create_test_target(source);
     let engine = MoveLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    let selected: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == slug).collect();
-    assert!(!selected.is_empty(), "expected at least one {slug} mutant");
-
-    let normalize = |text: &str| text.trim().replace('\r', "");
-
-    let mut covered_tokens: HashSet<&str> = HashSet::new();
-    let mut unexpected_mutants: Vec<String> = Vec::new();
-
-    for mutant in &selected {
-        let matches: Vec<&str> = expected_new_texts
-            .iter()
-            .copied()
-            .filter(|needle| mutant.new_text.contains(needle))
-            .collect();
-
-        if matches.is_empty() {
-            unexpected_mutants.push(normalize(&mutant.new_text));
-        } else {
-            for needle in matches {
-                covered_tokens.insert(needle);
-            }
-        }
-    }
-
-    assert!(
-        unexpected_mutants.is_empty(),
-        "found {slug} mutants with unexpected replacements: {unexpected_mutants:?}"
-    );
-
-    for expected in expected_new_texts {
-        assert!(
-            covered_tokens.contains(expected),
-            "missing expected {slug} mutant containing: {expected}"
-        );
-    }
+    common::assert_only_slug_and_expected_new_texts(&engine, &target, slug, expected_new_texts);
 }
 
 #[test]

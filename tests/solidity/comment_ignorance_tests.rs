@@ -1,19 +1,10 @@
+use crate::common;
 use mewt::LanguageEngine;
 use mewt::languages::solidity::engine::SolidityLanguageEngine;
-use mewt::types::{Hash, Target};
+use mewt::types::Target;
 
 fn solidity_target_from_source(source: &str) -> Target {
-    use tempfile::tempdir;
-    let tmp = tempdir().expect("tmpdir");
-    let path = tmp.path().join("test.sol");
-    std::fs::write(&path, source).unwrap();
-    Target {
-        id: 1,
-        path,
-        file_hash: Hash::digest(source.to_string()),
-        text: source.to_string(),
-        language: "Solidity".to_string(),
-    }
+    common::target_fixture_for_extension("Solidity", "sol", source).into_target()
 }
 
 #[test]

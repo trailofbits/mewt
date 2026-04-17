@@ -49,6 +49,11 @@ impl TargetFixture {
         self.target
     }
 
+    /// Consume the fixture, returning both [`TempDir`] and [`Target`].
+    pub fn into_parts(self) -> (TempDir, Target) {
+        (self.temp_dir, self.target)
+    }
+
     /// Borrow the [`TempDir`] keeping the source file alive.
     pub fn temp_dir(&self) -> &TempDir {
         &self.temp_dir
@@ -90,6 +95,52 @@ pub fn mutants_for_slug(engine: &dyn LanguageEngine, target: &Target, slug: &str
         .into_iter()
         .filter(|m| m.mutation_slug == slug)
         .collect()
+}
+
+/// Assert that mutants for a given slug only produce expected replacement snippets.
+pub fn assert_only_slug_and_expected_new_texts(
+    engine: &dyn LanguageEngine,
+    target: &Target,
+    slug: &str,
+    expected_new_texts: &[&str],
+) {
+    let mutants = engine.mutate(target);
+
+    let selected: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == slug).collect();
+    assert!(!selected.is_empty(), "expected at least one {slug} mutant");
+
+    let normalize = |text: &str| text.trim().replace('\r', "");
+
+    let mut covered_tokens: HashSet<&str> = HashSet::new();
+    let mut unexpected_mutants: Vec<String> = Vec::new();
+
+    for mutant in &selected {
+        let matches: Vec<&str> = expected_new_texts
+            .iter()
+            .copied()
+            .filter(|needle| mutant.new_text.contains(needle))
+            .collect();
+
+        if matches.is_empty() {
+            unexpected_mutants.push(normalize(&mutant.new_text));
+        } else {
+            for needle in matches {
+                covered_tokens.insert(needle);
+            }
+        }
+    }
+
+    assert!(
+        unexpected_mutants.is_empty(),
+        "found {slug} mutants with unexpected replacements: {unexpected_mutants:?}"
+    );
+
+    for expected in expected_new_texts {
+        assert!(
+            covered_tokens.contains(expected),
+            "missing expected {slug} mutant containing: {expected}"
+        );
+    }
 }
 
 /// Count how many mutants share each slug.
