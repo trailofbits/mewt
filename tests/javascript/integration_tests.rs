@@ -1,26 +1,17 @@
+use crate::conformance;
+use crate::utils;
 use mewt::LanguageEngine;
 use mewt::languages::javascript::engine::JavaScriptLanguageEngine;
 use mewt::types::Target;
-use std::collections::HashSet;
-use tempfile::tempdir;
 
 pub(crate) fn create_test_target(content: &str, filename: &str) -> (tempfile::TempDir, Target) {
-    let temp_dir = tempdir().expect("Failed to create temp directory");
-    let file_path = temp_dir.path().join(filename);
-    std::fs::write(&file_path, content).expect("Failed to write test file");
-    let target = Target {
-        id: 1,
-        path: file_path,
-        file_hash: mewt::types::Hash::digest(content.to_string()),
-        text: content.to_string(),
-        language: "JavaScript".to_string(),
-    };
-    (temp_dir, target)
+    utils::target_fixture_for_filename("JavaScript", filename, content).into_parts()
 }
 
 #[test]
-fn test_basic_javascript_mutations() {
-    let source = r#"
+fn javascript_common_conformance_checks() {
+    let sources = conformance::CommonConformanceSources {
+        basic_source: r#"
 function testFunc() {
     const x = 42;
     if (x > 0) {
@@ -28,78 +19,117 @@ function testFunc() {
     }
     return 0;
 }
-"#;
-    let (_temp_dir, target) = create_test_target(source, "test.js");
-    let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    assert!(!mutants.is_empty(), "Should generate mutations");
-
-    let slugs: HashSet<_> = mutants.iter().map(|m| &m.mutation_slug[..2]).collect();
-    assert!(slugs.len() > 1, "Should generate diverse mutation types");
-}
-
-#[test]
-fn test_typescript_support() {
-    let source = r#"
-interface User {
-    name: string;
-    age: number;
-}
-
-function greet(user: User): string {
-    if (user.age > 18) {
-        return `Hello, ${user.name}!`;
+"#,
+        comment_source: r#"
+function testFunc() {
+    // This is a comment
+    const x = 42;
+    if (x > 0) {
+        return x;
     }
-    return "Hello!";
+    return 0;
 }
-"#;
-    let (_temp_dir, target) = create_test_target(source, "test.ts");
-    let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.mutate(&target);
+"#,
+        complex_source: r#"
+class Counter {
+    constructor() {
+        this.value = 0;
+    }
 
-    assert!(
-        !mutants.is_empty(),
-        "Should generate mutations for TypeScript"
+    increment() {
+        this.value += 1;
+        return this.value;
+    }
+
+    process(values) {
+        if (!values || values.length === 0) {
+            throw new Error("empty values");
+        }
+
+        let sum = 0;
+        for (const value of values) {
+            sum += value;
+        }
+
+        return sum;
+    }
+}
+
+function main() {
+    const counter = new Counter();
+    return counter.increment();
+}
+"#,
+        line_coverage_source: r#"
+function testFunc() {
+    const x = 42;
+    const y = x + 1;
+    if (x > 0) {
+        return x;
+    }
+    return y;
+}
+"#,
+    };
+
+    let expectations = conformance::CommonConformanceExpectations {
+        language_name: "JavaScript",
+        min_complex_mutants: 6,
+    };
+
+    conformance::run_common_language_checks(
+        |source| create_test_target(source, "test.js"),
+        || Box::new(JavaScriptLanguageEngine::new()),
+        sources,
+        expectations,
     );
 }
 
 #[test]
-fn test_jsx_support() {
-    let source = r#"
-function Welcome(props) {
-    if (props.show) {
-        return <h1>Hello, {props.name}</h1>;
-    }
-    return null;
-}
-"#;
-    let (_temp_dir, target) = create_test_target(source, "test.jsx");
-    let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    assert!(!mutants.is_empty(), "Should generate mutations for JSX");
-}
-
-#[test]
-fn test_tsx_support() {
-    let source = r#"
-import type { FC } from "react";
-
-const Button: FC<{ label: string; onClick(): void }> = ({ label, onClick }) => {
-    if (onClick) {
-        return <button onClick={onClick}>{label}</button>;
-    }
-    return null;
-};
-"#;
-    let (_temp_dir, target) = create_test_target(source, "test.tsx");
-    let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.mutate(&target);
+fn javascript_example_file_generates_mutants() {
+    let source = conformance::read_example_source("tests/javascript/example.js");
+    let (_tmp, target) = create_test_target(&source, "example.js");
+    let mutants = JavaScriptLanguageEngine::new().mutate(&target);
 
     assert!(
         !mutants.is_empty(),
-        "Should generate mutations for TSX files"
+        "JavaScript example file should generate mutants"
+    );
+}
+
+#[test]
+fn typescript_example_file_generates_mutants() {
+    let source = conformance::read_example_source("tests/javascript/example.ts");
+    let (_tmp, target) = create_test_target(&source, "example.ts");
+    let mutants = JavaScriptLanguageEngine::new().mutate(&target);
+
+    assert!(
+        !mutants.is_empty(),
+        "TypeScript example file should generate mutants"
+    );
+}
+
+#[test]
+fn jsx_example_file_generates_mutants() {
+    let source = conformance::read_example_source("tests/javascript/example.jsx");
+    let (_tmp, target) = create_test_target(&source, "example.jsx");
+    let mutants = JavaScriptLanguageEngine::new().mutate(&target);
+
+    assert!(
+        !mutants.is_empty(),
+        "JSX example file should generate mutants"
+    );
+}
+
+#[test]
+fn tsx_example_file_generates_mutants() {
+    let source = conformance::read_example_source("tests/javascript/example.tsx");
+    let (_tmp, target) = create_test_target(&source, "example.tsx");
+    let mutants = JavaScriptLanguageEngine::new().mutate(&target);
+
+    assert!(
+        !mutants.is_empty(),
+        "TSX example file should generate mutants"
     );
 }
 
@@ -141,41 +171,5 @@ pub(crate) fn assert_only_slug_and_expected_new_texts(
 ) {
     let (_tmp, target) = create_test_target(source, filename);
     let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    let selected: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == slug).collect();
-    assert!(!selected.is_empty(), "expected at least one {slug} mutant");
-
-    let normalize = |text: &str| text.trim().replace('\r', "");
-
-    let mut covered_tokens: HashSet<&str> = HashSet::new();
-    let mut unexpected_mutants: Vec<String> = Vec::new();
-
-    for mutant in &selected {
-        let matches: Vec<&str> = expected_new_texts
-            .iter()
-            .copied()
-            .filter(|needle| mutant.new_text.contains(needle))
-            .collect();
-
-        if matches.is_empty() {
-            unexpected_mutants.push(normalize(&mutant.new_text));
-        } else {
-            for needle in matches {
-                covered_tokens.insert(needle);
-            }
-        }
-    }
-
-    assert!(
-        unexpected_mutants.is_empty(),
-        "found {slug} mutants with unexpected replacements: {unexpected_mutants:?}"
-    );
-
-    for expected in expected_new_texts {
-        assert!(
-            covered_tokens.contains(expected),
-            "missing expected {slug} mutant containing: {expected}"
-        );
-    }
+    utils::assert_only_slug_and_expected_new_texts(&engine, &target, slug, expected_new_texts);
 }

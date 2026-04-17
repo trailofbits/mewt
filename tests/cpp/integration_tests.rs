@@ -1,21 +1,81 @@
+use crate::conformance;
+use crate::utils;
 use mewt::LanguageEngine;
 use mewt::languages::cpp::engine::CppLanguageEngine;
 use mewt::types::{Mutant, Target};
 use std::collections::HashSet;
-use tempfile::tempdir;
 
 pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
-    let temp_dir = tempdir().expect("Failed to create temp directory");
-    let file_path = temp_dir.path().join("test.cpp");
-    std::fs::write(&file_path, content).expect("Failed to write test file");
-    let target = Target {
-        id: 1,
-        path: file_path,
-        file_hash: mewt::types::Hash::digest(content.to_string()),
-        text: content.to_string(),
-        language: "C++".to_string(),
+    utils::target_fixture_for_extension("C++", "cpp", content).into_parts()
+}
+
+#[test]
+fn cpp_common_conformance_checks() {
+    let sources = conformance::CommonConformanceSources {
+        basic_source: r#"
+int add(int a, int b) {
+    return a + b;
+}
+"#,
+        comment_source: r#"
+int add(int a, int b) {
+    // This is a comment
+    if (a > b) {
+        return a;
+    }
+    return b;
+}
+"#,
+        complex_source: r#"
+#include <vector>
+
+class Counter {
+public:
+    Counter() : value_(0) {}
+
+    int increment() {
+        value_++;
+        return value_;
+    }
+
+    int process(const std::vector<int>& data) {
+        if (data.empty()) {
+            return 0;
+        }
+
+        int sum = 0;
+        for (const auto& v : data) {
+            sum += v;
+        }
+        return sum;
+    }
+
+private:
+    int value_;
+};
+"#,
+        line_coverage_source: r#"
+int compute(int x) {
+    int y = x + 1;
+    if (x > 0) {
+        return x;
+    }
+    return y;
+}
+"#,
     };
-    (temp_dir, target)
+
+    let expectations = conformance::CommonConformanceExpectations {
+        language_name: "C++",
+        min_complex_mutants: 6,
+    };
+
+    conformance::run_common_language_checks(
+        create_test_target,
+        || Box::new(CppLanguageEngine::new()),
+        sources,
+        expectations,
+    );
 }
 
 #[test]
@@ -121,8 +181,7 @@ int sum(const std::vector<int>& vec) {
 
 #[test]
 fn test_example_file() {
-    let source = std::fs::read_to_string("tests/cpp/examples/hello-world.cpp")
-        .expect("Failed to read example file");
+    let source = conformance::read_example_source("tests/cpp/example.cpp");
     let (_dir, target) = create_test_target(&source);
     let engine = CppLanguageEngine::new();
     let mutants = engine.mutate(&target);

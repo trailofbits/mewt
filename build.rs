@@ -102,4 +102,8 @@ fn main() {
     // Build C++ grammar
     let cpp_dir: PathBuf = ["grammars", "cpp", "src"].iter().collect();
     build_grammar(&cpp_dir, "tree-sitter-cpp");
+
+    // Build Sui Move grammar
+    let move_dir: PathBuf = ["grammars", "move", "src"].iter().collect();
+    build_grammar(&move_dir, "tree-sitter-move");
 }

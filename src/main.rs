@@ -12,6 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     registry.register(mewt::languages::javascript::engine::JavaScriptLanguageEngine::new());
     registry.register(mewt::languages::rust::engine::RustLanguageEngine::new());
     registry.register(mewt::languages::solidity::engine::SolidityLanguageEngine::new());
+    registry.register(mewt::languages::sui_move::engine::MoveLanguageEngine::new());
 
     // Run the shared main function
     run_main(

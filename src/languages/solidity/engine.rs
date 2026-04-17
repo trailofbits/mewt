@@ -608,7 +608,7 @@ mod tests {
         let text: &str = "contract C { function f(uint a, uint b) public { if (a > b) { return; } foo(1, 2); } }";
         let target = Target {
             id: 0,
-            path: PathBuf::from("tests/examples/solidity/hello-world.sol"),
+            path: PathBuf::from("tests/solidity/example.sol"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
             language: "Solidity".to_string(),
