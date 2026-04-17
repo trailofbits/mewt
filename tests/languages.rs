@@ -3,6 +3,7 @@ mod conformance;
 #[path = "utils.rs"]
 mod utils;
 
+mod cpp;
 mod go;
 mod javascript;
 mod rust;
@@ -14,6 +15,7 @@ use std::fs;
 use std::path::Path;
 
 use mewt::LanguageEngine;
+use mewt::languages::cpp::engine::CppLanguageEngine;
 use mewt::languages::go::engine::GoLanguageEngine;
 use mewt::languages::javascript::engine::JavaScriptLanguageEngine;
 use mewt::languages::rust::engine::RustLanguageEngine;
@@ -23,6 +25,9 @@ use mewt::languages::sui_move::engine::MoveLanguageEngine;
 #[test]
 fn every_mutation_slug_has_a_per_language_test_module() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+
+    let cpp = CppLanguageEngine::new();
+    check_language(manifest_dir, "C++", "cpp", &cpp);
 
     let rust = RustLanguageEngine::new();
     check_language(manifest_dir, "Rust", "rust", &rust);

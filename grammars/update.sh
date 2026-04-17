@@ -19,6 +19,7 @@ declare -A REPO_URLS=(
   ["javascript"]="https://github.com/tree-sitter/tree-sitter-javascript"
   ["typescript"]="https://github.com/tree-sitter/tree-sitter-typescript"
   ["tsx"]="https://github.com/tree-sitter/tree-sitter-typescript"
+  ["cpp"]="https://github.com/tree-sitter/tree-sitter-cpp"
   ["move"]="https://github.com/MystenLabs/sui"
 )
 
@@ -29,6 +30,7 @@ declare -A GRAMMAR_PATHS=(
   ["javascript"]="" # repo root
   ["typescript"]="typescript" # grammar is in typescript/ subdirectory
   ["tsx"]="tsx" # grammar is in tsx/ subdirectory
+  ["cpp"]="" # repo root
   ["move"]="external-crates/move/tooling/tree-sitter" # grammar in Sui monorepo
 )
 
