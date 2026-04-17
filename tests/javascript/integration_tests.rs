@@ -1,3 +1,4 @@
+use crate::conformance;
 use crate::utils;
 use mewt::LanguageEngine;
 use mewt::languages::javascript::engine::JavaScriptLanguageEngine;
@@ -30,66 +31,38 @@ function testFunc() {
 }
 
 #[test]
-fn test_typescript_support() {
-    let source = r#"
-interface User {
-    name: string;
-    age: number;
-}
-
-function greet(user: User): string {
-    if (user.age > 18) {
-        return `Hello, ${user.name}!`;
-    }
-    return "Hello!";
-}
-"#;
-    let (_temp_dir, target) = create_test_target(source, "test.ts");
-    let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.mutate(&target);
+fn typescript_example_file_generates_mutants() {
+    let source = conformance::read_example_source("tests/javascript/example.ts");
+    let (_tmp, target) = create_test_target(&source, "example.ts");
+    let mutants = JavaScriptLanguageEngine::new().mutate(&target);
 
     assert!(
         !mutants.is_empty(),
-        "Should generate mutations for TypeScript"
+        "TypeScript example file should generate mutants"
     );
 }
 
 #[test]
-fn test_jsx_support() {
-    let source = r#"
-function Welcome(props) {
-    if (props.show) {
-        return <h1>Hello, {props.name}</h1>;
-    }
-    return null;
-}
-"#;
-    let (_temp_dir, target) = create_test_target(source, "test.jsx");
-    let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    assert!(!mutants.is_empty(), "Should generate mutations for JSX");
-}
-
-#[test]
-fn test_tsx_support() {
-    let source = r#"
-import type { FC } from "react";
-
-const Button: FC<{ label: string; onClick(): void }> = ({ label, onClick }) => {
-    if (onClick) {
-        return <button onClick={onClick}>{label}</button>;
-    }
-    return null;
-};
-"#;
-    let (_temp_dir, target) = create_test_target(source, "test.tsx");
-    let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.mutate(&target);
+fn jsx_example_file_generates_mutants() {
+    let source = conformance::read_example_source("tests/javascript/example.jsx");
+    let (_tmp, target) = create_test_target(&source, "example.jsx");
+    let mutants = JavaScriptLanguageEngine::new().mutate(&target);
 
     assert!(
         !mutants.is_empty(),
-        "Should generate mutations for TSX files"
+        "JSX example file should generate mutants"
+    );
+}
+
+#[test]
+fn tsx_example_file_generates_mutants() {
+    let source = conformance::read_example_source("tests/javascript/example.tsx");
+    let (_tmp, target) = create_test_target(&source, "example.tsx");
+    let mutants = JavaScriptLanguageEngine::new().mutate(&target);
+
+    assert!(
+        !mutants.is_empty(),
+        "TSX example file should generate mutants"
     );
 }
 
@@ -121,6 +94,18 @@ function calc(a, b) {
         "Should generate arithmetic operator mutations"
     );
     assert!(los_count > 0, "Should generate logical operator mutations");
+}
+
+#[test]
+fn javascript_example_file_generates_mutants() {
+    let source = conformance::read_example_source("tests/javascript/example.js");
+    let (_tmp, target) = create_test_target(&source, "example.js");
+    let mutants = JavaScriptLanguageEngine::new().mutate(&target);
+
+    assert!(
+        !mutants.is_empty(),
+        "JavaScript example file should generate mutants"
+    );
 }
 
 pub(crate) fn assert_only_slug_and_expected_new_texts(

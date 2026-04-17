@@ -1,3 +1,5 @@
+#[path = "conformance.rs"]
+mod conformance;
 #[path = "utils.rs"]
 mod utils;
 

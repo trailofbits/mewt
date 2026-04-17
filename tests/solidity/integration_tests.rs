@@ -1,3 +1,4 @@
+use crate::conformance;
 use crate::utils;
 use mewt::LanguageEngine;
 use mewt::languages::solidity::engine::SolidityLanguageEngine;
@@ -181,6 +182,18 @@ contract Test {
 
 fn solidity_target_from_source(source: &str) -> Target {
     utils::target_fixture_for_extension("Solidity", "sol", source).into_target()
+}
+
+#[test]
+fn solidity_example_file_generates_mutants() {
+    let source = conformance::read_example_source("tests/solidity/example.sol");
+    let (_tmp, target) = create_test_target(&source);
+    let mutants = SolidityLanguageEngine::new().mutate(&target);
+
+    assert!(
+        !mutants.is_empty(),
+        "Solidity example file should generate mutants"
+    );
 }
 
 #[test]

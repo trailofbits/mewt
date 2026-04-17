@@ -303,7 +303,7 @@ Use this skill when:
    ```
    The mutation folder must contain one Rust module per slug (e.g., `tests/<language>/mutations/AOS.rs`).
 
-2. Write the example program (`tests/<language>/examples/hello-world.<ext>`):
+2. Write the canonical example program (`tests/<language>/example.<ext>`):
    - Include diverse constructs: if/else, loops, functions, variables, returns
    - Keep it simple and valid syntax so it can feed both integration tests and CLI demos
 
@@ -397,7 +397,7 @@ Use this skill when:
 
 3. Generate and verify mutants:
    ```bash
-   ./target/release/mewt print mutants --target tests/<language>/examples/hello-world.<ext>
+   ./target/release/mewt print mutants --target tests/<language>/example.<ext>
    ```
    - Verify reasonable number of mutants
    - Check mutations are diverse (ER, IF, CR, etc.)
@@ -518,11 +518,11 @@ mkdir -p src/languages/go
 
 # Phase 5: Create tests
 mkdir -p tests/go/examples
-# Create hello-world.go and integration_tests.rs
+# Create example.go and integration_tests.rs
 
 # Phase 6: Validate
 cargo build --release
 ./target/release/mewt print mutations --language go
-./target/release/mewt print mutants --target tests/go/examples/hello-world.go
+./target/release/mewt print mutants --target tests/go/example.go
 just test
 ```

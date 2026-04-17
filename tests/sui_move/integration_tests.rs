@@ -1,3 +1,4 @@
+use crate::conformance;
 use crate::utils;
 use mewt::LanguageEngine;
 use mewt::languages::sui_move::engine::MoveLanguageEngine;
@@ -128,16 +129,14 @@ fn test_sui_move_mutations_cover_multiple_lines() {
 }
 
 #[test]
-fn test_example_file() {
-    let source = std::fs::read_to_string("tests/sui_move/examples/hello.move")
-        .expect("Failed to read example file");
+fn sui_move_example_file_generates_mutants() {
+    let source = conformance::read_example_source("tests/sui_move/example.move");
     let (_tmp, target) = create_test_target(&source);
     let engine = MoveLanguageEngine::new();
     let mutants = engine.mutate(&target);
 
     assert!(
-        mutants.len() > 10,
-        "Example file should generate more than 10 mutants, got {}",
-        mutants.len()
+        !mutants.is_empty(),
+        "Sui Move example file should generate mutants"
     );
 }

@@ -7,12 +7,14 @@ The goal is to keep coverage focused, deterministic, and easy to extend.
 
 At a glance:
 
-- `tests/utils.rs` contains shared, language-agnostic test helpers.
+- `tests/utils.rs` contains shared, language-agnostic test helpers used by mutation tests.
+- `tests/conformance.rs` contains shared integration-test conformance checks and example-file loading helpers.
 - `tests/languages.rs` is the integration-test entry point that wires all language suites and enforces slug/test-module parity.
 - `tests/<language>/` contains each language-specific suite.
 - `tests/<language>/mod.rs` wires that suite’s submodules.
 - `tests/<language>/mutations/` contains one Rust module per mutation slug (for example, `<SLUG>.rs`).
-- `tests/<language>/examples/` stores fixture sources used by tests.
+- Keep canonical example fixtures at `tests/<language>/example.<ext>` and exercise them in each language's `integration_tests.rs`.
+  - JavaScript is the exception: keep one canonical fixture per supported extension (for example `example.js`, `example.ts`, `example.jsx`, `example.tsx`).
 
 Some language suites also include broader behavior tests (for example integration, parser-focused, or comment-handling tests) alongside `mutations/`.
 
@@ -27,10 +29,6 @@ Common helpers currently include:
   - `target_fixture_for_filename(...)`
 - Mutant utilities:
   - `mutants_for_slug(...)`
-  - `slug_counts(...)`
-  - `slug_set(...)`
-  - `first_mutant_with_slug(...)`
-  - `sort_by_byte_offset(...)`
 - Shared assertion primitive:
   - `assert_only_slug_and_expected_new_texts(...)`
 
@@ -38,6 +36,7 @@ Common helpers currently include:
 
 - In each language integration module, keep a small wrapper API (for example `create_test_target(...)`) that delegates to `tests/utils`.
 - Keep wrappers only for language-specific concerns (engine construction, default extension, filename selection).
+- Run the shared integration conformance harness from `tests/conformance.rs` before adding language-specific integration assertions.
 - Call shared assertion/mutant helpers from wrappers rather than duplicating logic in each suite.
 
 ## Per-Language Module Structure
@@ -62,7 +61,7 @@ Whenever you add a new suite file, add it to the corresponding `mod.rs` so it co
 
 ### B) Adding a new language test suite
 
-1. Create `tests/<language>/` with `mod.rs`, `integration_tests.rs`, `mutations/`, and optional `examples/`.
+1. Create `tests/<language>/` with `mod.rs`, `integration_tests.rs`, `mutations/`, and an `example.<ext>` fixture (or multiple `example.*` fixtures for JavaScript extensions).
 2. In `tests/languages.rs`, include the new suite module and keep shared helpers:
    - `#[path = "utils.rs"] mod utils;`
    - `mod <language>;`

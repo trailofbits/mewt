@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::Path;
 
 use mewt::LanguageEngine;
@@ -141,31 +141,4 @@ pub fn assert_only_slug_and_expected_new_texts(
             "missing expected {slug} mutant containing: {expected}"
         );
     }
-}
-
-/// Count how many mutants share each slug.
-pub fn slug_counts(mutants: &[Mutant]) -> HashMap<String, usize> {
-    let mut counts = HashMap::new();
-    for mutant in mutants {
-        *counts.entry(mutant.mutation_slug.clone()).or_default() += 1;
-    }
-    counts
-}
-
-/// Collect distinct slugs present in the mutant set.
-pub fn slug_set(mutants: &[Mutant]) -> HashSet<String> {
-    mutants.iter().map(|m| m.mutation_slug.clone()).collect()
-}
-
-/// Return the first mutant (ordered by byte offset) for a slug.
-pub fn first_mutant_with_slug<'a>(mutants: &'a [Mutant], slug: &str) -> Option<&'a Mutant> {
-    mutants
-        .iter()
-        .filter(|m| m.mutation_slug == slug)
-        .min_by_key(|m| m.byte_offset)
-}
-
-/// Sort mutants in place by byte offset.
-pub fn sort_by_byte_offset(mutants: &mut [Mutant]) {
-    mutants.sort_by_key(|m| m.byte_offset);
 }
