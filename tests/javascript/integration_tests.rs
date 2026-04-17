@@ -3,15 +3,15 @@ use crate::utils;
 use mewt::LanguageEngine;
 use mewt::languages::javascript::engine::JavaScriptLanguageEngine;
 use mewt::types::Target;
-use std::collections::HashSet;
 
 pub(crate) fn create_test_target(content: &str, filename: &str) -> (tempfile::TempDir, Target) {
     utils::target_fixture_for_filename("JavaScript", filename, content).into_parts()
 }
 
 #[test]
-fn test_basic_javascript_mutations() {
-    let source = r#"
+fn javascript_common_conformance_checks() {
+    let sources = conformance::CommonConformanceSources {
+        basic_source: r#"
 function testFunc() {
     const x = 42;
     if (x > 0) {
@@ -19,15 +19,82 @@ function testFunc() {
     }
     return 0;
 }
-"#;
-    let (_temp_dir, target) = create_test_target(source, "test.js");
-    let engine = JavaScriptLanguageEngine::new();
-    let mutants = engine.mutate(&target);
+"#,
+        comment_source: r#"
+function testFunc() {
+    // This is a comment
+    const x = 42;
+    if (x > 0) {
+        return x;
+    }
+    return 0;
+}
+"#,
+        complex_source: r#"
+class Counter {
+    constructor() {
+        this.value = 0;
+    }
 
-    assert!(!mutants.is_empty(), "Should generate mutations");
+    increment() {
+        this.value += 1;
+        return this.value;
+    }
 
-    let slugs: HashSet<_> = mutants.iter().map(|m| &m.mutation_slug[..2]).collect();
-    assert!(slugs.len() > 1, "Should generate diverse mutation types");
+    process(values) {
+        if (!values || values.length === 0) {
+            throw new Error("empty values");
+        }
+
+        let sum = 0;
+        for (const value of values) {
+            sum += value;
+        }
+
+        return sum;
+    }
+}
+
+function main() {
+    const counter = new Counter();
+    return counter.increment();
+}
+"#,
+        line_coverage_source: r#"
+function testFunc() {
+    const x = 42;
+    const y = x + 1;
+    if (x > 0) {
+        return x;
+    }
+    return y;
+}
+"#,
+    };
+
+    let expectations = conformance::CommonConformanceExpectations {
+        language_name: "JavaScript",
+        min_complex_mutants: 6,
+    };
+
+    conformance::run_common_language_checks(
+        |source| create_test_target(source, "test.js"),
+        || Box::new(JavaScriptLanguageEngine::new()),
+        sources,
+        expectations,
+    );
+}
+
+#[test]
+fn javascript_example_file_generates_mutants() {
+    let source = conformance::read_example_source("tests/javascript/example.js");
+    let (_tmp, target) = create_test_target(&source, "example.js");
+    let mutants = JavaScriptLanguageEngine::new().mutate(&target);
+
+    assert!(
+        !mutants.is_empty(),
+        "JavaScript example file should generate mutants"
+    );
 }
 
 #[test]
@@ -94,18 +161,6 @@ function calc(a, b) {
         "Should generate arithmetic operator mutations"
     );
     assert!(los_count > 0, "Should generate logical operator mutations");
-}
-
-#[test]
-fn javascript_example_file_generates_mutants() {
-    let source = conformance::read_example_source("tests/javascript/example.js");
-    let (_tmp, target) = create_test_target(&source, "example.js");
-    let mutants = JavaScriptLanguageEngine::new().mutate(&target);
-
-    assert!(
-        !mutants.is_empty(),
-        "JavaScript example file should generate mutants"
-    );
 }
 
 pub(crate) fn assert_only_slug_and_expected_new_texts(

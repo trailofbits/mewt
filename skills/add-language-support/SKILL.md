@@ -43,6 +43,10 @@ Use this skill when:
 
 **Per-Slug Mutation Tests**: Every mutation slug exposed by the engine must have a dedicated test module under `tests/<language>/mutations/<SLUG>.rs`. The guard test in `tests/languages.rs` enforces this convention. New languages must be wired into the guard before landing.
 
+**Integration Conformance First**: Every language `tests/<language>/integration_tests.rs` must run the shared conformance harness from `tests/conformance.rs`, then add language-specific integration assertions as needed.
+
+**Example Fixture Policy**: Keep canonical example fixtures at `tests/<language>/example.<ext>` (JavaScript may keep multiple canonical fixtures: `example.js`, `example.ts`, `example.jsx`, `example.tsx`). Integration tests should treat these as smoke checks (`!mutants.is_empty()`), while per-slug tests should use inline fixtures for precise assertions.
+
 **Verification Required**: Each phase has explicit exit criteria. Do not proceed to the next phase until all validation passes.
 
 ## When to Use
@@ -298,14 +302,14 @@ Use this skill when:
 
 1. Scaffold the test directories:
    ```bash
-   mkdir -p tests/<language>/examples
    mkdir -p tests/<language>/mutations
    ```
-   The mutation folder must contain one Rust module per slug (e.g., `tests/<language>/mutations/AOS.rs`).
+   The mutation folder must contain one Rust module per slug (for example `tests/<language>/mutations/AOS.rs`).
 
-2. Write the canonical example program (`tests/<language>/example.<ext>`):
-   - Include diverse constructs: if/else, loops, functions, variables, returns
-   - Keep it simple and valid syntax so it can feed both integration tests and CLI demos
+2. Write canonical example fixture(s):
+   - Most languages: `tests/<language>/example.<ext>`.
+   - JavaScript-family languages: one canonical fixture per supported extension (`example.js`, `example.ts`, `example.jsx`, `example.tsx`) as needed.
+   - Keep examples syntactically valid and representative, but small enough to stay smoke-test friendly.
 
 3. Wire the language into the integration test entrypoint (`tests/languages.rs`):
    ```rust
@@ -328,52 +332,26 @@ Use this skill when:
    mod aos;
    // Repeat for every slug returned by engine.get_mutations()
    ```
-   - Use uppercase filenames that match the slug (with `.rs` extension) and map them to lowercase module names via `#[path = ...]` where needed.
-   - Copy an existing language's mutations module as a template and adjust the slug list.
+   - Use uppercase filenames that match the slug (`<SLUG>.rs`) and map to lowercase module names via `#[path = ...]` where needed.
+   - Keep manual slug wiring in `mutations/mod.rs` in sync with files on disk.
 
 6. For each slug surfaced by `engine.get_mutations()`, create `tests/<language>/mutations/<SLUG>.rs`:
-   - Structure the test like the Rust/Go versions: arrange inputs, call `LanguageEngine::mutate`, filter by slug, and assert at least one mutant with the expected replacement tokens/structures.
-   - For operator families (AAOS/BAOS/SAOS/AOS/BOS/COS/LOS), cover every operator token supported by the grammar and assert both positive and negative cases (e.g., ensure forbidden replacements are rejected).
-   - Prefer helper functions or fixtures shared across slug modules instead of bespoke logic per test.
+   - Prefer inline source fixtures for precise, slug-focused assertions.
+   - Use integration helpers (`create_test_target`, shared slug assertion helpers) rather than duplicating setup code.
+   - For operator families (AAOS/BAOS/SAOS/AOS/BOS/COS/LOS), cover all supported operators and include negative cases where useful.
 
-7. Create `tests/<language>/integration_tests.rs` for higher-level sanity checks:
-   ```rust
-   use mewt::LanguageEngine;
-   use mewt::languages::<language>::engine::<Language>LanguageEngine;
-   use mewt::types::{Hash, Target};
-   use std::fs;
-   use tempfile::tempdir;
+7. Create `tests/<language>/integration_tests.rs` with this pattern:
+   - Define a thin `create_test_target(...)` wrapper that delegates to `tests/utils.rs`.
+   - Run `conformance::run_common_language_checks(...)` for baseline behavior.
+   - Add canonical example-file smoke tests (`!mutants.is_empty()`).
+   - Add only language-specific integration assertions beyond conformance (for example parser edge cases).
 
-   fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
-       let temp_dir = tempdir().expect("Failed to create temp directory");
-       let file_path = temp_dir.path().join("test.<ext>");
-       fs::write(&file_path, content).expect("Failed to write test file");
-
-       (temp_dir, Target {
-           id: 1,
-           path: file_path.clone(),
-           file_hash: Hash::digest(content.to_string()),
-           text: content.to_string(),
-           language: "<Language>".to_string(),
-       })
-   }
-
-   #[test]
-   fn smoke_test_mutation_generation() {
-       let source = "if (true) { return 42; }";
-       let (_temp_dir, target) = create_test_target(source);
-       let engine = <Language>LanguageEngine::new();
-       let mutants = engine.mutate(&target);
-       assert!(!mutants.is_empty(), "Should generate mutations");
-   }
-   ```
-   - Add targeted regression tests that cover language-specific parsing edge cases (e.g., optional semicolons, pattern matching, etc.).
-
-8. Update the guard in `tests/languages.rs` so the new language participates in the per-slug coverage check. Import the engine and add a `check_language` invocation mirroring the existing ones.
+8. Update the guard in `tests/languages.rs` so the new language participates in per-slug coverage checks (import the engine and add a `check_language(...)` call).
 
 **Exit Criteria**:
-- [ ] Example program created with diverse syntax
+- [ ] Canonical example fixture(s) created at `tests/<language>/example.<ext>` (or JavaScript `example.*` set)
 - [ ] Integration and per-slug test modules compiled into `tests/languages.rs`
+- [ ] `tests/<language>/integration_tests.rs` runs `run_common_language_checks(...)`
 - [ ] Every slug exposed by the engine has a dedicated test module under `tests/<language>/mutations`
 - [ ] Guard test passes without missing or unexpected modules
 - [ ] `cargo test` (or `just test`) passes the full suite

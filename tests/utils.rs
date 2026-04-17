@@ -1,7 +1,4 @@
-#![allow(dead_code)]
-
 use std::collections::HashSet;
-use std::path::Path;
 
 use mewt::LanguageEngine;
 use mewt::types::{Hash, Mutant, Target};
@@ -39,11 +36,6 @@ impl TargetFixture {
         Self::from_filename(language, &filename, source)
     }
 
-    /// Borrow the underlying [`Target`].
-    pub fn target(&self) -> &Target {
-        &self.target
-    }
-
     /// Consume the fixture, returning the owned [`Target`].
     pub fn into_target(self) -> Target {
         self.target
@@ -52,21 +44,6 @@ impl TargetFixture {
     /// Consume the fixture, returning both [`TempDir`] and [`Target`].
     pub fn into_parts(self) -> (TempDir, Target) {
         (self.temp_dir, self.target)
-    }
-
-    /// Borrow the [`TempDir`] keeping the source file alive.
-    pub fn temp_dir(&self) -> &TempDir {
-        &self.temp_dir
-    }
-
-    /// Return the on-disk path for the target file.
-    pub fn path(&self) -> &Path {
-        self.target.path.as_path()
-    }
-
-    /// Borrow the original source text.
-    pub fn text(&self) -> &str {
-        &self.target.text
     }
 }
 

@@ -3,7 +3,6 @@ use crate::utils;
 use mewt::LanguageEngine;
 use mewt::languages::solidity::engine::SolidityLanguageEngine;
 use mewt::types::{Mutant, Target};
-use std::collections::{HashMap, HashSet};
 
 /// Helper to create a temporary Solidity target for tests.
 pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
@@ -29,8 +28,9 @@ pub(crate) fn assert_only_slug_and_expected_new_texts(
 }
 
 #[test]
-fn test_basic_solidity_mutations() {
-    let source = r#"
+fn solidity_common_conformance_checks() {
+    let sources = conformance::CommonConformanceSources {
+        basic_source: r#"
 pragma solidity ^0.8.0;
 
 contract Test {
@@ -41,23 +41,8 @@ contract Test {
         return 0;
     }
 }
-"#;
-    let (_tmp, target) = create_test_target(source);
-    let engine = SolidityLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    assert!(!mutants.is_empty(), "Should generate mutations");
-
-    let slugs: HashSet<_> = mutants
-        .iter()
-        .map(|m| m.mutation_slug.chars().take(2).collect::<String>())
-        .collect();
-    assert!(slugs.len() > 1, "Should generate diverse mutation types");
-}
-
-#[test]
-fn test_solidity_mutations_skip_comment_only_lines() {
-    let source = r#"
+"#,
+        comment_source: r#"
 pragma solidity ^0.8.0;
 
 contract Test {
@@ -69,25 +54,8 @@ contract Test {
         return 0;
     }
 }
-"#;
-    let (_tmp, target) = create_test_target(source);
-    let engine = SolidityLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    let comment_mutations = mutants
-        .iter()
-        .filter(|m| m.old_text.trim_start().starts_with("//"))
-        .count();
-
-    assert_eq!(
-        comment_mutations, 0,
-        "Mutations should not target comment-only lines"
-    );
-}
-
-#[test]
-fn test_solidity_engine_handles_complex_contracts() {
-    let source = r#"
+"#,
+        complex_source: r#"
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
@@ -129,27 +97,8 @@ contract ComplexToken is ERC20, Ownable {
         emit MaxTransferAmountUpdated(_maxTransferAmount);
     }
 }
-"#;
-    let (_tmp, target) = create_test_target(source);
-    let engine = SolidityLanguageEngine::new();
-    let result = std::panic::catch_unwind(|| engine.mutate(&target));
-
-    assert!(
-        result.is_ok(),
-        "Solidity engine should handle complex contracts without panicking"
-    );
-
-    if let Ok(mutants) = result {
-        assert!(
-            mutants.len() > 10,
-            "Complex contracts should yield many mutations"
-        );
-    }
-}
-
-#[test]
-fn test_solidity_mutations_cover_multiple_lines() {
-    let source = r#"
+"#,
+        line_coverage_source: r#"
 pragma solidity ^0.8.0;
 
 contract Test {
@@ -161,22 +110,19 @@ contract Test {
         return y;
     }
 }
-"#;
-    let (_tmp, target) = create_test_target(source);
-    let engine = SolidityLanguageEngine::new();
-    let mutants = engine.mutate(&target);
+"#,
+    };
 
-    let mut lines: HashMap<usize, Vec<String>> = HashMap::new();
-    for mutant in &mutants {
-        lines
-            .entry(mutant.line_offset as usize)
-            .or_default()
-            .push(mutant.mutation_slug.clone());
-    }
+    let expectations = conformance::CommonConformanceExpectations {
+        language_name: "Solidity",
+        min_complex_mutants: 10,
+    };
 
-    assert!(
-        lines.len() > 1,
-        "Mutations should touch multiple lines for reasonable coverage"
+    conformance::run_common_language_checks(
+        create_test_target,
+        || Box::new(SolidityLanguageEngine::new()),
+        sources,
+        expectations,
     );
 }
 

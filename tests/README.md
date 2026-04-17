@@ -36,7 +36,9 @@ Common helpers currently include:
 
 - In each language integration module, keep a small wrapper API (for example `create_test_target(...)`) that delegates to `tests/utils`.
 - Keep wrappers only for language-specific concerns (engine construction, default extension, filename selection).
-- Run the shared integration conformance harness from `tests/conformance.rs` before adding language-specific integration assertions.
+- Every language `integration_tests.rs` should run the shared conformance harness from `tests/conformance.rs`.
+- Keep canonical example-file checks in `integration_tests.rs` as smoke tests (`!mutants.is_empty()`).
+- Keep per-slug mutation tests focused on inline strings and slug-specific assertions (do not rely on canonical example files there).
 - Call shared assertion/mutant helpers from wrappers rather than duplicating logic in each suite.
 
 ## Per-Language Module Structure
@@ -54,21 +56,23 @@ Whenever you add a new suite file, add it to the corresponding `mod.rs` so it co
 
 1. Generate or inspect mutants for the language engine you are changing.
 2. Add or update `tests/<language>/mutations/<SLUG>.rs`.
-3. Keep fixtures minimal and deterministic.
+3. Keep fixtures minimal, deterministic, and inline in the slug test.
 4. Use existing language integration wrappers (which should delegate into `tests/utils`).
-5. If behavior outside a single slug changes, also update broader suites (integration/parser/comment/regression tests).
-6. Run `just test` and `just pre-commit` before submitting.
+5. Keep slug tests focused on slug behavior; use integration tests for language-wide sanity/smoke coverage.
+6. If behavior outside a single slug changes, also update broader suites (integration/parser/comment/regression tests).
+7. Run `just test` and `just pre-commit` before submitting.
 
 ### B) Adding a new language test suite
 
 1. Create `tests/<language>/` with `mod.rs`, `integration_tests.rs`, `mutations/`, and an `example.<ext>` fixture (or multiple `example.*` fixtures for JavaScript extensions).
-2. In `tests/languages.rs`, include the new suite module and keep shared helpers:
-   - `#[path = "utils.rs"] mod utils;`
+2. In `tests/languages.rs`, include the new suite module:
    - `mod <language>;`
 3. Implement thin language wrappers in `integration_tests.rs` that delegate to `tests/utils`.
-4. Add one `mutations/<SLUG>.rs` module per supported slug.
-5. Ensure slug/test parity passes via the guard test in `tests/languages.rs`.
-6. Run `just test` and `just pre-commit`.
+4. In `integration_tests.rs`, run the shared conformance harness from `tests/conformance.rs`.
+5. In `integration_tests.rs`, add canonical example-file smoke tests (`!mutants.is_empty()`).
+6. Add one `mutations/<SLUG>.rs` module per supported slug and wire it in `tests/<language>/mutations/mod.rs`.
+7. Ensure slug/test parity passes via the guard test in `tests/languages.rs`.
+8. Run `just test` and `just pre-commit`.
 
 ## Slug Coverage Guardrail
 
