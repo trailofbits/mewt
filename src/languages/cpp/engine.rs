@@ -487,7 +487,7 @@ fn cpp_type_default(type_text: &str, is_pointer: bool) -> Option<&'static str> {
     // Split into words for keyword matching to avoid false positives
     // (e.g., "Point" contains "int" but is not an integer type)
     let words: Vec<&str> = t.split_whitespace().collect();
-    let has_word = |word: &str| words.iter().any(|w| *w == word);
+    let has_word = |word: &str| words.contains(&word);
 
     // Floating-point: "float", "double", "long double"
     if has_word("double") || has_word("float") {

@@ -1,16 +1,4 @@
-use crate::cpp::integration_tests::create_test_target;
-use mewt::LanguageEngine;
-use mewt::languages::cpp::engine::CppLanguageEngine;
-use mewt::types::Mutant;
-
-fn slug_mutants(source: &str) -> Vec<Mutant> {
-    let (_tmp, target) = create_test_target(source);
-    CppLanguageEngine::new()
-        .mutate(&target)
-        .into_iter()
-        .filter(|m| m.mutation_slug == "AS")
-        .collect()
-}
+use crate::cpp::integration_tests::mutants_for_slug;
 
 #[test]
 fn test_as_replacement_content() {
@@ -20,7 +8,7 @@ int main() {
     return add(10, 20);
 }
 "#;
-    let as_mut = slug_mutants(source);
+    let as_mut = mutants_for_slug(source, "AS");
     assert_eq!(
         as_mut.len(),
         1,
@@ -31,7 +19,6 @@ int main() {
         "AS old_text should contain both args: {:?}",
         as_mut[0].old_text
     );
-    // Swapped: 20, 10 instead of 10, 20
     assert!(
         as_mut[0].new_text.starts_with("20") && as_mut[0].new_text.ends_with("10"),
         "AS should swap argument order: {:?}",

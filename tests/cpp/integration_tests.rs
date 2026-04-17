@@ -9,6 +9,22 @@ pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
     utils::target_fixture_for_extension("C++", "cpp", content).into_parts()
 }
 
+pub(crate) fn mutants_for_slug(source: &str, slug: &str) -> Vec<Mutant> {
+    let (_tmp, target) = create_test_target(source);
+    let engine = CppLanguageEngine::new();
+    utils::mutants_for_slug(&engine, &target, slug)
+}
+
+pub(crate) fn assert_only_slug_and_expected_new_texts(
+    source: &str,
+    slug: &str,
+    expected_new_texts: &[&str],
+) {
+    let (_tmp, target) = create_test_target(source);
+    let engine = CppLanguageEngine::new();
+    utils::assert_only_slug_and_expected_new_texts(&engine, &target, slug, expected_new_texts);
+}
+
 #[test]
 fn cpp_common_conformance_checks() {
     let sources = conformance::CommonConformanceSources {

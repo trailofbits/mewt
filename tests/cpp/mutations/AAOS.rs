@@ -1,16 +1,6 @@
-use crate::cpp::integration_tests::create_test_target;
+use crate::cpp::integration_tests::{assert_only_slug_and_expected_new_texts, create_test_target};
 use mewt::LanguageEngine;
 use mewt::languages::cpp::engine::CppLanguageEngine;
-use mewt::types::Mutant;
-
-fn slug_mutants(source: &str) -> Vec<Mutant> {
-    let (_tmp, target) = create_test_target(source);
-    CppLanguageEngine::new()
-        .mutate(&target)
-        .into_iter()
-        .filter(|m| m.mutation_slug == "AAOS")
-        .collect()
-}
 
 #[test]
 fn test_aaos_replacement_content() {
@@ -20,22 +10,8 @@ void f() {
     x += 5;
 }
 "#;
-    let aaos = slug_mutants(source);
-    assert_eq!(
-        aaos.len(),
-        4,
-        "AAOS should produce 4 replacements for +=: {aaos:?}"
-    );
-    assert!(
-        aaos.iter().all(|m| m.old_text == "+="),
-        "All should replace +="
-    );
-    let new_ops: std::collections::HashSet<_> = aaos.iter().map(|m| m.new_text.as_str()).collect();
-    assert_eq!(
-        new_ops,
-        ["-=", "*=", "/=", "%="].into_iter().collect(),
-        "Should replace += with all other arithmetic assignment operators"
-    );
+
+    assert_only_slug_and_expected_new_texts(source, "AAOS", &["-=", "*=", "/=", "%="]);
 }
 
 #[test]

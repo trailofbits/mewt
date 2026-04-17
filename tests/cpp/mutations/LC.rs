@@ -1,15 +1,10 @@
-use crate::cpp::integration_tests::create_test_target;
+use crate::cpp::integration_tests::{create_test_target, mutants_for_slug};
 use mewt::LanguageEngine;
 use mewt::languages::cpp::engine::CppLanguageEngine;
 use mewt::types::Mutant;
 
 fn slug_mutants(source: &str) -> Vec<Mutant> {
-    let (_tmp, target) = create_test_target(source);
-    CppLanguageEngine::new()
-        .mutate(&target)
-        .into_iter()
-        .filter(|m| m.mutation_slug == "LC")
-        .collect()
+    mutants_for_slug(source, "LC")
 }
 
 #[test]
