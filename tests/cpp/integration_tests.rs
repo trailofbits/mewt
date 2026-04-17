@@ -1,10 +1,10 @@
 use mewt::LanguageEngine;
 use mewt::languages::cpp::engine::CppLanguageEngine;
-use mewt::types::Target;
+use mewt::types::{Mutant, Target};
 use std::collections::HashSet;
 use tempfile::tempdir;
 
-fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
+pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
     let temp_dir = tempdir().expect("Failed to create temp directory");
     let file_path = temp_dir.path().join("test.cpp");
     std::fs::write(&file_path, content).expect("Failed to write test file");
@@ -38,124 +38,6 @@ int add(int a, int b) {
     assert!(slugs.contains("ER"), "Should generate ER mutations");
     assert!(slugs.contains("CR"), "Should generate CR mutations");
     assert!(slugs.contains("AOS"), "Should generate AOS mutations");
-}
-
-#[test]
-fn test_conditional_mutations() {
-    let source = r#"
-int abs_val(int x) {
-    if (x < 0) {
-        return -x;
-    }
-    return x;
-}
-"#;
-    let (_dir, target) = create_test_target(source);
-    let engine = CppLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    let slugs: HashSet<_> = mutants.iter().map(|m| m.mutation_slug.as_str()).collect();
-    assert!(slugs.contains("IF"), "Should generate IF mutations");
-    assert!(slugs.contains("IT"), "Should generate IT mutations");
-    assert!(slugs.contains("COS"), "Should generate COS mutations");
-}
-
-#[test]
-fn test_loop_mutations() {
-    let source = r#"
-int sum(int n) {
-    int total = 0;
-    while (n > 0) {
-        total += n;
-        n--;
-    }
-    return total;
-}
-"#;
-    let (_dir, target) = create_test_target(source);
-    let engine = CppLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    let slugs: HashSet<_> = mutants.iter().map(|m| m.mutation_slug.as_str()).collect();
-    assert!(slugs.contains("WF"), "Should generate WF mutations");
-    assert!(slugs.contains("AAOS"), "Should generate AAOS mutations");
-}
-
-#[test]
-fn test_boolean_and_logical_mutations() {
-    let source = r#"
-bool check(bool a, bool b) {
-    if (a && b) {
-        return true;
-    }
-    return false;
-}
-"#;
-    let (_dir, target) = create_test_target(source);
-    let engine = CppLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    let slugs: HashSet<_> = mutants.iter().map(|m| m.mutation_slug.as_str()).collect();
-    assert!(slugs.contains("BL"), "Should generate BL mutations");
-    assert!(slugs.contains("LOS"), "Should generate LOS mutations");
-}
-
-#[test]
-fn test_bitwise_mutations() {
-    let source = r#"
-int bitops(int a, int b) {
-    int x = a & b;
-    int y = a | b;
-    int z = a << 2;
-    return x + y + z;
-}
-"#;
-    let (_dir, target) = create_test_target(source);
-    let engine = CppLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    let slugs: HashSet<_> = mutants.iter().map(|m| m.mutation_slug.as_str()).collect();
-    assert!(slugs.contains("BOS"), "Should generate BOS mutations");
-    assert!(slugs.contains("SOS"), "Should generate SOS mutations");
-}
-
-#[test]
-fn test_negation_removal() {
-    let source = r#"
-bool check(bool flag) {
-    if (!flag) {
-        return false;
-    }
-    return true;
-}
-"#;
-    let (_dir, target) = create_test_target(source);
-    let engine = CppLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    let nr: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "NR").collect();
-    assert_eq!(nr.len(), 1, "Should generate exactly 1 NR mutation");
-    assert_eq!(nr[0].old_text, "!flag");
-    assert_eq!(nr[0].new_text, "flag");
-}
-
-#[test]
-fn test_argument_swap() {
-    let source = r#"
-int add(int a, int b) { return a + b; }
-int main() {
-    return add(1, 2);
-}
-"#;
-    let (_dir, target) = create_test_target(source);
-    let engine = CppLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    let as_mutants: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "AS").collect();
-    assert!(
-        !as_mutants.is_empty(),
-        "Should generate AS mutations for function calls with multiple args"
-    );
 }
 
 #[test]
@@ -260,4 +142,256 @@ fn test_example_file() {
             slug
         );
     }
+}
+
+#[test]
+fn no_mutations_inside_comments() {
+    let source = r#"
+// if (true) { return 42; }
+// int x = 1 + 2;
+/* if (a == 3) { return a; } */
+int main() {
+    return 0;
+}
+"#;
+    let (_dir, target) = create_test_target(source);
+    let engine = CppLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    for m in &mutants {
+        let old = m.old_text.trim();
+        assert!(
+            !old.starts_with("//") && !old.starts_with("/*") && !old.ends_with("*/"),
+            "mutated inside comment: slug={} old_text={:?}",
+            m.mutation_slug,
+            m.old_text
+        );
+    }
+}
+
+#[test]
+fn test_template_function_mutations() {
+    let source = r#"
+template<typename T>
+T max_val(T a, T b) {
+    if (a > b) {
+        return a;
+    }
+    return b;
+}
+"#;
+    let (_dir, target) = create_test_target(source);
+    let engine = CppLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    let slugs: HashSet<_> = mutants.iter().map(|m| m.mutation_slug.as_str()).collect();
+    assert!(
+        slugs.contains("COS"),
+        "Should generate COS mutations inside template functions"
+    );
+    assert!(
+        slugs.contains("IF"),
+        "Should generate IF mutations inside template functions"
+    );
+    assert!(
+        slugs.contains("ER"),
+        "Should generate ER mutations inside template functions"
+    );
+}
+
+#[test]
+fn test_namespace_and_class_mutations() {
+    let source = r#"
+namespace ns {
+class Widget {
+public:
+    int compute(int a, int b) {
+        if (a > b) {
+            return a - b;
+        }
+        return a + b;
+    }
+};
+}
+"#;
+    let (_dir, target) = create_test_target(source);
+    let engine = CppLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    let slugs: HashSet<_> = mutants.iter().map(|m| m.mutation_slug.as_str()).collect();
+    assert!(
+        slugs.contains("AOS"),
+        "Should generate AOS mutations inside class methods"
+    );
+    assert!(
+        slugs.contains("IF"),
+        "Should generate IF mutations inside namespaced class methods"
+    );
+}
+
+#[test]
+fn test_different_extensions() {
+    // Verify the engine claims the right extensions
+    let engine = CppLanguageEngine::new();
+    let exts = engine.extensions();
+    assert!(exts.contains(&"cpp"), "Should support .cpp");
+    assert!(exts.contains(&"cc"), "Should support .cc");
+    assert!(exts.contains(&"cxx"), "Should support .cxx");
+    assert!(exts.contains(&"hpp"), "Should support .hpp");
+    assert!(exts.contains(&"hxx"), "Should support .hxx");
+}
+
+#[test]
+fn test_preprocessor_directives_not_mutated() {
+    let source = r#"
+#define MAX_SIZE 100
+#if MAX_SIZE > 50
+int big = 1;
+#endif
+int main() {
+    return 0;
+}
+"#;
+    let (_dir, target) = create_test_target(source);
+    let engine = CppLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    // Mutations inside preprocessor conditions (#if MAX_SIZE > 50) should not be
+    // generated — tree-sitter treats these as preproc_if nodes, not regular
+    // if_statements. Document the actual behavior.
+    let preproc_mutants: Vec<&Mutant> = mutants
+        .iter()
+        .filter(|m| m.old_text.contains("MAX_SIZE") || m.old_text.contains("#"))
+        .collect();
+    assert!(
+        preproc_mutants.is_empty(),
+        "Should not generate mutations for preprocessor directives: {preproc_mutants:?}"
+    );
+}
+
+#[test]
+fn test_lambda_mutations() {
+    let source = r#"
+void f() {
+    auto check = [](int x) {
+        if (x > 0) {
+            return true;
+        }
+        return false;
+    };
+}
+"#;
+    let (_dir, target) = create_test_target(source);
+    let engine = CppLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    let slugs: HashSet<_> = mutants.iter().map(|m| m.mutation_slug.as_str()).collect();
+    assert!(
+        slugs.contains("COS"),
+        "Should generate COS mutations inside lambdas"
+    );
+    assert!(
+        slugs.contains("BL"),
+        "Should generate BL mutations inside lambdas"
+    );
+    assert!(
+        slugs.contains("IF"),
+        "Should generate IF mutations inside lambdas"
+    );
+}
+
+#[test]
+fn test_nested_conditionals() {
+    let source = r#"
+bool check(int a, int b, int c) {
+    if (a > 0 && (b > 0 || c < 10)) {
+        return true;
+    }
+    return false;
+}
+"#;
+    let (_dir, target) = create_test_target(source);
+    let engine = CppLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    let cos: Vec<&Mutant> = mutants
+        .iter()
+        .filter(|m| m.mutation_slug == "COS")
+        .collect();
+    let los: Vec<&Mutant> = mutants
+        .iter()
+        .filter(|m| m.mutation_slug == "LOS")
+        .collect();
+
+    // Three comparisons: a > 0, b > 0, c < 10
+    assert!(
+        cos.len() >= 3 * 5,
+        "Should generate COS mutants for each of the 3 comparisons (5 replacements each), got {}",
+        cos.len()
+    );
+    // Two logical operators: && and ||
+    assert!(
+        los.len() >= 2,
+        "Should generate LOS mutants for both && and ||, got {}",
+        los.len()
+    );
+}
+
+#[test]
+fn test_empty_function_no_mutations() {
+    let source = r#"
+void f() {}
+"#;
+    let (_dir, target) = create_test_target(source);
+    let engine = CppLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    assert!(
+        mutants.is_empty(),
+        "Empty function body should produce zero mutations: {mutants:?}"
+    );
+}
+
+#[test]
+fn test_multiple_slugs_on_same_statement() {
+    let source = r#"
+bool f(int a, int b) {
+    return a > b;
+}
+"#;
+    let (_dir, target) = create_test_target(source);
+    let engine = CppLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    // The return statement should get ER, CR, and the expression should get COS
+    let slugs: HashSet<_> = mutants.iter().map(|m| m.mutation_slug.as_str()).collect();
+    assert!(slugs.contains("ER"), "Should have ER on the return");
+    assert!(slugs.contains("CR"), "Should have CR on the return");
+    assert!(slugs.contains("COS"), "Should have COS on the comparison");
+}
+
+#[test]
+fn test_static_assert_not_mutated() {
+    let source = r#"
+static_assert(sizeof(int) == 4, "int must be 4 bytes");
+int main() { return 0; }
+"#;
+    let (_dir, target) = create_test_target(source);
+    let engine = CppLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    // static_assert is a static_assert_declaration, not an if_statement or
+    // expression_statement. The condition should not get IF/IT mutations.
+    // COS may mutate the == inside it — that's fine (it's a binary_expression).
+    // But IF/IT should NOT fire.
+    let if_mutants: Vec<&Mutant> = mutants
+        .iter()
+        .filter(|m| {
+            (m.mutation_slug == "IF" || m.mutation_slug == "IT") && m.old_text.contains("sizeof")
+        })
+        .collect();
+    assert!(
+        if_mutants.is_empty(),
+        "IF/IT should not target static_assert conditions: {if_mutants:?}"
+    );
 }
