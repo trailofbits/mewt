@@ -41,7 +41,7 @@ Use this skill when:
 
 **Common First**: Start with COMMON_MUTATIONS only. Add language-specific mutations only for unique constructs not covered by common patterns. Most languages need zero custom mutations.
 
-**Per-Slug Mutation Tests**: Every mutation slug exposed by the engine must have a dedicated test module under `tests/<language>/mutations/<SLUG>.rs`. The guard test (`tests/slug_module_guard.rs`) enforces this convention. New languages must be wired into the guard before landing.
+**Per-Slug Mutation Tests**: Every mutation slug exposed by the engine must have a dedicated test module under `tests/<language>/mutations/<SLUG>.rs`. The guard test in `tests/languages.rs` enforces this convention. New languages must be wired into the guard before landing.
 
 **Verification Required**: Each phase has explicit exit criteria. Do not proceed to the next phase until all validation passes.
 
@@ -307,7 +307,7 @@ Use this skill when:
    - Include diverse constructs: if/else, loops, functions, variables, returns
    - Keep it simple and valid syntax so it can feed both integration tests and CLI demos
 
-3. Create the outer test module (`tests/<language>_tests.rs`):
+3. Wire the language into the integration test entrypoint (`tests/languages.rs`):
    ```rust
    mod <language>;
    ```
@@ -369,11 +369,11 @@ Use this skill when:
    ```
    - Add targeted regression tests that cover language-specific parsing edge cases (e.g., optional semicolons, pattern matching, etc.).
 
-8. Update `tests/slug_module_guard.rs` so the new language participates in the per-slug coverage check. Import the engine and add a `check_language` invocation mirroring the existing ones.
+8. Update the guard in `tests/languages.rs` so the new language participates in the per-slug coverage check. Import the engine and add a `check_language` invocation mirroring the existing ones.
 
 **Exit Criteria**:
 - [ ] Example program created with diverse syntax
-- [ ] Integration and per-slug test modules compiled into `tests/<language>_tests.rs`
+- [ ] Integration and per-slug test modules compiled into `tests/languages.rs`
 - [ ] Every slug exposed by the engine has a dedicated test module under `tests/<language>/mutations`
 - [ ] Guard test passes without missing or unexpected modules
 - [ ] `cargo test` (or `just test`) passes the full suite

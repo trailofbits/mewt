@@ -7,16 +7,16 @@ The goal is to keep coverage focused, deterministic, and easy to extend.
 
 At a glance:
 
-- `tests/common/mod.rs` contains shared, language-agnostic test helpers.
+- `tests/utils.rs` contains shared, language-agnostic test helpers.
+- `tests/languages.rs` is the integration-test entry point that wires all language suites and enforces slug/test-module parity.
 - `tests/<language>/` contains each language-specific suite.
 - `tests/<language>/mod.rs` wires that suite’s submodules.
 - `tests/<language>/mutations/` contains one Rust module per mutation slug (for example, `<SLUG>.rs`).
 - `tests/<language>/examples/` stores fixture sources used by tests.
-- `tests/slug_module_guard.rs` enforces slug/test-module parity.
 
 Some language suites also include broader behavior tests (for example integration, parser-focused, or comment-handling tests) alongside `mutations/`.
 
-## Shared Helper Architecture (`tests/common`)
+## Shared Helper Architecture (`tests/utils.rs`)
 
 Use shared helpers first; avoid reimplementing fixture plumbing per language.
 
@@ -36,7 +36,7 @@ Common helpers currently include:
 
 ### Recommended usage pattern
 
-- In each language integration module, keep a small wrapper API (for example `create_test_target(...)`) that delegates to `tests/common`.
+- In each language integration module, keep a small wrapper API (for example `create_test_target(...)`) that delegates to `tests/utils`.
 - Keep wrappers only for language-specific concerns (engine construction, default extension, filename selection).
 - Call shared assertion/mutant helpers from wrappers rather than duplicating logic in each suite.
 
@@ -56,23 +56,24 @@ Whenever you add a new suite file, add it to the corresponding `mod.rs` so it co
 1. Generate or inspect mutants for the language engine you are changing.
 2. Add or update `tests/<language>/mutations/<SLUG>.rs`.
 3. Keep fixtures minimal and deterministic.
-4. Use existing language integration wrappers (which should delegate into `tests/common`).
+4. Use existing language integration wrappers (which should delegate into `tests/utils`).
 5. If behavior outside a single slug changes, also update broader suites (integration/parser/comment/regression tests).
 6. Run `just test` and `just pre-commit` before submitting.
 
 ### B) Adding a new language test suite
 
 1. Create `tests/<language>/` with `mod.rs`, `integration_tests.rs`, `mutations/`, and optional `examples/`.
-2. In `tests/<language>_tests.rs`, include shared helpers:
-   - `#[path = "common/mod.rs"] mod common;`
-3. Implement thin language wrappers in `integration_tests.rs` that delegate to `tests/common`.
+2. In `tests/languages.rs`, include the new suite module and keep shared helpers:
+   - `#[path = "utils.rs"] mod utils;`
+   - `mod <language>;`
+3. Implement thin language wrappers in `integration_tests.rs` that delegate to `tests/utils`.
 4. Add one `mutations/<SLUG>.rs` module per supported slug.
-5. Ensure slug/test parity passes via `tests/slug_module_guard.rs`.
+5. Ensure slug/test parity passes via the guard test in `tests/languages.rs`.
 6. Run `just test` and `just pre-commit`.
 
 ## Slug Coverage Guardrail
 
-`tests/slug_module_guard.rs` compares:
+The guard test in `tests/languages.rs` compares:
 
 - the mutation slugs registered by each language engine, and
 - the set of files present in `tests/<language>/mutations/`.

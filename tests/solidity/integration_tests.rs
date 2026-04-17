@@ -1,4 +1,4 @@
-use crate::common;
+use crate::utils;
 use mewt::LanguageEngine;
 use mewt::languages::solidity::engine::SolidityLanguageEngine;
 use mewt::types::{Mutant, Target};
@@ -6,14 +6,14 @@ use std::collections::{HashMap, HashSet};
 
 /// Helper to create a temporary Solidity target for tests.
 pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
-    common::target_fixture_for_extension("Solidity", "sol", content).into_parts()
+    utils::target_fixture_for_extension("Solidity", "sol", content).into_parts()
 }
 
 /// Collect all mutants for the given slug from a Solidity source string.
 pub(crate) fn mutants_for_slug(source: &str, slug: &str) -> Vec<Mutant> {
     let (_tmp, target) = create_test_target(source);
     let engine = SolidityLanguageEngine::new();
-    common::mutants_for_slug(&engine, &target, slug)
+    utils::mutants_for_slug(&engine, &target, slug)
 }
 
 /// Assert that only the provided slug produces specific snippets of text.
@@ -24,7 +24,7 @@ pub(crate) fn assert_only_slug_and_expected_new_texts(
 ) {
     let (_tmp, target) = create_test_target(source);
     let engine = SolidityLanguageEngine::new();
-    common::assert_only_slug_and_expected_new_texts(&engine, &target, slug, expected_new_texts);
+    utils::assert_only_slug_and_expected_new_texts(&engine, &target, slug, expected_new_texts);
 }
 
 #[test]
@@ -177,4 +177,59 @@ contract Test {
         lines.len() > 1,
         "Mutations should touch multiple lines for reasonable coverage"
     );
+}
+
+fn solidity_target_from_source(source: &str) -> Target {
+    utils::target_fixture_for_extension("Solidity", "sol", source).into_target()
+}
+
+#[test]
+fn solidity_mutations_ignore_comment_regions() {
+    let source = r#"
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract TestContract {
+    // if (true) { revert("test"); }
+    /* let x = 1 + 2; */
+    uint256 public value;
+
+    function setValue(uint256 _value) public {
+        // Some comment
+        value = _value;
+        /* Another comment */
+        if (value > 0) {
+            emit ValueSet(value);
+        }
+    }
+
+    event ValueSet(uint256 value);
+}
+"#;
+
+    // NOTE: Keep this list in sync with source above.
+    // Lines are 0-based and refer to fully-commented lines only.
+    let commented_lines: &[usize] = &[1, 5, 6, 10, 12];
+
+    let target = solidity_target_from_source(source);
+    let engine = SolidityLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    // Ensure none of the mutants originate from commented content (line or block)
+    for m in &mutants {
+        let line = m.line_offset as usize;
+        assert!(
+            !commented_lines.contains(&line),
+            "mutated on commented line: slug={} line={} mutant={}",
+            m.mutation_slug,
+            line,
+            m.display(&target),
+        );
+    }
+
+    // Ensure CR does not double-wrap block-commented content
+    let cr_nested = mutants
+        .iter()
+        .any(|m| m.mutation_slug == "CR" && m.new_text.contains("/* /*"));
+    assert!(!cr_nested, "CR should not double-wrap commented content");
 }

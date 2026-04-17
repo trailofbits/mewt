@@ -1,4 +1,4 @@
-use crate::common;
+use crate::utils;
 use mewt::LanguageEngine;
 use mewt::languages::go::engine::GoLanguageEngine;
 use mewt::types::Target;
@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 
 /// Helper to create test target
 pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
-    common::target_fixture_for_extension("Go", "go", content).into_parts()
+    utils::target_fixture_for_extension("Go", "go", content).into_parts()
 }
 
 #[test]
@@ -192,5 +192,5 @@ pub(crate) fn assert_only_slug_and_expected_new_texts(
 ) {
     let (_tmp, target) = create_test_target(source);
     let engine = GoLanguageEngine::new();
-    common::assert_only_slug_and_expected_new_texts(&engine, &target, slug, expected_new_texts);
+    utils::assert_only_slug_and_expected_new_texts(&engine, &target, slug, expected_new_texts);
 }

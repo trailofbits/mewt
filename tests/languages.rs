@@ -1,3 +1,12 @@
+#[path = "utils.rs"]
+mod utils;
+
+mod go;
+mod javascript;
+mod rust;
+mod solidity;
+mod sui_move;
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;

@@ -1,17 +1,17 @@
-use crate::common;
+use crate::utils;
 use mewt::LanguageEngine;
 use mewt::languages::sui_move::engine::MoveLanguageEngine;
 use mewt::types::{Mutant, Target};
 use std::collections::{HashMap, HashSet};
 
 pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
-    common::target_fixture_for_extension("SuiMove", "move", content).into_parts()
+    utils::target_fixture_for_extension("SuiMove", "move", content).into_parts()
 }
 
 pub(crate) fn mutants_for_slug(source: &str, slug: &str) -> Vec<Mutant> {
     let (_tmp, target) = create_test_target(source);
     let engine = MoveLanguageEngine::new();
-    common::mutants_for_slug(&engine, &target, slug)
+    utils::mutants_for_slug(&engine, &target, slug)
 }
 
 pub(crate) fn assert_only_slug_and_expected_new_texts(
@@ -21,7 +21,7 @@ pub(crate) fn assert_only_slug_and_expected_new_texts(
 ) {
     let (_tmp, target) = create_test_target(source);
     let engine = MoveLanguageEngine::new();
-    common::assert_only_slug_and_expected_new_texts(&engine, &target, slug, expected_new_texts);
+    utils::assert_only_slug_and_expected_new_texts(&engine, &target, slug, expected_new_texts);
 }
 
 #[test]
