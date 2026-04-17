@@ -87,4 +87,9 @@ pub const COMMON_MUTATIONS: &[Mutation] = &[
         description: "Negation Removal: Remove logical negation operator (!x -> x)",
         severity: MutationSeverity::Medium,
     },
+    Mutation {
+        slug: "GER",
+        description: "Generalized Early Return: Replace a statement with an immediate type-appropriate return",
+        severity: MutationSeverity::Medium,
+    },
 ];

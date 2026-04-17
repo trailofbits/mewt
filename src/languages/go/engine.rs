@@ -249,6 +249,26 @@ impl LanguageEngine for GoLanguageEngine {
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "NR")),
                 ),
+                "GER" => all_mutants.extend(
+                    patterns::replace_with_early_return(
+                        root,
+                        source,
+                        &[
+                            nodes::EXPRESSION_STATEMENT,
+                            nodes::IF_STATEMENT,
+                            nodes::FOR_STATEMENT,
+                            nodes::ASSIGNMENT_STATEMENT,
+                            nodes::SHORT_VAR_DECLARATION,
+                            nodes::INC_STATEMENT,
+                            nodes::DEC_STATEMENT,
+                        ],
+                        &go_enclosing_function,
+                        &|func, src| go_early_return_replacement(func, src),
+                        &|_, _| true,
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "GER")),
+                ),
                 // Mutations not applicable to Go
                 "WF" | "RZ" => {
                     // Go has no `while` keyword (`WF`); `RZ` is a dead slug not in any mutation list.
@@ -259,6 +279,71 @@ impl LanguageEngine for GoLanguageEngine {
             }
         }
         all_mutants
+    }
+}
+
+fn go_enclosing_function<'a>(node: &tree_sitter::Node<'a>) -> Option<tree_sitter::Node<'a>> {
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        match parent.kind() {
+            nodes::FUNCTION_DECLARATION | nodes::METHOD_DECLARATION | nodes::FUNC_LITERAL => {
+                return Some(parent);
+            }
+            _ => current = parent.parent(),
+        }
+    }
+    None
+}
+
+fn go_early_return_replacement(func_node: &tree_sitter::Node, source: &str) -> Option<String> {
+    let result_node = match func_node.child_by_field_name(fields::RESULT) {
+        None => return Some("return".to_string()),
+        Some(node) => node,
+    };
+
+    let defaults = if result_node.kind() == nodes::PARAMETER_LIST {
+        let mut values = Vec::new();
+        let mut cursor = result_node.walk();
+        for child in result_node.named_children(&mut cursor) {
+            match child.kind() {
+                nodes::PARAMETER_DECLARATION | nodes::VARIADIC_PARAMETER_DECLARATION => {
+                    let type_node = child.child_by_field_name(fields::TYPE)?;
+                    values.push(go_type_default(&type_node, source)?);
+                }
+                _ => {}
+            }
+        }
+        if values.is_empty() {
+            return None;
+        }
+        values
+    } else {
+        vec![go_type_default(&result_node, source)?]
+    };
+
+    Some(format!("return {}", defaults.join(", ")))
+}
+
+fn go_type_default(type_node: &tree_sitter::Node, source: &str) -> Option<String> {
+    let type_text = node_text(type_node, source).trim();
+    let normalized = type_text.trim_start_matches("...").trim();
+
+    match type_node.kind() {
+        nodes::POINTER_TYPE
+        | nodes::SLICE_TYPE
+        | nodes::MAP_TYPE
+        | nodes::CHANNEL_TYPE
+        | nodes::INTERFACE_TYPE
+        | nodes::FUNCTION_TYPE => Some("nil".to_string()),
+        _ => match normalized {
+            "bool" => Some("false".to_string()),
+            "string" => Some("\"\"".to_string()),
+            "float32" | "float64" => Some("0.0".to_string()),
+            "int" | "int8" | "int16" | "int32" | "int64" | "uint" | "uint8" | "uint16"
+            | "uint32" | "uint64" | "uintptr" | "byte" | "rune" => Some("0".to_string()),
+            "error" => Some("nil".to_string()),
+            _ => None,
+        },
     }
 }
 

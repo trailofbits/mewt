@@ -280,6 +280,13 @@ impl LanguageEngine for SolidityLanguageEngine {
                             .map(|p| Mutant::from_partial(p, target, "RCI")),
                     );
                 }
+                "GER" => {
+                    all_mutants.extend(
+                        generalized_early_return_mutants(root, source)
+                            .into_iter()
+                            .map(|p| Mutant::from_partial(p, target, "GER")),
+                    );
+                }
                 _ => {
                     panic!(
                         "Unknown mutation slug encountered in Solidity engine: {}",
@@ -452,6 +459,41 @@ fn return_default_value_mutants(root: Node, source: &str) -> Vec<PartialMutant> 
         }
     });
     mutants
+}
+
+fn generalized_early_return_mutants(root: Node, source: &str) -> Vec<PartialMutant> {
+    patterns::replace_with_early_return(
+        root,
+        source,
+        &[
+            nodes::EXPRESSION_STATEMENT,
+            nodes::LET_STATEMENT,
+            nodes::IF_STATEMENT,
+            nodes::WHILE_STATEMENT,
+            nodes::FOR_STATEMENT,
+        ],
+        &enclosing_function,
+        &|func, src| solidity_early_return_replacement(func, src),
+        &|_, _| true,
+    )
+}
+
+fn solidity_early_return_replacement(func_node: &Node, source: &str) -> Option<String> {
+    let return_types = extract_return_types(func_node, source);
+    if return_types.is_empty() {
+        return Some("return;".to_string());
+    }
+
+    let mut defaults = Vec::with_capacity(return_types.len());
+    for type_text in return_types {
+        defaults.push(solidity_type_default(type_text)?.into_owned());
+    }
+
+    if defaults.len() == 1 {
+        Some(format!("return {};", defaults[0]))
+    } else {
+        Some(format!("return ({});", defaults.join(", ")))
+    }
 }
 
 /// Generate RCI (Require Condition Inversion) mutants for Solidity.

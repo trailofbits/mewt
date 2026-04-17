@@ -13,9 +13,12 @@ pub mod nodes {
     pub const CONTINUE_STATEMENT: &str = "continue_expression";
     pub const FOREACH_STATEMENT: &str = "for_expression";
     pub const UNARY_EXPRESSION: &str = "unary_expression";
+    pub const FUNCTION_ITEM: &str = "function_item";
+    pub const CLOSURE_EXPRESSION: &str = "closure_expression";
 }
 
 pub mod fields {
     pub const CONDITION: &str = "condition";
     pub const ARGUMENTS: &str = "arguments";
+    pub const RETURN_TYPE: &str = "return_type";
 }

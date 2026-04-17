@@ -18,6 +18,8 @@ mod cos;
 mod cr;
 #[path = "ER.rs"]
 mod er;
+#[path = "GER.rs"]
+mod ger;
 #[path = "IF.rs"]
 mod r#if;
 #[path = "IT.rs"]

@@ -340,12 +340,9 @@ async fn print_table_format(
     registry: &LanguageRegistry,
 ) -> AppResult<()> {
     // If mutant_id is provided, special handling
-    if filters.id.is_some() {
+    if let Some(mutant_id) = filters.id {
         if data.is_empty() {
-            info!(
-                "No outcome found for mutant with ID: {}",
-                filters.id.unwrap()
-            );
+            info!("No outcome found for mutant with ID: {}", mutant_id);
         } else {
             let (mutant, target, outcome) = &data[0];
             info!("Target: {}", target.display());
