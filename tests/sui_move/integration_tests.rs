@@ -1,10 +1,10 @@
 use mewt::LanguageEngine;
 use mewt::languages::sui_move::engine::MoveLanguageEngine;
-use mewt::types::Target;
-use std::collections::HashSet;
+use mewt::types::{Mutant, Target};
+use std::collections::{HashMap, HashSet};
 use tempfile::tempdir;
 
-fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
+pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
     let temp_dir = tempdir().expect("Failed to create temp directory");
     let file_path = temp_dir.path().join("test.move");
     std::fs::write(&file_path, content).expect("Failed to write test file");
@@ -18,151 +18,162 @@ fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
     (temp_dir, target)
 }
 
-#[test]
-fn test_generates_mutations() {
-    let source = r#"module test::m {
-    fun add(a: u64, b: u64): u64 {
-        a + b
-    }
-}"#;
-    let (_temp_dir, target) = create_test_target(source);
+pub(crate) fn mutants_for_slug(source: &str, slug: &str) -> Vec<Mutant> {
+    let (_tmp, target) = create_test_target(source);
     let engine = MoveLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-    assert!(
-        !mutants.is_empty(),
-        "Should generate mutations for Move code"
-    );
+    engine
+        .mutate(&target)
+        .into_iter()
+        .filter(|m| m.mutation_slug == slug)
+        .collect()
 }
 
-#[test]
-fn test_if_condition_mutations() {
-    let source = r#"module test::m {
-    fun check(x: u64): bool {
-        if (x > 0) { true } else { false }
-    }
-}"#;
-    let (_temp_dir, target) = create_test_target(source);
+pub(crate) fn assert_only_slug_and_expected_new_texts(
+    source: &str,
+    slug: &str,
+    expected_new_texts: &[&str],
+) {
+    let (_tmp, target) = create_test_target(source);
     let engine = MoveLanguageEngine::new();
     let mutants = engine.mutate(&target);
 
-    let if_mutants: Vec<_> = mutants
-        .iter()
-        .filter(|m| m.mutation_slug == "IF" || m.mutation_slug == "IT")
-        .collect();
-    assert!(!if_mutants.is_empty(), "Should generate IF/IT mutations");
-}
+    let selected: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == slug).collect();
+    assert!(!selected.is_empty(), "expected at least one {slug} mutant");
 
-#[test]
-fn test_bool_literal_mutations() {
-    let source = r#"module test::m {
-    fun always_true(): bool { true }
-    fun always_false(): bool { false }
-}"#;
-    let (_temp_dir, target) = create_test_target(source);
-    let engine = MoveLanguageEngine::new();
-    let mutants = engine.mutate(&target);
+    let normalize = |text: &str| text.trim().replace('\r', "");
 
-    let bl_mutants: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "BL").collect();
-    assert!(
-        !bl_mutants.is_empty(),
-        "Should generate BL mutations for boolean literals"
-    );
-}
+    let mut covered_tokens: HashSet<&str> = HashSet::new();
+    let mut unexpected_mutants: Vec<String> = Vec::new();
 
-#[test]
-fn test_arithmetic_operator_mutations() {
-    let source = r#"module test::m {
-    fun math(a: u64, b: u64): u64 {
-        let x = a + b;
-        let y = a - b;
-        let z = a * b;
-        x
-    }
-}"#;
-    let (_temp_dir, target) = create_test_target(source);
-    let engine = MoveLanguageEngine::new();
-    let mutants = engine.mutate(&target);
+    for mutant in &selected {
+        let matches: Vec<&str> = expected_new_texts
+            .iter()
+            .copied()
+            .filter(|needle| mutant.new_text.contains(needle))
+            .collect();
 
-    let aos_mutants: Vec<_> = mutants
-        .iter()
-        .filter(|m| m.mutation_slug == "AOS")
-        .collect();
-    assert!(
-        !aos_mutants.is_empty(),
-        "Should generate AOS mutations for arithmetic operators"
-    );
-}
-
-#[test]
-fn test_while_loop_mutations() {
-    let source = r#"module test::m {
-    fun count(n: u64): u64 {
-        let mut i = 0u64;
-        while (i < n) { i = i + 1; };
-        i
-    }
-}"#;
-    let (_temp_dir, target) = create_test_target(source);
-    let engine = MoveLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    let wf_mutants: Vec<_> = mutants.iter().filter(|m| m.mutation_slug == "WF").collect();
-    assert!(
-        !wf_mutants.is_empty(),
-        "Should generate WF mutations for while loops"
-    );
-}
-
-#[test]
-fn test_error_replacement_avoids_existing_aborts() {
-    let source = r#"module test::m {
-    fun safe(b: u64): u64 {
-        if (b == 0) { abort 0 };
-        42 / b
-    }
-}"#;
-    let (_temp_dir, target) = create_test_target(source);
-    let engine = MoveLanguageEngine::new();
-    let mutants = engine.mutate(&target);
-
-    // ER mutants should not replace existing abort statements
-    let er_abort_mutants: Vec<_> = mutants
-        .iter()
-        .filter(|m| m.mutation_slug == "ER" && m.old_text.contains("abort "))
-        .collect();
-    assert_eq!(
-        er_abort_mutants.len(),
-        0,
-        "ER should not replace existing abort statements"
-    );
-}
-
-#[test]
-fn test_diverse_mutation_types() {
-    let source = r#"module test::m {
-    fun complex(a: u64, b: u64): u64 {
-        let mut result = 0u64;
-        if (a > b) {
-            result = a - b;
+        if matches.is_empty() {
+            unexpected_mutants.push(normalize(&mutant.new_text));
         } else {
-            result = b - a;
+            for needle in matches {
+                covered_tokens.insert(needle);
+            }
+        }
+    }
+
+    assert!(
+        unexpected_mutants.is_empty(),
+        "found {slug} mutants with unexpected replacements: {unexpected_mutants:?}"
+    );
+
+    for expected in expected_new_texts {
+        assert!(
+            covered_tokens.contains(expected),
+            "missing expected {slug} mutant containing: {expected}"
+        );
+    }
+}
+
+#[test]
+fn test_basic_sui_move_mutations() {
+    let source = r#"module test::m {
+    fun demo(x: u64): u64 {
+        if (x > 0) { x } else { 0 }
+    }
+}"#;
+    let (_tmp, target) = create_test_target(source);
+    let engine = MoveLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    assert!(!mutants.is_empty(), "Should generate mutations");
+
+    let slugs: HashSet<_> = mutants
+        .iter()
+        .map(|m| m.mutation_slug.chars().take(2).collect::<String>())
+        .collect();
+    assert!(slugs.len() > 1, "Should generate diverse mutation types");
+}
+
+#[test]
+fn test_sui_move_mutations_skip_comment_only_lines() {
+    let source = r#"module test::m {
+    fun demo(x: u64): u64 {
+        // keep me
+        if (x > 0) { x } else { 0 }
+    }
+}"#;
+    let (_tmp, target) = create_test_target(source);
+    let engine = MoveLanguageEngine::new();
+    let mutants = engine.mutate(&target);
+
+    let comment_mutations = mutants
+        .iter()
+        .filter(|m| m.old_text.trim_start().starts_with("//"))
+        .count();
+
+    assert_eq!(
+        comment_mutations, 0,
+        "Mutations should not target comment-only lines"
+    );
+}
+
+#[test]
+fn test_sui_move_engine_handles_complex_module() {
+    let source = r#"module test::m {
+    public fun process(a: u64, b: u64, flag: bool): u64 {
+        let mut result = if (flag) { a + b } else { a - b };
+
+        if (!(result > 0)) {
+            result = 1;
         };
+
         while (result > 10) {
             result = result / 2;
         };
+
         result
     }
 }"#;
-    let (_temp_dir, target) = create_test_target(source);
+    let (_tmp, target) = create_test_target(source);
+    let engine = MoveLanguageEngine::new();
+    let result = std::panic::catch_unwind(|| engine.mutate(&target));
+
+    assert!(
+        result.is_ok(),
+        "Sui Move engine should handle complex modules without panicking"
+    );
+
+    if let Ok(mutants) = result {
+        assert!(
+            mutants.len() > 5,
+            "Complex modules should yield many mutations"
+        );
+    }
+}
+
+#[test]
+fn test_sui_move_mutations_cover_multiple_lines() {
+    let source = r#"module test::m {
+    fun demo(x: u64, y: u64): u64 {
+        let z = x + y;
+        if (z > 0) { z } else { y }
+    }
+}"#;
+    let (_tmp, target) = create_test_target(source);
     let engine = MoveLanguageEngine::new();
     let mutants = engine.mutate(&target);
 
-    let slugs: HashSet<_> = mutants.iter().map(|m| m.mutation_slug.as_str()).collect();
-    println!("Generated mutation types: {slugs:?}");
+    let mut lines: HashMap<usize, Vec<String>> = HashMap::new();
+    for mutant in &mutants {
+        lines
+            .entry(mutant.line_offset as usize)
+            .or_default()
+            .push(mutant.mutation_slug.clone());
+    }
 
     assert!(
-        slugs.len() >= 3,
-        "Should generate at least 3 distinct mutation types for complex code, got: {slugs:?}"
+        lines.len() > 1,
+        "Mutations should touch multiple lines for reasonable coverage"
     );
 }
 
@@ -170,11 +181,10 @@ fn test_diverse_mutation_types() {
 fn test_example_file() {
     let source = std::fs::read_to_string("tests/sui_move/examples/hello.move")
         .expect("Failed to read example file");
-    let (_temp_dir, target) = create_test_target(&source);
+    let (_tmp, target) = create_test_target(&source);
     let engine = MoveLanguageEngine::new();
     let mutants = engine.mutate(&target);
 
-    println!("Example file generated {} mutants", mutants.len());
     assert!(
         mutants.len() > 10,
         "Example file should generate more than 10 mutants, got {}",

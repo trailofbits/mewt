@@ -202,6 +202,18 @@ impl LanguageEngine for MoveLanguageEngine {
                 ),
                 // Move has no compound shift assignment operators (<<=, >>=)
                 "SAOS" => {}
+                "NR" => all_mutants.extend(
+                    patterns::remove_unary_operator(
+                        root,
+                        source,
+                        nodes::UNARY_EXPRESSION,
+                        fields::OPERATOR,
+                        fields::OPERAND,
+                        "!",
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "NR")),
+                ),
                 _ => {
                     panic!(
                         "Unknown mutation slug encountered in SuiMove engine: {}",

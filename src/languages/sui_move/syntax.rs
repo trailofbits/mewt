@@ -6,6 +6,7 @@ pub mod nodes {
     pub const CALL_EXPRESSION: &str = "call_expression";
     pub const CONTINUE_EXPRESSION: &str = "continue_expression";
     pub const IF_EXPRESSION: &str = "if_expression";
+    pub const UNARY_EXPRESSION: &str = "unary_expression";
     pub const WHILE_EXPRESSION: &str = "while_expression";
 }
 
@@ -14,4 +15,7 @@ pub mod fields {
     pub const CONDITION: &str = "eb";
     // Arguments field in call_expression
     pub const ARGUMENTS: &str = "args";
+    // Unary expression fields
+    pub const OPERATOR: &str = "op";
+    pub const OPERAND: &str = "expr";
 }
