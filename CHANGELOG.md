@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 3.1.0 - 2026-04-20
+
+### Added
+- C++ language support (`.cpp`, `.cc`, `.cxx`, `.hpp`, `.hxx`)
+- Sui Move language support (`.move`)
+- New mutation operators:
+  - `NR` (Negation Removal) across languages
+  - `RDV` (Return Default Value) for Solidity and C++
+  - `RCI` (Require Condition Inversion) for Solidity
+  - `DAS`, `MR`, and `VR` for C++
+
+### Changed
+- Reworked mutation conformance tests into a shared, cross-language test harness
+- Build and CI hardening updates (including pinned actions and improved release/test workflows)
+
+### Fixed
+- Improved child-process termination handling in the test runner
+- Fixed skipped arithmetic-operator-shuffle (`AOS`) mutations
+- Expanded and corrected Go `ER`/`CR` mutation coverage
+
 ## 3.0.1 - 2026-03-24
 
 ### Fixed

@@ -12,10 +12,12 @@ tests *execute* a line, but whether they'd actually *fail* if that line were
 wrong.
 
 **Supported languages:**
+- C++
 - Go
 - JavaScript/TypeScript
 - Rust
 - Solidity
+- Sui Move
 
 For details on how campaigns work under the hood, see
 [How it works](docs/how-it-works.md). To add support for a new language, see
@@ -32,6 +34,7 @@ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/trailofbits/mewt/releas
 ```
 
 Prebuilt installers are currently provided for macOS (aarch64) and Linux (x86_64).
+Windows is currently unsupported.
 
 To build from source instead, see [Building from source](docs/building-from-source.md).
 
@@ -77,16 +80,20 @@ mewt run path/to/contract.rs --comprehensive
 
 Mewt reads configuration from the nearest `mewt.toml` found by walking up from the current working directory. CLI flags override config file values.
 
+You can also point to an explicit config file with `--config path/to/mewt.toml`.
+
 See [Configuration](docs/configuration.md) for the full reference and [`src/example.toml`](src/example.toml) for a commented example.
 
 ## Examples
 
 This repo includes example files you can try:
 
+- C++: `tests/cpp/example.cpp`
 - Go: `tests/go/example.go`
 - JavaScript/TypeScript/JSX/TSX: `tests/javascript/example.js` (plus `example.ts`, `example.jsx`, `example.tsx`)
 - Rust: `tests/rust/example.rs`
 - Solidity: `tests/solidity/example.sol`
+- Sui Move: `tests/sui_move/example.move`
 
 ## Notes
 
