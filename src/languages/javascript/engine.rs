@@ -274,12 +274,83 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "NR")),
                 ),
+                "GER" => all_mutants.extend(
+                    patterns::replace_with_early_return(
+                        root,
+                        source,
+                        &[
+                            nodes::EXPRESSION_STATEMENT,
+                            nodes::VARIABLE_DECLARATION,
+                            nodes::IF_STATEMENT,
+                            nodes::WHILE_STATEMENT,
+                            nodes::FOR_STATEMENT,
+                            nodes::FOR_IN_STATEMENT,
+                            nodes::DO_STATEMENT,
+                        ],
+                        &javascript_enclosing_function,
+                        &|func, src| javascript_early_return_replacement(func, src, extension),
+                        &javascript_should_replace_for_ger,
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "GER")),
+                ),
                 _ => panic!("Unknown mutation slug: {}", m.slug),
             }
         }
 
         all_mutants
     }
+}
+
+fn javascript_enclosing_function<'a>(
+    node: &tree_sitter::Node<'a>,
+) -> Option<tree_sitter::Node<'a>> {
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        match parent.kind() {
+            nodes::FUNCTION_DECLARATION
+            | nodes::GENERATOR_FUNCTION_DECLARATION
+            | nodes::METHOD_DEFINITION
+            | nodes::FUNCTION
+            | nodes::ARROW_FUNCTION => return Some(parent),
+            _ => current = parent.parent(),
+        }
+    }
+    None
+}
+
+fn javascript_early_return_replacement(
+    func_node: &tree_sitter::Node,
+    source: &str,
+    extension: Option<&str>,
+) -> Option<String> {
+    match extension {
+        Some("ts") | Some("tsx") => {
+            let return_type_node = func_node.child_by_field_name(fields::RETURN_TYPE)?;
+            let type_text = node_text(&return_type_node, source)
+                .trim()
+                .trim_start_matches(':')
+                .trim()
+                .to_ascii_lowercase();
+            match type_text.as_str() {
+                "void" => Some("return;".to_string()),
+                "boolean" => Some("return false;".to_string()),
+                "number" => Some("return 0;".to_string()),
+                "string" => Some("return \"\";".to_string()),
+                _ => None,
+            }
+        }
+        _ => Some("return;".to_string()),
+    }
+}
+
+fn javascript_should_replace_for_ger(node: &tree_sitter::Node, source: &str) -> bool {
+    if node.kind() != nodes::EXPRESSION_STATEMENT {
+        return true;
+    }
+
+    let text = node_text(node, source).trim_start();
+    !text.starts_with("return ")
 }
 
 #[cfg(test)]

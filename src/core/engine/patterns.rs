@@ -360,6 +360,50 @@ pub fn remove_unary_operator(
     mutants
 }
 
+/// Replace entire statement nodes with a language-specific early return.
+/// The caller provides:
+/// - a way to find the enclosing function-like node for a candidate statement
+/// - a way to synthesize a valid `return ...;` replacement for that function
+pub fn replace_with_early_return(
+    root: Node,
+    source: &str,
+    node_kinds: &[&str],
+    enclosing_fn: &dyn for<'a> Fn(&'a Node<'a>) -> Option<Node<'a>>,
+    replacement_for_fn: &dyn for<'a> Fn(&'a Node<'a>, &str) -> Option<String>,
+    should_replace: &dyn Fn(&Node, &str) -> bool,
+) -> Vec<PartialMutant> {
+    let mut mutants = Vec::new();
+    let kinds: Vec<&str> = node_kinds.to_vec();
+    let mut cursor = root.walk();
+    visit_nodes_with_cursor(root, &mut cursor, &mut |node| {
+        if kinds.contains(&node.kind())
+            && !is_in_comment(&node)
+            && !has_ancestor_with_kind(&node, &kinds)
+            && should_replace(&node, source)
+        {
+            let Some(func_node) = enclosing_fn(&node) else {
+                return;
+            };
+            let Some(replacement) = replacement_for_fn(&func_node, source) else {
+                return;
+            };
+
+            let old_text = node_text(&node, source);
+            if old_text == replacement {
+                return;
+            }
+
+            mutants.push(PartialMutant {
+                byte_offset: node.start_byte() as u32,
+                line_offset: calculate_line_offset(source, node.start_byte()),
+                old_text: old_text.to_string(),
+                new_text: replacement,
+            });
+        }
+    });
+    mutants
+}
+
 ////////////////////////////////////////
 // Internal helpers
 

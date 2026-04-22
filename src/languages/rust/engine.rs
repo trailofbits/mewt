@@ -275,6 +275,24 @@ impl LanguageEngine for RustLanguageEngine {
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "NR")),
                 ),
+                "GER" => all_mutants.extend(
+                    patterns::replace_with_early_return(
+                        root,
+                        source,
+                        &[
+                            nodes::EXPRESSION_STATEMENT,
+                            nodes::LET_STATEMENT,
+                            nodes::IF_STATEMENT,
+                            nodes::WHILE_STATEMENT,
+                            nodes::FOREACH_STATEMENT,
+                        ],
+                        &rust_enclosing_function,
+                        &|func, src| rust_early_return_replacement(func, src),
+                        &rust_should_replace_for_ger,
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "GER")),
+                ),
                 _ => {
                     panic!(
                         "Unknown mutation slug encountered in Rust engine: {}",
@@ -285,6 +303,47 @@ impl LanguageEngine for RustLanguageEngine {
         }
         all_mutants
     }
+}
+
+fn rust_enclosing_function<'a>(node: &tree_sitter::Node<'a>) -> Option<tree_sitter::Node<'a>> {
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        match parent.kind() {
+            nodes::FUNCTION_ITEM => return Some(parent),
+            nodes::CLOSURE_EXPRESSION => return None,
+            _ => current = parent.parent(),
+        }
+    }
+    None
+}
+
+fn rust_early_return_replacement(func_node: &tree_sitter::Node, source: &str) -> Option<String> {
+    let return_type = func_node.child_by_field_name(fields::RETURN_TYPE);
+    let type_text = match return_type {
+        None => return Some("return;".to_string()),
+        Some(node) => node_text(&node, source)
+            .trim()
+            .trim_start_matches("->")
+            .trim(),
+    };
+
+    match type_text {
+        "()" => Some("return;".to_string()),
+        "bool" => Some("return false;".to_string()),
+        "f32" | "f64" => Some("return 0.0;".to_string()),
+        "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16" | "u32" | "u64" | "u128"
+        | "usize" => Some("return 0;".to_string()),
+        _ => None,
+    }
+}
+
+fn rust_should_replace_for_ger(node: &tree_sitter::Node, source: &str) -> bool {
+    if node.kind() != nodes::EXPRESSION_STATEMENT {
+        return true;
+    }
+
+    let text = node_text(node, source).trim_start();
+    !text.starts_with("return ")
 }
 
 #[cfg(test)]

@@ -16,6 +16,11 @@ pub mod nodes {
     // TypeScript-specific node types
     pub const TYPE_ARGUMENTS: &str = "type_arguments";
     pub const TYPE_PARAMETERS: &str = "type_parameters";
+    pub const FUNCTION_DECLARATION: &str = "function_declaration";
+    pub const GENERATOR_FUNCTION_DECLARATION: &str = "generator_function_declaration";
+    pub const METHOD_DEFINITION: &str = "method_definition";
+    pub const FUNCTION: &str = "function";
+    pub const ARROW_FUNCTION: &str = "arrow_function";
 }
 
 pub mod fields {
@@ -23,4 +28,5 @@ pub mod fields {
     pub const ARGUMENTS: &str = "arguments";
     pub const OPERATOR: &str = "operator";
     pub const ARGUMENT: &str = "argument";
+    pub const RETURN_TYPE: &str = "return_type";
 }
