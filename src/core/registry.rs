@@ -1,11 +1,57 @@
 use std::path::Path;
 
 use crate::LanguageEngine;
-use crate::languages::r#move::dialect::is_move_language_name;
+use crate::languages::r#move::dialect::{
+    dialect_from_language_name, is_move_language_name, language_name_for_dialect,
+};
+use crate::types::config::ResolvedMoveDialect;
 
 /// Registry for managing available language engines
 pub struct LanguageRegistry {
     engines: Vec<Box<dyn LanguageEngine>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResolutionSource {
+    ExplicitLanguage,
+    Extension,
+    Fallback,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedLanguageSelection {
+    pub language_key: String,
+    pub dialect: Option<String>,
+    pub canonical_label: String,
+    pub source: ResolutionSource,
+    pub defaulted: bool,
+}
+
+pub fn normalize_language_label(language: &str) -> String {
+    if let Some(dialect) = dialect_from_language_name(language) {
+        language_name_for_dialect(dialect)
+    } else {
+        language.to_string()
+    }
+}
+
+pub fn language_filter_variants(language: &str) -> Vec<String> {
+    let normalized = language.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "move" | "suimove" | "sui_move" => vec![
+            "Move".to_string(),
+            "SuiMove".to_string(),
+            "Move/sui".to_string(),
+            "Move/iota".to_string(),
+        ],
+        "move/sui" | "move:sui" => vec![
+            "Move/sui".to_string(),
+            "Move".to_string(),
+            "SuiMove".to_string(),
+        ],
+        "move/iota" | "move:iota" => vec!["Move/iota".to_string()],
+        _ => vec![language.to_string()],
+    }
 }
 
 impl LanguageRegistry {
@@ -53,6 +99,91 @@ impl LanguageRegistry {
             .map(|engine| engine.as_ref())
     }
 
+    pub fn resolve_selection_for_path(
+        &self,
+        path: &Path,
+        explicit_language: Option<&str>,
+        resolved_move_dialect: ResolvedMoveDialect,
+    ) -> Result<ResolvedLanguageSelection, String> {
+        if let Some(explicit) = explicit_language {
+            if is_move_language_name(explicit) {
+                let canonical_label = language_name_for_dialect(resolved_move_dialect.dialect);
+                return Ok(ResolvedLanguageSelection {
+                    language_key: "Move".to_string(),
+                    dialect: Some(resolved_move_dialect.dialect.as_str().to_string()),
+                    canonical_label,
+                    source: ResolutionSource::ExplicitLanguage,
+                    defaulted: resolved_move_dialect.defaulted,
+                });
+            }
+
+            let engine = self
+                .get_engine(explicit)
+                .ok_or_else(|| format!("No engine found for language: {explicit}"))?;
+            return Ok(ResolvedLanguageSelection {
+                language_key: engine.name().to_string(),
+                dialect: None,
+                canonical_label: engine.name().to_string(),
+                source: ResolutionSource::ExplicitLanguage,
+                defaulted: false,
+            });
+        }
+
+        let extension = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .ok_or_else(|| format!("No extension for path: {}", path.display()))?;
+
+        if extension.eq_ignore_ascii_case("move") {
+            let canonical_label = language_name_for_dialect(resolved_move_dialect.dialect);
+            return Ok(ResolvedLanguageSelection {
+                language_key: "Move".to_string(),
+                dialect: Some(resolved_move_dialect.dialect.as_str().to_string()),
+                canonical_label,
+                source: ResolutionSource::Extension,
+                defaulted: resolved_move_dialect.defaulted,
+            });
+        }
+
+        let mut candidates: Vec<&dyn LanguageEngine> = self
+            .engines
+            .iter()
+            .filter_map(|engine| {
+                if engine
+                    .extensions()
+                    .iter()
+                    .any(|ext| ext.eq_ignore_ascii_case(extension))
+                {
+                    Some(engine.as_ref())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if candidates.is_empty() {
+            return Err(format!(
+                "No language engine found for extension: .{extension}"
+            ));
+        }
+
+        candidates.sort_by(|a, b| a.name().cmp(b.name()));
+        let selected = candidates[0];
+        let defaulted = candidates.len() > 1;
+
+        Ok(ResolvedLanguageSelection {
+            language_key: selected.name().to_string(),
+            dialect: None,
+            canonical_label: selected.name().to_string(),
+            source: if defaulted {
+                ResolutionSource::Fallback
+            } else {
+                ResolutionSource::Extension
+            },
+            defaulted,
+        })
+    }
+
     /// Get all registered language names
     pub fn all_languages(&self) -> Vec<&str> {
         self.engines.iter().map(|engine| engine.name()).collect()
@@ -82,6 +213,31 @@ impl Default for LanguageRegistry {
 mod tests {
     use super::*;
     use crate::languages::sui_move::engine::MoveLanguageEngine;
+    use crate::types::config::{MoveDialect, MoveDialectSource};
+    use crate::types::{Mutant, Mutation, Target};
+
+    struct MockEngine {
+        name: &'static str,
+        exts: &'static [&'static str],
+    }
+
+    impl crate::LanguageEngine for MockEngine {
+        fn name(&self) -> &'static str {
+            self.name
+        }
+
+        fn extensions(&self) -> &[&'static str] {
+            self.exts
+        }
+
+        fn get_mutations(&self) -> &[Mutation] {
+            &[]
+        }
+
+        fn mutate(&self, _target: &Target) -> Vec<Mutant> {
+            vec![]
+        }
+    }
 
     #[test]
     fn move_engine_resolves_via_canonical_and_legacy_aliases() {
@@ -95,5 +251,79 @@ mod tests {
         assert!(registry.get_engine("sui_move").is_some());
         assert!(registry.get_engine("move/sui").is_some());
         assert!(registry.get_engine("move/iota").is_some());
+    }
+
+    fn resolved_move_dialect_iota() -> ResolvedMoveDialect {
+        ResolvedMoveDialect {
+            dialect: MoveDialect::Iota,
+            source: MoveDialectSource::Cli,
+            defaulted: false,
+        }
+    }
+
+    #[test]
+    fn resolver_uses_explicit_language_over_path_extension() {
+        let mut registry = LanguageRegistry::new();
+        registry.register(crate::languages::rust::engine::RustLanguageEngine::new());
+
+        let selection = registry
+            .resolve_selection_for_path(
+                Path::new("example.move"),
+                Some("rust"),
+                resolved_move_dialect_iota(),
+            )
+            .expect("selection");
+
+        assert_eq!(selection.canonical_label, "Rust");
+        assert_eq!(selection.source, ResolutionSource::ExplicitLanguage);
+    }
+
+    #[test]
+    fn resolver_canonicalizes_move_with_dialect() {
+        let mut registry = LanguageRegistry::new();
+        registry.register(MoveLanguageEngine::new());
+
+        let selection = registry
+            .resolve_selection_for_path(
+                Path::new("example.move"),
+                None,
+                resolved_move_dialect_iota(),
+            )
+            .expect("selection");
+
+        assert_eq!(selection.language_key, "Move");
+        assert_eq!(selection.dialect.as_deref(), Some("iota"));
+        assert_eq!(selection.canonical_label, "Move/iota");
+    }
+
+    #[test]
+    fn shared_normalization_helpers_cover_move_aliases() {
+        assert_eq!(normalize_language_label("SuiMove"), "Move/sui");
+        assert_eq!(language_filter_variants("move").len(), 4);
+    }
+
+    #[test]
+    fn resolver_uses_deterministic_fallback_for_ambiguous_extension() {
+        let mut registry = LanguageRegistry::new();
+        registry.register(MockEngine {
+            name: "BetaLang",
+            exts: &["foo"],
+        });
+        registry.register(MockEngine {
+            name: "AlphaLang",
+            exts: &["foo"],
+        });
+
+        let selection = registry
+            .resolve_selection_for_path(
+                Path::new("example.foo"),
+                None,
+                resolved_move_dialect_iota(),
+            )
+            .expect("selection");
+
+        assert_eq!(selection.canonical_label, "AlphaLang");
+        assert_eq!(selection.source, ResolutionSource::Fallback);
+        assert!(selection.defaulted);
     }
 }

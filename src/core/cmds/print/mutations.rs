@@ -5,6 +5,7 @@ use serde::Serialize;
 
 use crate::LanguageRegistry;
 use crate::core::cmds::print::MutationsFilters;
+use crate::languages::r#move::dialect::is_move_language_name;
 use crate::types::config::config;
 use crate::types::{Mutation, MutationSeverity};
 
@@ -87,16 +88,6 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
     }
 
     Ok(())
-}
-
-fn is_move_language_name(language_name: &str) -> bool {
-    language_name.eq_ignore_ascii_case("move")
-        || language_name.eq_ignore_ascii_case("suimove")
-        || language_name.eq_ignore_ascii_case("sui_move")
-        || language_name.eq_ignore_ascii_case("move/sui")
-        || language_name.eq_ignore_ascii_case("move:iota")
-        || language_name.eq_ignore_ascii_case("move/iota")
-        || language_name.eq_ignore_ascii_case("move:sui")
 }
 
 fn print_mutations_for_language(

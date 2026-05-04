@@ -20,9 +20,10 @@ wrong.
 - Move (dialects: `sui`, `iota`; legacy aliases still accepted: `move`, `suimove`, `sui_move`)
 
 For details on how campaigns work under the hood, see
-[How it works](docs/how-it-works.md). To add support for a new language, see
-[Adding a language](docs/adding-a-language.md). For mutation test suite
-structure and shared test helper conventions, see
+[How it works](docs/how-it-works.md). For the language/dialect resolver contract,
+see [Language resolution contract](docs/language-resolution-contract.md).
+To add support for a new language, see [Adding a language](docs/adding-a-language.md).
+For mutation test suite structure and shared test helper conventions, see
 [`tests/README.md`](tests/README.md).
 
 ## Installation

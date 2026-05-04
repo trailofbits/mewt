@@ -4,7 +4,7 @@ use sqlx::{QueryBuilder, Row};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-use crate::languages::r#move::dialect::{dialect_from_language_name, language_name_for_dialect};
+use crate::core::registry::{language_filter_variants, normalize_language_label};
 use crate::types::{
     CampaignSeverityStats, CampaignSummary, Hash, Mutant, Outcome, Status, StoreError, StoreResult,
     Target, TargetStats,
@@ -852,38 +852,7 @@ impl SqlStore {
 }
 
 fn normalize_stored_target_language(language: &str) -> String {
-    if let Some(dialect) = dialect_from_language_name(language) {
-        language_name_for_dialect(dialect)
-    } else {
-        language.to_string()
-    }
-}
-
-fn language_filter_variants(language: &str) -> Vec<String> {
-    if language.eq_ignore_ascii_case("move")
-        || language.eq_ignore_ascii_case("suimove")
-        || language.eq_ignore_ascii_case("sui_move")
-    {
-        vec![
-            "Move".to_string(),
-            "SuiMove".to_string(),
-            "Move/sui".to_string(),
-            "Move/iota".to_string(),
-        ]
-    } else if language.eq_ignore_ascii_case("move/sui") || language.eq_ignore_ascii_case("move:sui")
-    {
-        vec![
-            "Move/sui".to_string(),
-            "Move".to_string(),
-            "SuiMove".to_string(),
-        ]
-    } else if language.eq_ignore_ascii_case("move/iota")
-        || language.eq_ignore_ascii_case("move:iota")
-    {
-        vec!["Move/iota".to_string()]
-    } else {
-        vec![language.to_string()]
-    }
+    normalize_language_label(language)
 }
 
 #[cfg(test)]

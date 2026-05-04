@@ -8,7 +8,6 @@ use serde::Serialize;
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
-use crate::languages::r#move::dialect::language_name_for_dialect;
 use crate::types::config::{
     ResolvedMoveDialect, ResolvedTargets, config, is_path_excluded, is_slug_enabled,
 };
@@ -391,14 +390,10 @@ fn resolve_language_for_path(
     registry: &LanguageRegistry,
     resolved_move_dialect: ResolvedMoveDialect,
 ) -> Option<String> {
-    let extension = target_path.extension().and_then(|ext| ext.to_str())?;
-    if extension.eq_ignore_ascii_case("move") {
-        return Some(language_name_for_dialect(resolved_move_dialect.dialect));
-    }
-
     registry
-        .language_from_path(target_path)
-        .map(|engine| engine.name().to_string())
+        .resolve_selection_for_path(target_path, None, resolved_move_dialect)
+        .ok()
+        .map(|selection| selection.canonical_label)
 }
 
 #[cfg(test)]

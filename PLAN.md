@@ -97,15 +97,15 @@ Decide whether no-migration storage is safe enough or whether first-class dialec
 Freeze a single API contract for registry-centric resolution.
 
 ### Tasks
-- [ ] Add a short design doc describing resolver inputs/outputs.
-- [ ] Define a normalized selection type (language, optional dialect, canonical label).
-- [ ] Define precedence and ambiguity policy unambiguously.
-- [ ] Inventory all current call sites that resolve language/dialect.
+- [x] Add a short design doc describing resolver inputs/outputs.
+- [x] Define a normalized selection type (language, optional dialect, canonical label).
+- [x] Define precedence and ambiguity policy unambiguously.
+- [x] Inventory all current call sites that resolve language/dialect.
 
 ### Exit Criteria
-- [ ] Resolver contract doc exists and is referenced from docs.
-- [ ] Selection type and precedence are unambiguous.
-- [ ] All existing resolution call sites are listed for migration.
+- [x] Resolver contract doc exists and is referenced from docs.
+- [x] Selection type and precedence are unambiguous.
+- [x] All existing resolution call sites are listed for migration.
 
 ---
 
@@ -115,15 +115,15 @@ Freeze a single API contract for registry-centric resolution.
 Build the resolver in/near `LanguageRegistry` and make it the source of truth.
 
 ### Tasks
-- [ ] Implement resolver API (path + explicit overrides + config => resolved selection).
-- [ ] Centralize normalization helpers used by registry/store/print.
-- [ ] Add dialect-aware metadata/hooks for Move.
-- [ ] Add unit tests for precedence, ambiguity, and canonical labeling.
+- [x] Implement resolver API (path + explicit overrides + config => resolved selection).
+- [x] Centralize normalization helpers used by registry/store/print.
+- [x] Add dialect-aware metadata/hooks for Move.
+- [x] Add unit tests for precedence, ambiguity, and canonical labeling.
 
 ### Exit Criteria
-- [ ] Resolver tests pass and cover precedence + ambiguity.
-- [ ] Shared normalization path exists and is used by at least two subsystems.
-- [ ] `just pre-commit` passes.
+- [x] Resolver tests pass and cover precedence + ambiguity.
+- [x] Shared normalization path exists and is used by at least two subsystems.
+- [x] `just pre-commit` passes.
 
 ---
 
