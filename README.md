@@ -17,7 +17,7 @@ wrong.
 - JavaScript/TypeScript
 - Rust
 - Solidity
-- Sui Move
+- Move (currently Sui-compatible; accepts `move`, `suimove`, and `sui_move`)
 
 For details on how campaigns work under the hood, see
 [How it works](docs/how-it-works.md). To add support for a new language, see
@@ -93,7 +93,7 @@ This repo includes example files you can try:
 - JavaScript/TypeScript/JSX/TSX: `tests/javascript/example.js` (plus `example.ts`, `example.jsx`, `example.tsx`)
 - Rust: `tests/rust/example.rs`
 - Solidity: `tests/solidity/example.sol`
-- Sui Move: `tests/sui_move/example.move`
+- Move: `tests/sui_move/example.move`
 
 ## Notes
 

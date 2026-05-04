@@ -19,11 +19,21 @@ impl LanguageRegistry {
         self.engines.push(Box::new(engine));
     }
 
-    /// Get engine for a language name
+    /// Get engine for a language name.
+    ///
+    /// Move compatibility aliases accepted here:
+    /// - move (canonical)
+    /// - suimove (legacy)
+    /// - sui_move (legacy)
     pub fn get_engine(&self, language_name: &str) -> Option<&dyn LanguageEngine> {
         self.engines
             .iter()
-            .find(|engine| engine.name().eq_ignore_ascii_case(language_name))
+            .find(|engine| {
+                engine.name().eq_ignore_ascii_case(language_name)
+                    || (is_move_alias(language_name)
+                        && (engine.name().eq_ignore_ascii_case("Move")
+                            || engine.name().eq_ignore_ascii_case("SuiMove")))
+            })
             .map(|engine| engine.as_ref())
     }
 
@@ -64,5 +74,29 @@ impl LanguageRegistry {
 impl Default for LanguageRegistry {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn is_move_alias(language_name: &str) -> bool {
+    language_name.eq_ignore_ascii_case("move")
+        || language_name.eq_ignore_ascii_case("suimove")
+        || language_name.eq_ignore_ascii_case("sui_move")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::languages::sui_move::engine::MoveLanguageEngine;
+
+    #[test]
+    fn move_engine_resolves_via_canonical_and_legacy_aliases() {
+        let mut registry = LanguageRegistry::new();
+        registry.register(MoveLanguageEngine::new());
+
+        assert!(registry.get_engine("move").is_some());
+        assert!(registry.get_engine("Move").is_some());
+        assert!(registry.get_engine("suimove").is_some());
+        assert!(registry.get_engine("SuiMove").is_some());
+        assert!(registry.get_engine("sui_move").is_some());
     }
 }

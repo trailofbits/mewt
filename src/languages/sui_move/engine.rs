@@ -37,7 +37,7 @@ impl MoveLanguageEngine {
 
 impl LanguageEngine for MoveLanguageEngine {
     fn name(&self) -> &'static str {
-        "SuiMove"
+        "Move"
     }
 
     fn extensions(&self) -> &[&'static str] {
@@ -216,7 +216,7 @@ impl LanguageEngine for MoveLanguageEngine {
                 ),
                 _ => {
                     panic!(
-                        "Unknown mutation slug encountered in SuiMove engine: {}",
+                        "Unknown mutation slug encountered in Move engine: {}",
                         m.slug
                     );
                 }
@@ -244,7 +244,7 @@ mod tests {
         }
         assert!(
             dups.is_empty(),
-            "Duplicate mutation slugs found in SuiMove engine: {dups:?}",
+            "Duplicate mutation slugs found in Move engine: {dups:?}",
         );
     }
 
@@ -256,7 +256,7 @@ mod tests {
             path: PathBuf::from("test.move"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "SuiMove".to_string(),
+            language: "Move".to_string(),
         };
         let engine = MoveLanguageEngine::new();
         let _ = engine.mutate(&target);

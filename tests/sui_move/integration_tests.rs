@@ -5,7 +5,7 @@ use mewt::languages::sui_move::engine::MoveLanguageEngine;
 use mewt::types::{Mutant, Target};
 
 pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
-    utils::target_fixture_for_extension("SuiMove", "move", content).into_parts()
+    utils::target_fixture_for_extension("Move", "move", content).into_parts()
 }
 
 pub(crate) fn mutants_for_slug(source: &str, slug: &str) -> Vec<Mutant> {
@@ -62,7 +62,7 @@ fn sui_move_common_conformance_checks() {
     };
 
     let expectations = conformance::CommonConformanceExpectations {
-        language_name: "SuiMove",
+        language_name: "Move",
         min_complex_mutants: 6,
     };
 

@@ -658,8 +658,23 @@ impl SqlStore {
 
         // Add language filter
         if let Some(lang) = language {
+            let language_variants = language_filter_variants(&lang);
             add_separator(&mut query_builder, &mut has_where);
-            query_builder.push("t.language = ").push_bind(lang);
+            if let Some(single_variant) = (language_variants.len() == 1)
+                .then(|| language_variants.first())
+                .flatten()
+            {
+                query_builder
+                    .push("t.language = ")
+                    .push_bind((*single_variant).clone());
+            } else {
+                query_builder.push("t.language IN (");
+                let mut separated = query_builder.separated(", ");
+                for variant in language_variants {
+                    separated.push_bind(variant);
+                }
+                query_builder.push(")");
+            }
         }
 
         // Add mutation types filter (supports multiple slugs via IN clause)
@@ -834,5 +849,16 @@ impl SqlStore {
         }
 
         Ok(CampaignSeverityStats { severity_stats })
+    }
+}
+
+fn language_filter_variants(language: &str) -> Vec<String> {
+    if language.eq_ignore_ascii_case("move")
+        || language.eq_ignore_ascii_case("suimove")
+        || language.eq_ignore_ascii_case("sui_move")
+    {
+        vec!["Move".to_string(), "SuiMove".to_string()]
+    } else {
+        vec![language.to_string()]
     }
 }

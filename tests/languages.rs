@@ -41,8 +41,8 @@ fn every_mutation_slug_has_a_per_language_test_module() {
     let solidity = SolidityLanguageEngine::new();
     check_language(manifest_dir, "Solidity", "solidity", &solidity);
 
-    let sui_move = MoveLanguageEngine::new();
-    check_language(manifest_dir, "SuiMove", "sui_move", &sui_move);
+    let move_language = MoveLanguageEngine::new();
+    check_language(manifest_dir, "Move", "sui_move", &move_language);
 }
 
 fn check_language(
