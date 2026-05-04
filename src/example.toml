@@ -6,6 +6,7 @@
 ##   log.color → --log.color
 ##   test.cmd → --test.cmd (run, test commands)
 ##   test.timeout → --test.timeout (run, test commands)
+##   languages.move.dialect → --dialect (run, mutate, print mutations)
 
 ## Database path (relative to this config file or absolute)
 db = "{namespace}.sqlite"
@@ -41,6 +42,12 @@ level = "info"
 ## In comprehensive mode, all mutants are tested (default: false)
 ## ie lower severity mutants will not be skipped if higher severity mutants on the same line are uncaught
 # comprehensive = false
+
+[languages.move]
+# Move dialect selection for .move files
+# Values: "sui", "iota", "auto"
+# If omitted (or set to "auto"), mewt defaults to "sui"
+# dialect = "sui"
 
 [test]
 # Default test command for all targets

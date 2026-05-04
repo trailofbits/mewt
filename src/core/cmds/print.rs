@@ -23,6 +23,7 @@ pub struct MutantsFilters {
 pub struct MutationsFilters {
     pub language: Option<String>,
     pub format: String,
+    pub dialect: Option<String>,
 }
 
 pub enum PrintCommand {

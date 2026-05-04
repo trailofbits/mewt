@@ -67,19 +67,19 @@ Establish `Move` as canonical while preserving old names.
 Introduce a first-class dialect setting without forcing schema changes.
 
 ### Tasks
-- [ ] Add dialect option to CLI (`--dialect`) for Move commands where language selection matters.
-- [ ] Add config support in `mewt.toml` (e.g. `[languages.move] dialect = "sui|iota|auto"`).
-- [ ] Define and document dialect resolution order:
+- [x] Add dialect option to CLI (`--dialect`) for Move commands where language selection matters.
+- [x] Add config support in `mewt.toml` (e.g. `[languages.move] dialect = "sui|iota|auto"`).
+- [x] Define and document dialect resolution order:
   1) CLI `--dialect`
   2) config dialect
   3) fallback default (`sui`) with clear warning when ambiguity exists.
-- [ ] Keep behavior unchanged when dialect is omitted (defaults to current Sui behavior).
+- [x] Keep behavior unchanged when dialect is omitted (defaults to current Sui behavior).
 
 ### Completion Criteria
-- [ ] Explicit dialect selection is wired and test-covered.
-- [ ] Omitted dialect preserves prior behavior.
-- [ ] Resolution-order tests exist and pass.
-- [ ] `just pre-commit` passes.
+- [x] Explicit dialect selection is wired and test-covered.
+- [x] Omitted dialect preserves prior behavior.
+- [x] Resolution-order tests exist and pass.
+- [x] `just pre-commit` passes.
 
 ---
 
@@ -89,16 +89,16 @@ Introduce a first-class dialect setting without forcing schema changes.
 Implement a single Move family engine with dialect profiles.
 
 ### Tasks
-- [ ] Create/introduce a unified `move` language module/engine.
-- [ ] Extract dialect profile boundary (syntax constants, parser handle, feature flags).
-- [ ] Implement at least `sui` and `iota` profiles behind the same engine interface.
-- [ ] Ensure `.move` loading uses resolved dialect (from Phase 2), not extension-only inference.
+- [x] Create/introduce a unified `move` language module/engine.
+- [x] Extract dialect profile boundary (syntax constants, parser handle, feature flags).
+- [x] Implement at least `sui` and `iota` profiles behind the same engine interface.
+- [x] Ensure `.move` loading uses resolved dialect (from Phase 2), not extension-only inference.
 
 ### Completion Criteria
-- [ ] One canonical Move engine serves both `sui` and `iota` profiles.
-- [ ] `.move` files mutate under selected dialect deterministically.
-- [ ] No extension-collision ambiguity in registry behavior.
-- [ ] `just pre-commit` passes.
+- [x] One canonical Move engine serves both `sui` and `iota` profiles.
+- [x] `.move` files mutate under selected dialect deterministically.
+- [x] No extension-collision ambiguity in registry behavior.
+- [x] `just pre-commit` passes.
 
 ---
 
@@ -108,17 +108,17 @@ Implement a single Move family engine with dialect profiles.
 Ensure old stored language identities still work.
 
 ### Tasks
-- [ ] Add read-path compatibility mapping for legacy stored `SuiMove` targets/results.
-- [ ] Decide migration strategy:
+- [x] Add read-path compatibility mapping for legacy stored `SuiMove` targets/results.
+- [x] Decide migration strategy:
   - **Preferred initially:** lazy/in-memory mapping (no schema change).
   - **Optional later:** explicit DB migration (requires user approval).
-- [ ] Add tests proving old records remain usable.
+- [x] Add tests proving old records remain usable.
 
 ### Completion Criteria
-- [ ] Running commands on legacy data does not fail due to missing engine.
-- [ ] Compatibility tests for legacy `SuiMove` entries pass.
-- [ ] If schema migration is proposed, approval is recorded before implementation.
-- [ ] `just pre-commit` passes.
+- [x] Running commands on legacy data does not fail due to missing engine.
+- [x] Compatibility tests for legacy `SuiMove` entries pass.
+- [x] If schema migration is proposed, approval is recorded before implementation.
+- [x] `just pre-commit` passes.
 
 ---
 

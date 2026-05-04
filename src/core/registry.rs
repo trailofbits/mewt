@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::LanguageEngine;
+use crate::languages::r#move::dialect::is_move_language_name;
 
 /// Registry for managing available language engines
 pub struct LanguageRegistry {
@@ -25,14 +26,14 @@ impl LanguageRegistry {
     /// - move (canonical)
     /// - suimove (legacy)
     /// - sui_move (legacy)
+    /// - move/sui, move/iota (profiled internal names)
     pub fn get_engine(&self, language_name: &str) -> Option<&dyn LanguageEngine> {
         self.engines
             .iter()
             .find(|engine| {
                 engine.name().eq_ignore_ascii_case(language_name)
-                    || (is_move_alias(language_name)
-                        && (engine.name().eq_ignore_ascii_case("Move")
-                            || engine.name().eq_ignore_ascii_case("SuiMove")))
+                    || (is_move_language_name(language_name)
+                        && is_move_language_name(engine.name()))
             })
             .map(|engine| engine.as_ref())
     }
@@ -77,12 +78,6 @@ impl Default for LanguageRegistry {
     }
 }
 
-fn is_move_alias(language_name: &str) -> bool {
-    language_name.eq_ignore_ascii_case("move")
-        || language_name.eq_ignore_ascii_case("suimove")
-        || language_name.eq_ignore_ascii_case("sui_move")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -98,5 +93,7 @@ mod tests {
         assert!(registry.get_engine("suimove").is_some());
         assert!(registry.get_engine("SuiMove").is_some());
         assert!(registry.get_engine("sui_move").is_some());
+        assert!(registry.get_engine("move/sui").is_some());
+        assert!(registry.get_engine("move/iota").is_some());
     }
 }

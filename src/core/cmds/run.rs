@@ -8,7 +8,8 @@ use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::core::cli::RunArgs;
 use crate::core::runner::TestRunner;
-use crate::types::config::{ResolvedTargets, config, resolve_test_for_path};
+use crate::languages::r#move::dialect::is_move_language_name;
+use crate::types::config::{ResolvedMoveDialect, ResolvedTargets, config, resolve_test_for_path};
 use crate::types::{AppResult, CampaignSummary, Target};
 
 #[allow(clippy::too_many_arguments)]
@@ -21,12 +22,20 @@ pub async fn execute_run(
     mutations: Option<Vec<String>>,
     test_cmd: Option<String>,
     test_timeout: Option<u32>,
+    resolved_move_dialect: ResolvedMoveDialect,
 ) -> AppResult<Option<CampaignSummary>> {
     let mutations_slice = mutations.as_deref();
 
     let targets = if let Some(resolved) = resolved_targets {
         // Generate new mutants for the specified targets
-        let targets = Target::load_targets(&resolved, &store, &registry, mutations_slice).await?;
+        let targets = Target::load_targets(
+            &resolved,
+            &store,
+            &registry,
+            mutations_slice,
+            resolved_move_dialect,
+        )
+        .await?;
         for target in targets.iter() {
             let mutants_res = target.generate_mutants(&registry, mutations_slice);
             if let Ok(mutants) = mutants_res {
@@ -62,6 +71,23 @@ pub async fn execute_run(
         }
         targets
     };
+
+    let has_move_targets = targets
+        .iter()
+        .any(|target| is_move_language_name(&target.language));
+    if has_move_targets {
+        if resolved_move_dialect.defaulted {
+            warn!(
+                "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|auto explicitly.",
+                resolved_move_dialect.dialect.as_str()
+            );
+        } else {
+            info!(
+                "Using Move dialect '{}' for .move targets",
+                resolved_move_dialect.dialect.as_str()
+            );
+        }
+    }
 
     // Group targets by resolved (test_cmd, timeout)
     let mut groups: HashMap<(String, Option<u32>), Vec<Target>> = HashMap::new();

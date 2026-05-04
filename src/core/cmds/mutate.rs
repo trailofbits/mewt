@@ -1,10 +1,11 @@
-use log::{error, info};
+use log::{error, info, warn};
 use std::sync::Arc;
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::core::cli::MutateArgs;
-use crate::types::config::ResolvedTargets;
+use crate::languages::r#move::dialect::is_move_language_name;
+use crate::types::config::{ResolvedMoveDialect, ResolvedTargets};
 use crate::types::{AppResult, MutationSeverity, Target};
 
 pub async fn execute_mutate(
@@ -13,6 +14,7 @@ pub async fn execute_mutate(
     registry: Arc<LanguageRegistry>,
     resolved_targets: ResolvedTargets,
     mutations: Option<Vec<String>>,
+    resolved_move_dialect: ResolvedMoveDialect,
 ) -> AppResult<()> {
     info!(
         "Generating mutants for targets: {:?}",
@@ -22,8 +24,31 @@ pub async fn execute_mutate(
     let mutations_slice = mutations.as_deref();
 
     // Load targets from the resolved configuration
-    let targets =
-        Target::load_targets(&resolved_targets, &store, &registry, mutations_slice).await?;
+    let targets = Target::load_targets(
+        &resolved_targets,
+        &store,
+        &registry,
+        mutations_slice,
+        resolved_move_dialect,
+    )
+    .await?;
+
+    let has_move_targets = targets
+        .iter()
+        .any(|target| is_move_language_name(&target.language));
+    if has_move_targets {
+        if resolved_move_dialect.defaulted {
+            warn!(
+                "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|auto explicitly.",
+                resolved_move_dialect.dialect.as_str()
+            );
+        } else {
+            info!(
+                "Using Move dialect '{}' for .move targets",
+                resolved_move_dialect.dialect.as_str()
+            );
+        }
+    }
 
     let mut total_mutants = 0;
     let mut total_new_mutants = 0;

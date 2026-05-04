@@ -4,6 +4,7 @@ use sqlx::{QueryBuilder, Row};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
+use crate::languages::r#move::dialect::{dialect_from_language_name, language_name_for_dialect};
 use crate::types::{
     CampaignSeverityStats, CampaignSummary, Hash, Mutant, Outcome, Status, StoreError, StoreResult,
     Target, TargetStats,
@@ -180,14 +181,12 @@ impl SqlStore {
             sqlx::Error::RowNotFound => StoreError::NotFound(target_id),
             e => StoreError::DatabaseError(e),
         })?;
-        let language = record.language;
-
         Ok(Target {
             id: record.id,
             path: PathBuf::from(record.path),
             file_hash: Hash::try_from(record.file_hash)?,
             text: record.text,
-            language,
+            language: normalize_stored_target_language(&record.language),
         })
     }
 
@@ -209,7 +208,7 @@ impl SqlStore {
                 path: PathBuf::from(record.path),
                 file_hash: Hash::try_from(record.file_hash)?,
                 text: record.text,
-                language: record.language,
+                language: normalize_stored_target_language(&record.language),
             });
         }
 
@@ -598,7 +597,7 @@ impl SqlStore {
                 path: PathBuf::from(row.try_get::<String, _>("path")?),
                 file_hash: Hash::try_from(row.try_get::<String, _>("file_hash")?)?,
                 text: row.try_get("text")?,
-                language: row.try_get("language")?,
+                language: normalize_stored_target_language(&row.try_get::<String, _>("language")?),
             };
             results.push((mutant, target));
         }
@@ -728,7 +727,7 @@ impl SqlStore {
                 path: PathBuf::from(row.try_get::<String, _>("path")?),
                 file_hash: Hash::try_from(row.try_get::<String, _>("file_hash")?)?,
                 text: row.try_get("text")?,
-                language: row.try_get("language")?,
+                language: normalize_stored_target_language(&row.try_get::<String, _>("language")?),
             };
             let outcome = Outcome {
                 mutant_id: row.try_get("mutant_id")?,
@@ -852,13 +851,132 @@ impl SqlStore {
     }
 }
 
+fn normalize_stored_target_language(language: &str) -> String {
+    if let Some(dialect) = dialect_from_language_name(language) {
+        language_name_for_dialect(dialect)
+    } else {
+        language.to_string()
+    }
+}
+
 fn language_filter_variants(language: &str) -> Vec<String> {
     if language.eq_ignore_ascii_case("move")
         || language.eq_ignore_ascii_case("suimove")
         || language.eq_ignore_ascii_case("sui_move")
     {
-        vec!["Move".to_string(), "SuiMove".to_string()]
+        vec![
+            "Move".to_string(),
+            "SuiMove".to_string(),
+            "Move/sui".to_string(),
+            "Move/iota".to_string(),
+        ]
+    } else if language.eq_ignore_ascii_case("move/sui") || language.eq_ignore_ascii_case("move:sui")
+    {
+        vec![
+            "Move/sui".to_string(),
+            "Move".to_string(),
+            "SuiMove".to_string(),
+        ]
+    } else if language.eq_ignore_ascii_case("move/iota")
+        || language.eq_ignore_ascii_case("move:iota")
+    {
+        vec!["Move/iota".to_string()]
     } else {
         vec![language.to_string()]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use chrono::Utc;
+
+    use super::*;
+    use crate::LanguageRegistry;
+    use crate::languages::r#move::engine::MoveLanguageEngine;
+
+    #[test]
+    fn normalizes_legacy_move_language_labels_in_memory() {
+        assert_eq!(normalize_stored_target_language("SuiMove"), "Move/sui");
+        assert_eq!(normalize_stored_target_language("move"), "Move/sui");
+        assert_eq!(normalize_stored_target_language("Move/iota"), "Move/iota");
+        assert_eq!(normalize_stored_target_language("Rust"), "Rust");
+    }
+
+    #[tokio::test]
+    async fn legacy_suimove_targets_remain_usable_after_read() {
+        let store = SqlStore::new("sqlite::memory:".to_string())
+            .await
+            .expect("in-memory sqlite store");
+
+        let source = r#"
+module test::legacy {
+    fun check(v: bool): bool {
+        if (v) {
+            return true;
+        }
+        false
+    }
+}
+"#;
+
+        let target = Target {
+            id: 0,
+            path: PathBuf::from("legacy.move"),
+            file_hash: Hash::digest(source.to_string()),
+            text: source.to_string(),
+            language: "SuiMove".to_string(),
+        };
+
+        let target_id = store.add_target(target).await.expect("store target");
+        let reloaded = store.get_target(target_id).await.expect("read target");
+        assert_eq!(reloaded.language, "Move/sui");
+
+        let mut registry = LanguageRegistry::new();
+        registry.register(MoveLanguageEngine::new());
+
+        let mutants = reloaded
+            .generate_mutants(&registry, None)
+            .expect("legacy target should resolve an engine and mutate");
+        assert!(!mutants.is_empty(), "expected at least one mutant");
+
+        let mut first_mutant = mutants[0].clone();
+        first_mutant.target_id = target_id;
+        let mutant_id = store
+            .add_mutant(first_mutant)
+            .await
+            .expect("store mutant")
+            .expect("new mutant id");
+
+        store
+            .add_outcome(Outcome {
+                mutant_id,
+                status: Status::Uncaught,
+                output: "ok".to_string(),
+                time: Utc::now(),
+                duration_ms: 1,
+            })
+            .await
+            .expect("store outcome");
+
+        let move_results = store
+            .get_outcomes_filtered(None, None, Some("move".to_string()), None, None)
+            .await
+            .expect("filter outcomes by move");
+        assert_eq!(move_results.len(), 1);
+        assert_eq!(move_results[0].1.language, "Move/sui");
+
+        let legacy_results = store
+            .get_outcomes_filtered(None, None, Some("SuiMove".to_string()), None, None)
+            .await
+            .expect("filter outcomes by SuiMove");
+        assert_eq!(legacy_results.len(), 1);
+
+        let iota_results = store
+            .get_outcomes_filtered(None, None, Some("move/iota".to_string()), None, None)
+            .await
+            .expect("filter outcomes by move/iota");
+        assert!(iota_results.is_empty());
     }
 }

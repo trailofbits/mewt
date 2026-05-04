@@ -1,3 +1,1 @@
-use crate::types::Mutation;
-
-pub const MOVE_MUTATIONS: &[Mutation] = &[];
+pub use crate::languages::r#move::mutations::MOVE_MUTATIONS;

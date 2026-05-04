@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
-use log::info;
+use log::{info, warn};
 use serde::Serialize;
 
 use crate::LanguageRegistry;
 use crate::core::cmds::print::MutationsFilters;
+use crate::types::config::config;
 use crate::types::{Mutation, MutationSeverity};
 
 #[derive(Serialize)]
@@ -15,6 +16,25 @@ struct JsonMutations {
 pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> Result<(), String> {
     let language = filters.language;
     let is_json_format = filters.format == "json";
+
+    if language.as_deref().is_some_and(is_move_language_name)
+        || (language.is_none() && filters.dialect.is_some())
+    {
+        let resolved_dialect = config()
+            .resolve_move_dialect(filters.dialect.as_deref())
+            .map_err(|e| e.to_string())?;
+        if resolved_dialect.defaulted {
+            warn!(
+                "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|auto explicitly.",
+                resolved_dialect.dialect.as_str()
+            );
+        } else {
+            info!(
+                "Using Move dialect '{}' for mutation listing",
+                resolved_dialect.dialect.as_str()
+            );
+        }
+    }
     if is_json_format {
         // Collect all mutations for JSON format
         let mut all_mutations = Vec::new();
@@ -67,6 +87,16 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
     }
 
     Ok(())
+}
+
+fn is_move_language_name(language_name: &str) -> bool {
+    language_name.eq_ignore_ascii_case("move")
+        || language_name.eq_ignore_ascii_case("suimove")
+        || language_name.eq_ignore_ascii_case("sui_move")
+        || language_name.eq_ignore_ascii_case("move/sui")
+        || language_name.eq_ignore_ascii_case("move:iota")
+        || language_name.eq_ignore_ascii_case("move/iota")
+        || language_name.eq_ignore_ascii_case("move:sui")
 }
 
 fn print_mutations_for_language(

@@ -12,7 +12,9 @@ use crate::core::cmds;
 use crate::core::logging::init_logging;
 use crate::core::store::SqlStore;
 use crate::types::AppResult;
-use crate::types::config::{CliOverrides, config, init_with_overrides, set_namespace};
+use crate::types::config::{
+    CliOverrides, ResolvedMoveDialect, config, init_with_overrides, set_namespace,
+};
 
 pub async fn run_main(
     registry: Arc<LanguageRegistry>,
@@ -119,6 +121,9 @@ pub async fn run_main(
     // Dispatch to appropriate command
     let exit_code = match args.command {
         Commands::Run(run_args) => {
+            let resolved_move_dialect: ResolvedMoveDialect =
+                config().resolve_move_dialect(run_args.dialect.as_deref())?;
+
             // Resolve command-specific options
             let resolved_targets = if !run_args.targets.is_empty()
                 || run_args.ignore_targets.is_some()
@@ -143,6 +148,7 @@ pub async fn run_main(
                 mutations,
                 test_cmd,
                 test_timeout,
+                resolved_move_dialect,
             )
             .await?;
 
@@ -159,6 +165,9 @@ pub async fn run_main(
             }
         }
         Commands::Mutate(mutate_args) => {
+            let resolved_move_dialect: ResolvedMoveDialect =
+                config().resolve_move_dialect(mutate_args.dialect.as_deref())?;
+
             // Resolve command-specific options
             let resolved_targets = config()
                 .resolve_targets(&mutate_args.targets, mutate_args.ignore_targets.as_deref())?;
@@ -170,6 +179,7 @@ pub async fn run_main(
                 Arc::clone(&registry),
                 resolved_targets,
                 mutations,
+                resolved_move_dialect,
             )
             .await?;
             0
@@ -231,6 +241,7 @@ pub async fn run_main(
                         cmds::print::PrintCommand::Mutations(cmds::print::MutationsFilters {
                             language: args.language,
                             format: args.format,
+                            dialect: args.dialect,
                         }),
                         None,
                         Arc::clone(&registry),

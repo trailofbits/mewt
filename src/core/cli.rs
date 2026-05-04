@@ -98,6 +98,10 @@ pub struct RunArgs {
     /// Stream stdout and stderr from baseline test to stdout
     #[arg(long)]
     pub verbose: bool,
+
+    /// Move dialect for .move targets: sui, iota, or auto
+    #[arg(long)]
+    pub dialect: Option<String>,
 }
 
 /// Arguments for the mutate command
@@ -120,6 +124,10 @@ pub struct MutateArgs {
     /// Show detailed output for each mutant generated (default: show per-target summaries)
     #[arg(long)]
     pub verbose: bool,
+
+    /// Move dialect for .move targets: sui, iota, or auto
+    #[arg(long)]
+    pub dialect: Option<String>,
 }
 
 /// Arguments for the list-mutations command
@@ -175,6 +183,10 @@ pub struct PrintMutationsArgs {
     /// Output format: "table" (default) or "json"
     #[arg(long, default_value = "table")]
     pub format: String,
+
+    /// Move dialect when --language is move: sui, iota, or auto
+    #[arg(long)]
+    pub dialect: Option<String>,
 }
 
 /// Arguments for the print config subcommand

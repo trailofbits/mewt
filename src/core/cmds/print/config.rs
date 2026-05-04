@@ -68,6 +68,22 @@ pub async fn execute(format: String) -> AppResult<()> {
         }
 
         info!("");
+        info!("Languages:");
+        if let Some(languages) = &effective_config.languages {
+            if let Some(move_cfg) = &languages.move_language {
+                if let Some(dialect) = move_cfg.dialect {
+                    info!("  move.dialect: {}", dialect.as_str());
+                } else {
+                    info!("  move.dialect: (not set)");
+                }
+            } else {
+                info!("  move: (not configured)");
+            }
+        } else {
+            info!("  (not configured)");
+        }
+
+        info!("");
         info!("Test:");
         if let Some(test) = &effective_config.test {
             if let Some(cmd) = &test.cmd {

@@ -38,6 +38,9 @@ level = "info"                # trace, debug, info, warn, error
 # mutations = ["ER", "CR"]    # whitelist specific mutation slugs
 # comprehensive = false        # test all mutants even if severe ones uncaught
 
+[languages.move]
+# dialect = "sui"             # one of: sui, iota, auto
+
 [test]
 # cmd = "cargo test"           # default test command
 # timeout = 30                 # seconds; defaults to 2x baseline runtime
@@ -55,6 +58,16 @@ CLI flags use dotted notation matching the config structure:
 - `--db`
 - `--log.level`, `--log.color`
 - `--test.cmd`, `--test.timeout`
+- `--dialect` (run, mutate, print mutations; Move only)
+
+## Move dialect resolution order
+
+For `.move` targets, mewt resolves dialect in this order:
+1. CLI `--dialect`
+2. Config `[languages.move].dialect`
+3. Default `sui`
+
+If no explicit dialect is provided (or `auto` is selected), mewt defaults to `sui` and emits a warning when `.move` targets are processed.
 
 ### Ignore flag
 

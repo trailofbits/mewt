@@ -1,0 +1,98 @@
+use std::sync::OnceLock;
+
+use tree_sitter::Language as TsLanguage;
+
+use crate::types::config::MoveDialect;
+
+#[derive(Debug, Clone, Copy)]
+pub struct MoveDialectProfile {
+    pub dialect: MoveDialect,
+    pub abort_statement: &'static str,
+    unsupported_mutation_slugs: &'static [&'static str],
+}
+
+impl MoveDialectProfile {
+    pub fn parser_language(&self) -> &'static TsLanguage {
+        match self.dialect {
+            MoveDialect::Sui => SUI_MOVE_LANGUAGE
+                .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_move()) }),
+            MoveDialect::Iota => IOTA_MOVE_LANGUAGE
+                .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_move()) }),
+        }
+    }
+
+    pub fn supports_mutation_slug(&self, slug: &str) -> bool {
+        !self.unsupported_mutation_slugs.contains(&slug)
+    }
+}
+
+pub fn profile_for_target_language(language_name: &str) -> MoveDialectProfile {
+    let dialect = dialect_from_language_name(language_name).unwrap_or(MoveDialect::Sui);
+    profile_for_dialect(dialect)
+}
+
+pub fn profile_for_dialect(dialect: MoveDialect) -> MoveDialectProfile {
+    match dialect {
+        MoveDialect::Sui => MoveDialectProfile {
+            dialect,
+            abort_statement: "abort 0;",
+            // Move has no compound assignment operators in this parser profile.
+            unsupported_mutation_slugs: &["AAOS", "BAOS", "SAOS"],
+        },
+        MoveDialect::Iota => MoveDialectProfile {
+            dialect,
+            abort_statement: "abort 0;",
+            // Start with same capabilities as Sui until grammar-specific deltas are added.
+            unsupported_mutation_slugs: &["AAOS", "BAOS", "SAOS"],
+        },
+    }
+}
+
+pub fn is_move_language_name(language_name: &str) -> bool {
+    dialect_from_language_name(language_name).is_some()
+}
+
+pub fn language_name_for_dialect(dialect: MoveDialect) -> String {
+    format!("Move/{}", dialect.as_str())
+}
+
+pub fn dialect_from_language_name(language_name: &str) -> Option<MoveDialect> {
+    let normalized = language_name.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "move" | "suimove" | "sui_move" | "move/sui" | "move:sui" => Some(MoveDialect::Sui),
+        "move/iota" | "move:iota" => Some(MoveDialect::Iota),
+        _ => None,
+    }
+}
+
+static SUI_MOVE_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
+static IOTA_MOVE_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
+
+unsafe extern "C" {
+    fn tree_sitter_move() -> *const tree_sitter::ffi::TSLanguage;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_legacy_and_profiled_move_names() {
+        assert_eq!(dialect_from_language_name("Move"), Some(MoveDialect::Sui));
+        assert_eq!(
+            dialect_from_language_name("SuiMove"),
+            Some(MoveDialect::Sui)
+        );
+        assert_eq!(
+            dialect_from_language_name("move/iota"),
+            Some(MoveDialect::Iota)
+        );
+        assert_eq!(dialect_from_language_name("move: iota"), None);
+    }
+
+    #[test]
+    fn emits_profiled_language_names() {
+        assert_eq!(language_name_for_dialect(MoveDialect::Sui), "Move/sui");
+        assert_eq!(language_name_for_dialect(MoveDialect::Iota), "Move/iota");
+    }
+}
