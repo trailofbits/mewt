@@ -69,6 +69,21 @@ For `.move` targets, mewt resolves dialect in this order:
 
 If no explicit dialect is provided (or `auto` is selected), mewt defaults to `sui` and emits a warning when `.move` targets are processed.
 
+Examples:
+
+```bash
+# Mutate using iota dialect for .move targets
+mewt mutate src --dialect iota
+
+# Print mutation catalog for Move under sui dialect
+mewt print mutations --language move --dialect sui
+```
+
+Compatibility aliases:
+- `--language move` is canonical.
+- `--language suimove` and `--language sui_move` remain supported for backward compatibility.
+- Alias removal is not scheduled in this release; any deprecation/removal will happen in a future major release.
+
 ### Ignore flag
 
 `--ignore` (CSV): comma-separated substrings; any target path containing any given value will be ignored.

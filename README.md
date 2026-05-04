@@ -17,7 +17,7 @@ wrong.
 - JavaScript/TypeScript
 - Rust
 - Solidity
-- Move (currently Sui-compatible; accepts `move`, `suimove`, and `sui_move`)
+- Move (dialects: `sui`, `iota`; legacy aliases still accepted: `move`, `suimove`, `sui_move`)
 
 For details on how campaigns work under the hood, see
 [How it works](docs/how-it-works.md). To add support for a new language, see
@@ -58,6 +58,12 @@ mewt run path/to/project
 mewt print mutations --language rust
 ```
 
+- List Move mutation slugs for a specific dialect:
+
+```bash
+mewt print mutations --language move --dialect iota
+```
+
 - Print all mutants for a target path:
 
 ```bash
@@ -84,6 +90,27 @@ You can also point to an explicit config file with `--config path/to/mewt.toml`.
 
 See [Configuration](docs/configuration.md) for the full reference and [`src/example.toml`](src/example.toml) for a commented example.
 
+## Choosing a Move dialect
+
+For `.move` files, mewt resolves dialect in this order:
+1. `--dialect`
+2. `[languages.move].dialect` in `mewt.toml`
+3. default `sui`
+
+Examples:
+
+```bash
+# Explicit dialect from CLI
+mewt run path/to/package --dialect iota
+
+# Print mutations for Move with explicit dialect
+mewt print mutations --language move --dialect sui
+```
+
+Compatibility note:
+- Legacy language names (`SuiMove`, `sui_move`, `suimove`) still work.
+- They are compatibility aliases and may be removed in a future major release after a deprecation window.
+
 ## Examples
 
 This repo includes example files you can try:
@@ -93,7 +120,7 @@ This repo includes example files you can try:
 - JavaScript/TypeScript/JSX/TSX: `tests/javascript/example.js` (plus `example.ts`, `example.jsx`, `example.tsx`)
 - Rust: `tests/rust/example.rs`
 - Solidity: `tests/solidity/example.sol`
-- Move: `tests/sui_move/example.move`
+- Move: `tests/sui_move/example.move` (path retained for compatibility during migration)
 
 ## Notes
 

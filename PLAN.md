@@ -4,14 +4,13 @@
 Transition from a Sui-specific language identity (`SuiMove`) to a dialect-aware Move family model:
 
 - Canonical language: **`Move`**
-- Dialects/profiles: **`sui`**, **`iota`**, (future: **`aptos`**)
+- Dialects/profiles: **`sui`**, **`iota`**
 - Backward compatibility for existing `SuiMove` usage
 - Deterministic `.move` dialect resolution via explicit config/CLI first, then fallback strategy
 
 ---
 
 ## Non-Goals
-- Do **not** implement Aptos support in this plan unless explicitly scoped in a phase.
 - Do **not** change SQL schema/migrations unless explicitly approved.
 - Do **not** remove compatibility aliases in initial rollout.
 
@@ -31,14 +30,14 @@ Transition from a Sui-specific language identity (`SuiMove`) to a dialect-aware 
 Capture current behavior and lock in regression coverage before refactor.
 
 ### Tasks
-- [ ] Document current Move behavior and naming touchpoints (CLI, registry, tests, docs, persistence).
-- [ ] Add/confirm regression tests for current `SuiMove` flows.
-- [ ] Add targeted tests for `.move` target loading and language selection behavior.
+- [x] Document current Move behavior and naming touchpoints (CLI, registry, tests, docs, persistence).
+- [x] Add/confirm regression tests for current `SuiMove` flows.
+- [x] Add targeted tests for `.move` target loading and language selection behavior.
 
 ### Completion Criteria
-- [ ] A short baseline summary is committed under `docs/` or in test comments.
-- [ ] Current Move-related tests pass locally.
-- [ ] `just pre-commit` passes.
+- [x] A short baseline summary is committed under `docs/` or in test comments.
+- [x] Current Move-related tests pass locally.
+- [x] `just pre-commit` passes.
 
 ---
 
@@ -128,15 +127,15 @@ Ensure old stored language identities still work.
 Ensure correctness across dialects and prevent drift.
 
 ### Tasks
-- [ ] Reorganize/add tests under a dialect-aware structure (e.g. `tests/move/sui`, `tests/move/iota`).
-- [ ] Keep shared conformance tests plus dialect-specific expectations.
-- [ ] Add parser/grammar drift guard tests for critical node/field dependencies used by mutation operators.
+- [x] Reorganize/add tests under a dialect-aware structure (e.g. `tests/move/sui`, `tests/move/iota`).
+- [x] Keep shared conformance tests plus dialect-specific expectations.
+- [x] Add parser/grammar drift guard tests for critical node/field dependencies used by mutation operators.
 
 ### Completion Criteria
-- [ ] Both `sui` and `iota` dialect test suites run and pass.
-- [ ] Shared and dialect-specific mutation expectations are explicit.
-- [ ] Drift guard tests exist and fail clearly when grammar contracts break.
-- [ ] `just pre-commit` passes.
+- [x] Both `sui` and `iota` dialect test suites run and pass.
+- [x] Shared and dialect-specific mutation expectations are explicit.
+- [x] Drift guard tests exist and fail clearly when grammar contracts break.
+- [x] `just pre-commit` passes.
 
 ---
 
@@ -146,46 +145,29 @@ Ensure correctness across dialects and prevent drift.
 Make the new model obvious and easy to use.
 
 ### Tasks
-- [ ] Update `README.md` supported languages to `Move` with dialect notes.
-- [ ] Add a short "Choosing Move dialect" section with examples.
-- [ ] Update any docs/examples that still imply Sui-only naming.
-- [ ] Add deprecation notice timeline for `SuiMove` alias removal (if desired).
+- [x] Update `README.md` supported languages to `Move` with dialect notes.
+- [x] Add a short "Choosing Move dialect" section with examples.
+- [x] Update any docs/examples that still imply Sui-only naming.
+- [x] Add deprecation notice timeline for `SuiMove` alias removal (if desired).
 
 ### Completion Criteria
-- [ ] Docs consistently use canonical `Move` terminology.
-- [ ] CLI examples include dialect usage.
-- [ ] No stale `SuiMove` wording remains except intentional compatibility docs.
-- [ ] `just pre-commit` passes.
-
----
-
-## Phase 7 — Optional Aptos Onboarding (Future)
-
-### Objective
-Add Aptos dialect as an incremental extension, not a blocking dependency.
-
-### Tasks
-- [ ] Add `aptos` dialect profile with parser/syntax mapping.
-- [ ] Add dialect-specific tests and mutation capability constraints where grammar differs.
-- [ ] Update docs and dialect resolution options.
-
-### Completion Criteria
-- [ ] `--dialect aptos` works for supported operations.
-- [ ] Aptos tests pass independently of Sui/IOTA tests.
-- [ ] `just pre-commit` passes.
+- [x] Docs consistently use canonical `Move` terminology.
+- [x] CLI examples include dialect usage.
+- [x] No stale `SuiMove` wording remains except intentional compatibility docs.
+- [x] `just pre-commit` passes.
 
 ---
 
 ## Definition of Done (End State)
 
 All items below must be true:
-- [ ] Canonical language identity is `Move`.
-- [ ] `sui` and `iota` are selectable dialects in config/CLI.
-- [ ] Legacy `SuiMove` usage still works via aliases/compat layer.
-- [ ] `.move` dialect resolution is deterministic and documented.
-- [ ] Tests are dialect-aware and passing.
-- [ ] Documentation reflects the Move family model.
-- [ ] `just pre-commit` passes on final branch.
+- [x] Canonical language identity is `Move`.
+- [x] `sui` and `iota` are selectable dialects in config/CLI.
+- [x] Legacy `SuiMove` usage still works via aliases/compat layer.
+- [x] `.move` dialect resolution is deterministic and documented.
+- [x] Tests are dialect-aware and passing.
+- [x] Documentation reflects the Move family model.
+- [x] `just pre-commit` passes on final branch.
 
 ---
 

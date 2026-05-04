@@ -6,6 +6,7 @@ mod utils;
 mod cpp;
 mod go;
 mod javascript;
+mod r#move;
 mod rust;
 mod solidity;
 mod sui_move;
