@@ -1,181 +1,202 @@
-# Move Language Unification Plan
+# Registry-Centric Language/Dialect Resolution Plan
 
 ## Goal
-Transition from a Sui-specific language identity (`SuiMove`) to a dialect-aware Move family model:
+Refactor language selection so it is owned by the registry/resolver layer (not hand-threaded through command and target code), and make it generic enough for any ambiguous-extension language family (Move now, JS/JSX-style families later).
 
-- Canonical language: **`Move`**
-- Dialects/profiles: **`sui`**, **`iota`**
-- Backward compatibility for existing `SuiMove` usage
-- Deterministic `.move` dialect resolution via explicit config/CLI first, then fallback strategy
+This plan intentionally **drops backward-compatibility guarantees for legacy naming** like `SuiMove`.
 
 ---
 
-## Non-Goals
-- Do **not** change SQL schema/migrations unless explicitly approved.
-- Do **not** remove compatibility aliases in initial rollout.
+## Explicit Policy Decisions
+
+1. **Legacy naming can break**
+   - We do not preserve `SuiMove`, `sui_move`, `suimove` aliases unless they happen to remain incidentally.
+   - Canonical naming is `Move` + dialect.
+
+2. **Prefer no DB migrations**
+   - We should avoid schema changes if we can preserve correctness and maintainability.
+
+3. **Migration is allowed if correctness requires it**
+   - If we cannot represent dialect identity safely in persistence (especially for target identity/dedup) without hacks, we should introduce a migration.
 
 ---
 
-## Invariants to Preserve
-1. Existing Sui Move behavior remains correct during migration.
-2. Existing users invoking `--language SuiMove` do not break.
-3. Existing stored targets/results remain readable.
-4. CI/pre-commit checks remain green after every phase.
+## Core Question to Resolve Early
+
+Should dialect be persisted as a first-class column (e.g., `targets.dialect`) or encoded in language label (e.g., `Move/iota`)?
+
+### Option A (Preferred starting point): No migration
+- Keep storing canonical language label (including dialect where needed, e.g. `Move/sui` and `Move/iota`).
+- Centralize normalization in one resolver/registry path.
+- Pros: no migration risk, faster rollout.
+- Cons: target identity and dedup semantics may remain awkward if dialect-sensitive behavior diverges further.
+
+### Option B: Add first-class dialect field via migration
+- Add `dialect` column where appropriate (`targets`, maybe related tables), and enforce identity/query semantics explicitly.
+- Pros: cleaner model, fewer string-encoding tricks, better long-term correctness.
+- Cons: migration complexity and rollout burden.
 
 ---
 
-## Phase 0 — Baseline & Safety Net
+## Target End State
+
+### Functional End State
+- Effective selection is computed by one resolver from:
+  - explicit language override
+  - explicit dialect override
+  - config defaults
+  - extension candidates
+  - deterministic fallback rules
+- Commands (`run`, `mutate`, `print mutations`, target loading paths) consume one resolved selection object.
+- Ambiguous extensions are handled by the same mechanism across language families.
+
+### Architectural End State
+- Registry/resolver owns:
+  - canonical language keys
+  - dialect validation for dialect-aware languages
+  - extension ambiguity handling
+  - canonical labels used in logs/store
+- No Move-specific branching in target path resolution.
+- No duplicated alias/dialect normalization logic scattered across core/store/print.
+
+### Quality End State
+- Test suite includes:
+  - precedence tests
+  - ambiguity resolution tests
+  - dialect-divergence tests (Sui-only/IOTA-sensitive constructs)
+- `just pre-commit` and `just test` pass.
+
+---
+
+## Phase 0 — Persistence Decision Gate
 
 ### Objective
-Capture current behavior and lock in regression coverage before refactor.
+Decide whether no-migration storage is safe enough or whether first-class dialect persistence is required.
 
 ### Tasks
-- [x] Document current Move behavior and naming touchpoints (CLI, registry, tests, docs, persistence).
-- [x] Add/confirm regression tests for current `SuiMove` flows.
-- [x] Add targeted tests for `.move` target loading and language selection behavior.
+- [x] Document current target identity/dedup behavior and how dialect interacts with it (in-chat).
+- [x] Produce 2–3 concrete failure scenarios if dialects diverge (same file hash/path under different dialects).
+- [x] Evaluate Option A (label-only) vs Option B (dialect column) against those scenarios.
+- [x] Record a decision and rationale (in-chat only; no docs update by request).
 
-### Completion Criteria
-- [x] A short baseline summary is committed under `docs/` or in test comments.
-- [x] Current Move-related tests pass locally.
-- [x] `just pre-commit` passes.
+### Phase 0 Decision (Completed)
+- **Decision:** No DB migration for dialect column right now.
+- **Rationale:** Dialect is a resolver-level disambiguation mechanism (per-target selectable, with optional project defaults), and persisting canonical `target.language` labels is sufficient for current goals.
+- **Follow-up constraint:** Revisit schema only if/when dialect-sensitive identity or cross-campaign dedup semantics require first-class persistence beyond canonical language labels.
+
+### Exit Criteria
+- [x] Decision is explicit: **No migration now** or **Migration required now**.
+- [x] Decision includes clear correctness rationale, not preference-only.
+- [x] If migration is chosen, user approval is obtained before editing `migrations/`.
 
 ---
 
-## Phase 1 — Introduce Canonical `Move` Name (No Behavior Change)
+## Phase 1 — Define Resolver Contract
 
 ### Objective
-Establish `Move` as canonical while preserving old names.
+Freeze a single API contract for registry-centric resolution.
 
 ### Tasks
-- [x] Rename user-facing identity from `SuiMove` to `Move` where safe.
-- [x] Add aliases so language lookup accepts: `move`, `SuiMove`, `sui_move`.
-- [x] Keep existing parser/mutation behavior identical (still Sui grammar/profile internally for now).
-- [x] Update CLI/help text and docs to mention canonical `Move` + compatibility aliases.
+- [ ] Add a short design doc describing resolver inputs/outputs.
+- [ ] Define a normalized selection type (language, optional dialect, canonical label).
+- [ ] Define precedence and ambiguity policy unambiguously.
+- [ ] Inventory all current call sites that resolve language/dialect.
 
-### Completion Criteria
-- [x] `mewt print mutations --language move` works.
-- [x] `mewt print mutations --language suimove` still works (alias).
-- [x] Existing tests pass plus alias tests pass.
-- [x] `just pre-commit` passes.
+### Exit Criteria
+- [ ] Resolver contract doc exists and is referenced from docs.
+- [ ] Selection type and precedence are unambiguous.
+- [ ] All existing resolution call sites are listed for migration.
 
 ---
 
-## Phase 2 — Add Dialect Concept at API/Config Layer
+## Phase 2 — Implement Resolver Core in Registry
 
 ### Objective
-Introduce a first-class dialect setting without forcing schema changes.
+Build the resolver in/near `LanguageRegistry` and make it the source of truth.
 
 ### Tasks
-- [x] Add dialect option to CLI (`--dialect`) for Move commands where language selection matters.
-- [x] Add config support in `mewt.toml` (e.g. `[languages.move] dialect = "sui|iota|auto"`).
-- [x] Define and document dialect resolution order:
-  1) CLI `--dialect`
-  2) config dialect
-  3) fallback default (`sui`) with clear warning when ambiguity exists.
-- [x] Keep behavior unchanged when dialect is omitted (defaults to current Sui behavior).
+- [ ] Implement resolver API (path + explicit overrides + config => resolved selection).
+- [ ] Centralize normalization helpers used by registry/store/print.
+- [ ] Add dialect-aware metadata/hooks for Move.
+- [ ] Add unit tests for precedence, ambiguity, and canonical labeling.
 
-### Completion Criteria
-- [x] Explicit dialect selection is wired and test-covered.
-- [x] Omitted dialect preserves prior behavior.
-- [x] Resolution-order tests exist and pass.
-- [x] `just pre-commit` passes.
+### Exit Criteria
+- [ ] Resolver tests pass and cover precedence + ambiguity.
+- [ ] Shared normalization path exists and is used by at least two subsystems.
+- [ ] `just pre-commit` passes.
 
 ---
 
-## Phase 3 — Move Engine Refactor to Dialect Profiles
+## Phase 3 — Migrate Commands and Target Resolution
 
 ### Objective
-Implement a single Move family engine with dialect profiles.
+Remove hand-threaded dialect handling from command and target flows.
 
 ### Tasks
-- [x] Create/introduce a unified `move` language module/engine.
-- [x] Extract dialect profile boundary (syntax constants, parser handle, feature flags).
-- [x] Implement at least `sui` and `iota` profiles behind the same engine interface.
-- [x] Ensure `.move` loading uses resolved dialect (from Phase 2), not extension-only inference.
+- [ ] Refactor target resolution to use registry resolver (no Move-specific branch logic).
+- [ ] Update `run`, `mutate`, `print mutations` to consume resolved selection.
+- [ ] Remove duplicated command-level language/dialect branching.
+- [ ] Keep effective-config/log output derived from resolver output.
 
-### Completion Criteria
-- [x] One canonical Move engine serves both `sui` and `iota` profiles.
-- [x] `.move` files mutate under selected dialect deterministically.
-- [x] No extension-collision ambiguity in registry behavior.
-- [x] `just pre-commit` passes.
+### Exit Criteria
+- [ ] No Move-specific branch remains in target language resolution.
+- [ ] Commands use shared resolver path for final selection.
+- [ ] Integration tests pass.
+- [ ] `just pre-commit` passes.
 
 ---
 
-## Phase 4 — Backward Compatibility for Persisted Data
+## Phase 4 — Divergence-Focused Tests and Grammar Clarity
 
 ### Objective
-Ensure old stored language identities still work.
+Make differences between Move dialect grammars explicit and test-enforced.
 
 ### Tasks
-- [x] Add read-path compatibility mapping for legacy stored `SuiMove` targets/results.
-- [x] Decide migration strategy:
-  - **Preferred initially:** lazy/in-memory mapping (no schema change).
-  - **Optional later:** explicit DB migration (requires user approval).
-- [x] Add tests proving old records remain usable.
+- [ ] Reorganize Move tests to `tests/move/shared`, `tests/move/sui`, `tests/move/iota`.
+- [ ] Add grammar-difference tests (at least one Sui-only construct, one IOTA-sensitive construct).
+- [ ] Add resolver integration tests showing deterministic dialect selection for `.move`.
+- [ ] Ensure unsupported/invalid dialect selections fail clearly.
 
-### Completion Criteria
-- [x] Running commands on legacy data does not fail due to missing engine.
-- [x] Compatibility tests for legacy `SuiMove` entries pass.
-- [x] If schema migration is proposed, approval is recorded before implementation.
-- [x] `just pre-commit` passes.
+### Exit Criteria
+- [ ] Dialect-difference tests pass and fail meaningfully on regressions.
+- [ ] Resolver integration tests for `.move` ambiguity pass.
+- [ ] `just test` and `just pre-commit` pass.
 
 ---
 
-## Phase 5 — Test Matrix Expansion (Dialect-Aware)
+## Phase 5 — Optional Schema Migration (Only If Chosen in Phase 0)
 
 ### Objective
-Ensure correctness across dialects and prevent drift.
+If required by Phase 0 decision, persist dialect as first-class data.
 
 ### Tasks
-- [x] Reorganize/add tests under a dialect-aware structure (e.g. `tests/move/sui`, `tests/move/iota`).
-- [x] Keep shared conformance tests plus dialect-specific expectations.
-- [x] Add parser/grammar drift guard tests for critical node/field dependencies used by mutation operators.
+- [ ] Add migration(s) for dialect persistence fields/indexes.
+- [ ] Update model/types/store queries accordingly.
+- [ ] Add migration/backfill tests.
+- [ ] Run `just reset-db` and full test suite.
 
-### Completion Criteria
-- [x] Both `sui` and `iota` dialect test suites run and pass.
-- [x] Shared and dialect-specific mutation expectations are explicit.
-- [x] Drift guard tests exist and fail clearly when grammar contracts break.
-- [x] `just pre-commit` passes.
-
----
-
-## Phase 6 — Documentation & UX Finalization
-
-### Objective
-Make the new model obvious and easy to use.
-
-### Tasks
-- [x] Update `README.md` supported languages to `Move` with dialect notes.
-- [x] Add a short "Choosing Move dialect" section with examples.
-- [x] Update any docs/examples that still imply Sui-only naming.
-- [x] Add deprecation notice timeline for `SuiMove` alias removal (if desired).
-
-### Completion Criteria
-- [x] Docs consistently use canonical `Move` terminology.
-- [x] CLI examples include dialect usage.
-- [x] No stale `SuiMove` wording remains except intentional compatibility docs.
-- [x] `just pre-commit` passes.
+### Exit Criteria
+- [ ] Migration is applied and tested successfully.
+- [ ] Persistence semantics for dialect-sensitive identity are explicit.
+- [ ] `just test` and `just pre-commit` pass.
 
 ---
 
-## Definition of Done (End State)
+## Definition of Done
 
-All items below must be true:
-- [x] Canonical language identity is `Move`.
-- [x] `sui` and `iota` are selectable dialects in config/CLI.
-- [x] Legacy `SuiMove` usage still works via aliases/compat layer.
-- [x] `.move` dialect resolution is deterministic and documented.
-- [x] Tests are dialect-aware and passing.
-- [x] Documentation reflects the Move family model.
-- [x] `just pre-commit` passes on final branch.
+- [ ] Registry/resolver is authoritative for language+dialect resolution.
+- [ ] Target/command flows no longer hand-thread Move-specific dialect logic.
+- [ ] Legacy `SuiMove` compatibility is not required and not tested.
+- [ ] `.move` ambiguity handling is deterministic and test-covered.
+- [ ] Divergence between Sui and IOTA grammar behavior is explicit in tests.
+- [ ] Persistence strategy is explicitly justified (no migration or migration).
+- [ ] `just pre-commit` and `just test` pass.
 
 ---
 
-## Execution Notes for Future Workers
+## Execution Notes
 
-- Keep changes phase-scoped; avoid mixing refactor + feature + doc cleanup in one large PR.
-- After each phase, run:
-  - `just pre-commit`
-  - `just test` (if phase touches behavior)
-- If a schema change seems necessary, stop and request explicit approval before editing `migrations/`.
-- Do not remove aliases (`SuiMove`, `sui_move`) until a later, explicitly approved deprecation phase.
+- Keep phase scope tight; avoid mixing broad refactors with feature additions.
+- After each phase, run `just pre-commit`.
+- Run `just test` for any behavior-affecting phase.
+- Do not edit `migrations/` unless Phase 0 selected migration and approval is confirmed.
