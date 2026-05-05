@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 
 use log::{info, warn};
 use serde::Serialize;
@@ -6,7 +7,7 @@ use serde::Serialize;
 use crate::LanguageRegistry;
 use crate::core::cmds::print::MutationsFilters;
 use crate::languages::r#move::dialect::is_move_language_name;
-use crate::types::config::config;
+use crate::types::config::{ResolvedMoveDialect, config};
 use crate::types::{Mutation, MutationSeverity};
 
 #[derive(Serialize)]
@@ -18,31 +19,36 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
     let language = filters.language;
     let is_json_format = filters.format == "json";
 
-    if language.as_deref().is_some_and(is_move_language_name)
-        || (language.is_none() && filters.dialect.is_some())
-    {
-        let resolved_dialect = config()
+    let need_move_dialect = language.as_deref().is_some_and(is_move_language_name)
+        || (language.is_none() && filters.dialect.is_some());
+    let resolved_move_dialect = if need_move_dialect {
+        let resolved = config()
             .resolve_move_dialect(filters.dialect.as_deref())
             .map_err(|e| e.to_string())?;
-        if resolved_dialect.defaulted {
+        if resolved.defaulted {
             warn!(
                 "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|auto explicitly.",
-                resolved_dialect.dialect.as_str()
+                resolved.dialect.as_str()
             );
         } else {
             info!(
                 "Using Move dialect '{}' for mutation listing",
-                resolved_dialect.dialect.as_str()
+                resolved.dialect.as_str()
             );
         }
-    }
+        Some(resolved)
+    } else {
+        None
+    };
+
     if is_json_format {
-        // Collect all mutations for JSON format
         let mut all_mutations = Vec::new();
         match &language {
             Some(lang_str) => {
+                let (engine_name, _) =
+                    resolve_language_for_print(registry, lang_str, resolved_move_dialect)?;
                 let mutation_engine = registry
-                    .get_engine(lang_str)
+                    .get_engine(&engine_name)
                     .ok_or_else(|| format!("No engine found for language: {}", lang_str))?;
                 all_mutations.extend(mutation_engine.get_mutations().iter().map(|m| Mutation {
                     slug: m.slug,
@@ -73,15 +79,31 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
             serde_json::to_string_pretty(&json_mutations).map_err(|e| e.to_string())?
         );
     } else {
-        // Table format
         match &language {
             Some(lang_str) => {
-                print_mutations_for_language(lang_str, registry)?;
+                let (engine_name, display_name) =
+                    resolve_language_for_print(registry, lang_str, resolved_move_dialect)?;
+                print_mutations_for_language(&engine_name, &display_name, registry)?;
             }
             None => {
-                // For each registered language, print its mutations
                 for lang_name in registry.all_languages() {
-                    print_mutations_for_language(lang_name, registry)?;
+                    let display_name = if is_move_language_name(lang_name) {
+                        if let Some(resolved) = resolved_move_dialect {
+                            registry
+                                .resolve_selection_for_path(
+                                    Path::new("__virtual__.move"),
+                                    Some(lang_name),
+                                    resolved,
+                                )
+                                .map(|selection| selection.canonical_label)
+                                .unwrap_or_else(|_| lang_name.to_string())
+                        } else {
+                            lang_name.to_string()
+                        }
+                    } else {
+                        lang_name.to_string()
+                    };
+                    print_mutations_for_language(lang_name, &display_name, registry)?;
                 }
             }
         };
@@ -90,13 +112,36 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
     Ok(())
 }
 
+fn resolve_language_for_print(
+    registry: &LanguageRegistry,
+    raw_language: &str,
+    resolved_move_dialect: Option<ResolvedMoveDialect>,
+) -> Result<(String, String), String> {
+    if is_move_language_name(raw_language) {
+        let resolved = resolved_move_dialect
+            .ok_or_else(|| "Move language selection requires resolved dialect".to_string())?;
+        let selection = registry.resolve_selection_for_path(
+            Path::new("__virtual__.move"),
+            Some(raw_language),
+            resolved,
+        )?;
+        return Ok((selection.language_key, selection.canonical_label));
+    }
+
+    let engine = registry
+        .get_engine(raw_language)
+        .ok_or_else(|| format!("No engine found for language: {}", raw_language))?;
+    Ok((engine.name().to_string(), engine.name().to_string()))
+}
+
 fn print_mutations_for_language(
-    lang_name: &str,
+    engine_lookup_name: &str,
+    display_name: &str,
     registry: &LanguageRegistry,
 ) -> Result<(), String> {
     let mutation_engine = registry
-        .get_engine(lang_name)
-        .ok_or_else(|| format!("No engine found for language: {}", lang_name))?;
+        .get_engine(engine_lookup_name)
+        .ok_or_else(|| format!("No engine found for language: {}", engine_lookup_name))?;
     let mutations = mutation_engine.get_mutations();
 
     // Group mutations by slug
@@ -113,7 +158,7 @@ fn print_mutations_for_language(
     let mut slugs: Vec<_> = mutation_groups.keys().copied().collect();
     slugs.sort();
 
-    info!("Available mutations for {}:", lang_name);
+    info!("Available mutations for {}:", display_name);
     for slug in slugs {
         let (severity, descriptions) = &mutation_groups[slug];
         if descriptions.len() == 1 {

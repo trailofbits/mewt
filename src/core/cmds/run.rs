@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::core::cli::RunArgs;
+use crate::core::cmds::log_move_dialect_for_targets;
 use crate::core::runner::TestRunner;
-use crate::languages::r#move::dialect::is_move_language_name;
 use crate::types::config::{ResolvedMoveDialect, ResolvedTargets, config, resolve_test_for_path};
 use crate::types::{AppResult, CampaignSummary, Target};
 
@@ -72,22 +72,7 @@ pub async fn execute_run(
         targets
     };
 
-    let has_move_targets = targets
-        .iter()
-        .any(|target| is_move_language_name(&target.language));
-    if has_move_targets {
-        if resolved_move_dialect.defaulted {
-            warn!(
-                "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|auto explicitly.",
-                resolved_move_dialect.dialect.as_str()
-            );
-        } else {
-            info!(
-                "Using Move dialect '{}' for .move targets",
-                resolved_move_dialect.dialect.as_str()
-            );
-        }
-    }
+    log_move_dialect_for_targets(&targets, resolved_move_dialect, ".move targets");
 
     // Group targets by resolved (test_cmd, timeout)
     let mut groups: HashMap<(String, Option<u32>), Vec<Target>> = HashMap::new();

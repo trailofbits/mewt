@@ -261,6 +261,14 @@ mod tests {
         }
     }
 
+    fn resolved_move_dialect_sui() -> ResolvedMoveDialect {
+        ResolvedMoveDialect {
+            dialect: MoveDialect::Sui,
+            source: MoveDialectSource::Config,
+            defaulted: false,
+        }
+    }
+
     #[test]
     fn resolver_uses_explicit_language_over_path_extension() {
         let mut registry = LanguageRegistry::new();
@@ -300,6 +308,47 @@ mod tests {
     fn shared_normalization_helpers_cover_move_aliases() {
         assert_eq!(normalize_language_label("SuiMove"), "Move/sui");
         assert_eq!(language_filter_variants("move").len(), 4);
+    }
+
+    #[test]
+    fn resolver_selects_move_dialect_deterministically_for_move_extension() {
+        let mut registry = LanguageRegistry::new();
+        registry.register(MoveLanguageEngine::new());
+
+        let sui = registry
+            .resolve_selection_for_path(
+                Path::new("example.move"),
+                None,
+                resolved_move_dialect_sui(),
+            )
+            .expect("sui selection");
+        let iota = registry
+            .resolve_selection_for_path(
+                Path::new("example.move"),
+                None,
+                resolved_move_dialect_iota(),
+            )
+            .expect("iota selection");
+
+        assert_eq!(sui.canonical_label, "Move/sui");
+        assert_eq!(iota.canonical_label, "Move/iota");
+        assert_ne!(sui.canonical_label, iota.canonical_label);
+    }
+
+    #[test]
+    fn resolver_rejects_invalid_move_dialect_language_label() {
+        let mut registry = LanguageRegistry::new();
+        registry.register(MoveLanguageEngine::new());
+
+        let err = registry
+            .resolve_selection_for_path(
+                Path::new("example.move"),
+                Some("move/aptos"),
+                resolved_move_dialect_sui(),
+            )
+            .expect_err("invalid dialect label should fail");
+
+        assert!(err.contains("No engine found for language: move/aptos"));
     }
 
     #[test]

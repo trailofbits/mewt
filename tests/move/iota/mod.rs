@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 
 use crate::conformance;
+use mewt::languages::r#move::dialect::validate_source_for_dialect;
+use mewt::types::config::MoveDialect;
 
 use super::shared;
 
@@ -48,4 +50,12 @@ fn move_iota_baseline_slug_set_matches_sui_currently() {
         iota_slugs, sui_slugs,
         "until dialect-specific constraints are introduced, iota and sui should expose the same mutation slugs for baseline sources"
     );
+}
+
+#[test]
+fn iota_sensitive_marker_is_rejected_for_sui_and_allowed_for_iota() {
+    let source = "// @iota_only\nmodule test::m {}";
+
+    assert!(validate_source_for_dialect(source, MoveDialect::Iota).is_ok());
+    assert!(validate_source_for_dialect(source, MoveDialect::Sui).is_err());
 }

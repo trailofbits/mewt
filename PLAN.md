@@ -133,16 +133,16 @@ Build the resolver in/near `LanguageRegistry` and make it the source of truth.
 Remove hand-threaded dialect handling from command and target flows.
 
 ### Tasks
-- [ ] Refactor target resolution to use registry resolver (no Move-specific branch logic).
-- [ ] Update `run`, `mutate`, `print mutations` to consume resolved selection.
-- [ ] Remove duplicated command-level language/dialect branching.
-- [ ] Keep effective-config/log output derived from resolver output.
+- [x] Refactor target resolution to use registry resolver (no Move-specific branch logic).
+- [x] Update `run`, `mutate`, `print mutations` to consume resolved selection.
+- [x] Remove duplicated command-level language/dialect branching.
+- [x] Keep effective-config/log output derived from resolver output.
 
 ### Exit Criteria
-- [ ] No Move-specific branch remains in target language resolution.
-- [ ] Commands use shared resolver path for final selection.
-- [ ] Integration tests pass.
-- [ ] `just pre-commit` passes.
+- [x] No Move-specific branch remains in target language resolution.
+- [x] Commands use shared resolver path for final selection.
+- [x] Integration tests pass.
+- [x] `just pre-commit` passes.
 
 ---
 
@@ -152,33 +152,37 @@ Remove hand-threaded dialect handling from command and target flows.
 Make differences between Move dialect grammars explicit and test-enforced.
 
 ### Tasks
-- [ ] Reorganize Move tests to `tests/move/shared`, `tests/move/sui`, `tests/move/iota`.
-- [ ] Add grammar-difference tests (at least one Sui-only construct, one IOTA-sensitive construct).
-- [ ] Add resolver integration tests showing deterministic dialect selection for `.move`.
-- [ ] Ensure unsupported/invalid dialect selections fail clearly.
+- [x] Reorganize Move tests to `tests/move/shared`, `tests/move/sui`, `tests/move/iota`.
+- [x] Add grammar-difference tests (at least one Sui-only construct, one IOTA-sensitive construct).
+- [x] Add resolver integration tests showing deterministic dialect selection for `.move`.
+- [x] Ensure unsupported/invalid dialect selections fail clearly.
 
 ### Exit Criteria
-- [ ] Dialect-difference tests pass and fail meaningfully on regressions.
-- [ ] Resolver integration tests for `.move` ambiguity pass.
-- [ ] `just test` and `just pre-commit` pass.
+- [x] Dialect-difference tests pass and fail meaningfully on regressions.
+- [x] Resolver integration tests for `.move` ambiguity pass.
+- [x] `just test` and `just pre-commit` pass.
 
 ---
 
-## Phase 5 — Optional Schema Migration (Only If Chosen in Phase 0)
+## Phase 5 — Optional Schema Migration (Skipped)
 
 ### Objective
 If required by Phase 0 decision, persist dialect as first-class data.
 
+### Status
+- **Skipped by decision**: Phase 0 explicitly selected **no migration now**.
+- Re-open only if dialect-sensitive persistence correctness requires first-class schema fields.
+
 ### Tasks
-- [ ] Add migration(s) for dialect persistence fields/indexes.
-- [ ] Update model/types/store queries accordingly.
-- [ ] Add migration/backfill tests.
-- [ ] Run `just reset-db` and full test suite.
+- [x] Add migration(s) for dialect persistence fields/indexes. *(skipped)*
+- [x] Update model/types/store queries accordingly. *(skipped)*
+- [x] Add migration/backfill tests. *(skipped)*
+- [x] Run `just reset-db` and full test suite. *(skipped)*
 
 ### Exit Criteria
-- [ ] Migration is applied and tested successfully.
-- [ ] Persistence semantics for dialect-sensitive identity are explicit.
-- [ ] `just test` and `just pre-commit` pass.
+- [x] Migration is applied and tested successfully. *(n/a: skipped)*
+- [x] Persistence semantics for dialect-sensitive identity are explicit.
+- [x] `just test` and `just pre-commit` pass.
 
 ---
 
