@@ -38,17 +38,12 @@ pub fn normalize_language_label(language: &str) -> String {
 pub fn language_filter_variants(language: &str) -> Vec<String> {
     let normalized = language.trim().to_ascii_lowercase();
     match normalized.as_str() {
-        "move" | "suimove" | "sui_move" => vec![
+        "move" => vec![
             "Move".to_string(),
-            "SuiMove".to_string(),
             "Move/sui".to_string(),
             "Move/iota".to_string(),
         ],
-        "move/sui" | "move:sui" => vec![
-            "Move/sui".to_string(),
-            "Move".to_string(),
-            "SuiMove".to_string(),
-        ],
+        "move/sui" | "move:sui" => vec!["Move/sui".to_string(), "Move".to_string()],
         "move/iota" | "move:iota" => vec!["Move/iota".to_string()],
         _ => vec![language.to_string()],
     }
@@ -68,11 +63,9 @@ impl LanguageRegistry {
 
     /// Get engine for a language name.
     ///
-    /// Move compatibility aliases accepted here:
-    /// - move (canonical)
-    /// - suimove (legacy)
-    /// - sui_move (legacy)
-    /// - move/sui, move/iota (profiled internal names)
+    /// Move names accepted here:
+    /// - move (canonical selector)
+    /// - move/sui, move/iota (profiled names)
     pub fn get_engine(&self, language_name: &str) -> Option<&dyn LanguageEngine> {
         self.engines
             .iter()
@@ -240,15 +233,15 @@ mod tests {
     }
 
     #[test]
-    fn move_engine_resolves_via_canonical_and_legacy_aliases() {
+    fn move_engine_resolves_via_canonical_names() {
         let mut registry = LanguageRegistry::new();
         registry.register(MoveLanguageEngine::new());
 
         assert!(registry.get_engine("move").is_some());
         assert!(registry.get_engine("Move").is_some());
-        assert!(registry.get_engine("suimove").is_some());
-        assert!(registry.get_engine("SuiMove").is_some());
-        assert!(registry.get_engine("sui_move").is_some());
+        assert!(registry.get_engine("suimove").is_none());
+        assert!(registry.get_engine("SuiMove").is_none());
+        assert!(registry.get_engine("sui_move").is_none());
         assert!(registry.get_engine("move/sui").is_some());
         assert!(registry.get_engine("move/iota").is_some());
     }
@@ -305,9 +298,10 @@ mod tests {
     }
 
     #[test]
-    fn shared_normalization_helpers_cover_move_aliases() {
-        assert_eq!(normalize_language_label("SuiMove"), "Move/sui");
-        assert_eq!(language_filter_variants("move").len(), 4);
+    fn shared_normalization_helpers_cover_move_variants() {
+        assert_eq!(normalize_language_label("Move"), "Move/sui");
+        assert_eq!(normalize_language_label("SuiMove"), "SuiMove");
+        assert_eq!(language_filter_variants("move").len(), 3);
     }
 
     #[test]

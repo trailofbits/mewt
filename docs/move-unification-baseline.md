@@ -5,10 +5,10 @@ This note captures the baseline behavior and compatibility touchpoints after the
 ## Naming touchpoints
 
 - Canonical user-facing language is `Move`.
-- Backward-compatible aliases are accepted in CLI/registry/filtering:
+- Canonical selectors for Move are:
   - `move`
-  - `suimove` / `SuiMove`
-  - `sui_move`
+  - `move/sui`
+  - `move/iota`
 - Internal profiled labels for `.move` targets are:
   - `Move/sui`
   - `Move/iota`
@@ -26,15 +26,15 @@ For `.move` targets, dialect resolves in this order:
 ## Persistence compatibility baseline
 
 - No schema changes are required.
-- Legacy persisted language values (such as `SuiMove`) are normalized on read paths.
-- Query/filter logic matches both legacy and profiled/canonical Move language variants.
+- Canonical persisted language values are `Move/sui` and `Move/iota`.
+- Query/filter logic targets canonical/profiler Move language variants.
 
 ## Regression safety net currently in place
 
 - Dialect resolution tests (CLI/config/default and invalid value handling).
 - Target loading tests proving `.move` files receive deterministic profiled labels.
-- Registry alias tests proving canonical + legacy name resolution.
-- Store compatibility tests proving legacy `SuiMove` data remains usable.
+- Registry tests proving canonical/profiler Move name resolution.
+- Store tests proving canonical Move labels remain queryable by canonical selectors.
 - Dialect-aware Move test suites (`Move/sui` and `Move/iota`).
 - Move grammar drift guard tests for critical node/field contracts used by mutation operators.
 

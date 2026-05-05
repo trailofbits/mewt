@@ -176,7 +176,7 @@ pub struct PrintTargetsArgs {
 /// Arguments for the print mutations subcommand
 #[derive(Parser, Debug)]
 pub struct PrintMutationsArgs {
-    /// Target language for mutations (omit to show all; Move aliases: move, suimove, sui_move)
+    /// Target language for mutations (omit to show all; for Move use: move, move/sui, move/iota)
     #[arg(long)]
     pub language: Option<String>,
 

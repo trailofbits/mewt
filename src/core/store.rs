@@ -866,21 +866,21 @@ mod tests {
     use crate::languages::r#move::engine::MoveLanguageEngine;
 
     #[test]
-    fn normalizes_legacy_move_language_labels_in_memory() {
-        assert_eq!(normalize_stored_target_language("SuiMove"), "Move/sui");
+    fn normalizes_move_language_labels_in_memory() {
         assert_eq!(normalize_stored_target_language("move"), "Move/sui");
         assert_eq!(normalize_stored_target_language("Move/iota"), "Move/iota");
+        assert_eq!(normalize_stored_target_language("SuiMove"), "SuiMove");
         assert_eq!(normalize_stored_target_language("Rust"), "Rust");
     }
 
     #[tokio::test]
-    async fn legacy_suimove_targets_remain_usable_after_read() {
+    async fn canonical_move_targets_are_filterable_by_move_and_dialect() {
         let store = SqlStore::new("sqlite::memory:".to_string())
             .await
             .expect("in-memory sqlite store");
 
         let source = r#"
-module test::legacy {
+module test::canonical {
     fun check(v: bool): bool {
         if (v) {
             return true;
@@ -892,10 +892,10 @@ module test::legacy {
 
         let target = Target {
             id: 0,
-            path: PathBuf::from("legacy.move"),
+            path: PathBuf::from("canonical.move"),
             file_hash: Hash::digest(source.to_string()),
             text: source.to_string(),
-            language: "SuiMove".to_string(),
+            language: "Move/sui".to_string(),
         };
 
         let target_id = store.add_target(target).await.expect("store target");
@@ -907,7 +907,7 @@ module test::legacy {
 
         let mutants = reloaded
             .generate_mutants(&registry, None)
-            .expect("legacy target should resolve an engine and mutate");
+            .expect("canonical target should resolve an engine and mutate");
         assert!(!mutants.is_empty(), "expected at least one mutant");
 
         let mut first_mutant = mutants[0].clone();
@@ -936,11 +936,17 @@ module test::legacy {
         assert_eq!(move_results.len(), 1);
         assert_eq!(move_results[0].1.language, "Move/sui");
 
+        let sui_results = store
+            .get_outcomes_filtered(None, None, Some("move/sui".to_string()), None, None)
+            .await
+            .expect("filter outcomes by move/sui");
+        assert_eq!(sui_results.len(), 1);
+
         let legacy_results = store
             .get_outcomes_filtered(None, None, Some("SuiMove".to_string()), None, None)
             .await
             .expect("filter outcomes by SuiMove");
-        assert_eq!(legacy_results.len(), 1);
+        assert!(legacy_results.is_empty());
 
         let iota_results = store
             .get_outcomes_filtered(None, None, Some("move/iota".to_string()), None, None)

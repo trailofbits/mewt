@@ -79,10 +79,10 @@ mewt mutate src --dialect iota
 mewt print mutations --language move --dialect sui
 ```
 
-Compatibility aliases:
-- `--language move` is canonical.
-- `--language suimove` and `--language sui_move` remain supported for backward compatibility.
-- Alias removal is not scheduled in this release; any deprecation/removal will happen in a future major release.
+Language selection:
+- `--language move` is the canonical Move selector.
+- `--language move/sui` and `--language move/iota` are supported profiled selectors.
+- Legacy aliases (`suimove`, `sui_move`) are not supported.
 
 ### Ignore flag
 

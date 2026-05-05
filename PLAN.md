@@ -188,13 +188,13 @@ If required by Phase 0 decision, persist dialect as first-class data.
 
 ## Definition of Done
 
-- [ ] Registry/resolver is authoritative for language+dialect resolution.
-- [ ] Target/command flows no longer hand-thread Move-specific dialect logic.
-- [ ] Legacy `SuiMove` compatibility is not required and not tested.
-- [ ] `.move` ambiguity handling is deterministic and test-covered.
-- [ ] Divergence between Sui and IOTA grammar behavior is explicit in tests.
-- [ ] Persistence strategy is explicitly justified (no migration or migration).
-- [ ] `just pre-commit` and `just test` pass.
+- [x] Registry/resolver is authoritative for language+dialect resolution.
+- [x] Target/command flows no longer hand-thread Move-specific dialect logic.
+- [x] Legacy `SuiMove` compatibility is not required and not tested.
+- [x] `.move` ambiguity handling is deterministic and test-covered.
+- [x] Divergence between Sui and IOTA grammar behavior is explicit in tests.
+- [x] Persistence strategy is explicitly justified (no migration or migration).
+- [x] `just pre-commit` and `just test` pass.
 
 ---
 

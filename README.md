@@ -17,7 +17,7 @@ wrong.
 - JavaScript/TypeScript
 - Rust
 - Solidity
-- Move (dialects: `sui`, `iota`; legacy aliases still accepted: `move`, `suimove`, `sui_move`)
+- Move (dialects: `sui`, `iota`; use `move`, `move/sui`, or `move/iota`)
 
 For details on how campaigns work under the hood, see
 [How it works](docs/how-it-works.md). For the language/dialect resolver contract,
@@ -109,8 +109,8 @@ mewt print mutations --language move --dialect sui
 ```
 
 Compatibility note:
-- Legacy language names (`SuiMove`, `sui_move`, `suimove`) still work.
-- They are compatibility aliases and may be removed in a future major release after a deprecation window.
+- Use canonical Move language names: `move`, `move/sui`, and `move/iota`.
+- Legacy names such as `SuiMove`, `sui_move`, and `suimove` are not supported.
 
 ## Examples
 
