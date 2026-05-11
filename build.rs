@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-fn build_grammar(dir: &PathBuf, lib_name: &str) {
+fn build_grammar(dir: &PathBuf, lib_name: &str, rename_symbol: Option<(&str, &str)>) {
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let cache_dir = PathBuf::from(&out_dir).join(".grammar-cache");
     fs::create_dir_all(&cache_dir).unwrap();
@@ -29,6 +29,10 @@ fn build_grammar(dir: &PathBuf, lib_name: &str) {
         // Compile C code from scratch
         let mut build = cc::Build::new();
         build.include(dir).file(dir.join("parser.c"));
+
+        if let Some((from, to)) = rename_symbol {
+            build.define(from, to);
+        }
 
         // Include external scanner if present (required by some grammars like Rust)
         let scanner_c = dir.join("scanner.c");
@@ -77,33 +81,49 @@ fn main() {
 
     // Build Solidity grammar
     let solidity_dir: PathBuf = ["grammars", "solidity", "src"].iter().collect();
-    build_grammar(&solidity_dir, "tree-sitter-solidity");
+    build_grammar(&solidity_dir, "tree-sitter-solidity", None);
 
     // Build Rust grammar
     let rust_dir: PathBuf = ["grammars", "rust", "src"].iter().collect();
-    build_grammar(&rust_dir, "tree-sitter-rust");
+    build_grammar(&rust_dir, "tree-sitter-rust", None);
 
     // Build Go grammar
     let go_dir: PathBuf = ["grammars", "go", "src"].iter().collect();
-    build_grammar(&go_dir, "tree-sitter-go");
+    build_grammar(&go_dir, "tree-sitter-go", None);
 
     // Build JavaScript grammar
     let javascript_dir: PathBuf = ["grammars", "javascript", "src"].iter().collect();
-    build_grammar(&javascript_dir, "tree-sitter-javascript");
+    build_grammar(&javascript_dir, "tree-sitter-javascript", None);
 
     // Build TypeScript grammar
     let typescript_dir: PathBuf = ["grammars", "typescript", "src"].iter().collect();
-    build_grammar(&typescript_dir, "tree-sitter-typescript");
+    build_grammar(&typescript_dir, "tree-sitter-typescript", None);
 
     // Build TSX grammar (TypeScript + JSX)
     let tsx_dir: PathBuf = ["grammars", "tsx", "src"].iter().collect();
-    build_grammar(&tsx_dir, "tree-sitter-tsx");
+    build_grammar(&tsx_dir, "tree-sitter-tsx", None);
 
     // Build C++ grammar
     let cpp_dir: PathBuf = ["grammars", "cpp", "src"].iter().collect();
-    build_grammar(&cpp_dir, "tree-sitter-cpp");
+    build_grammar(&cpp_dir, "tree-sitter-cpp", None);
 
     // Build Sui Move grammar
     let move_sui_dir: PathBuf = ["grammars", "move-sui", "src"].iter().collect();
-    build_grammar(&move_sui_dir, "tree-sitter-move");
+    build_grammar(
+        &move_sui_dir,
+        "tree-sitter-move-sui",
+        Some(("tree_sitter_move", "tree_sitter_move_sui")),
+    );
+
+    // Build IOTA Move grammar
+    let move_iota_dir: PathBuf = ["grammars", "move-iota", "src"].iter().collect();
+    build_grammar(
+        &move_iota_dir,
+        "tree-sitter-move-iota",
+        Some(("tree_sitter_move", "tree_sitter_move_iota")),
+    );
+
+    // Build Aptos Move grammar
+    let move_aptos_dir: PathBuf = ["grammars", "move-aptos", "src"].iter().collect();
+    build_grammar(&move_aptos_dir, "tree-sitter-move-aptos", None);
 }

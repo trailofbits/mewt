@@ -96,6 +96,7 @@ pub struct RunConfig {
 pub enum MoveDialectSetting {
     Sui,
     Iota,
+    Aptos,
     Auto,
 }
 
@@ -104,6 +105,7 @@ impl MoveDialectSetting {
         match self {
             Self::Sui => "sui",
             Self::Iota => "iota",
+            Self::Aptos => "aptos",
             Self::Auto => "auto",
         }
     }
@@ -113,6 +115,7 @@ impl MoveDialectSetting {
 pub enum MoveDialect {
     Sui,
     Iota,
+    Aptos,
 }
 
 impl MoveDialect {
@@ -120,6 +123,7 @@ impl MoveDialect {
         match self {
             Self::Sui => "sui",
             Self::Iota => "iota",
+            Self::Aptos => "aptos",
         }
     }
 }
@@ -278,10 +282,11 @@ fn parse_move_dialect(raw: &str) -> io::Result<MoveDialectSetting> {
     match raw.trim().to_ascii_lowercase().as_str() {
         "sui" => Ok(MoveDialectSetting::Sui),
         "iota" => Ok(MoveDialectSetting::Iota),
+        "aptos" => Ok(MoveDialectSetting::Aptos),
         "auto" => Ok(MoveDialectSetting::Auto),
         value => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!("Invalid Move dialect '{value}'. Expected one of: sui, iota, auto"),
+            format!("Invalid Move dialect '{value}'. Expected one of: sui, iota, aptos, auto"),
         )),
     }
 }
@@ -298,6 +303,11 @@ fn resolve_move_dialect_setting(
         },
         MoveDialectSetting::Iota => ResolvedMoveDialect {
             dialect: MoveDialect::Iota,
+            source,
+            defaulted: false,
+        },
+        MoveDialectSetting::Aptos => ResolvedMoveDialect {
+            dialect: MoveDialect::Aptos,
             source,
             defaulted: false,
         },
@@ -647,6 +657,6 @@ mod tests {
     #[test]
     fn resolve_move_dialect_rejects_invalid_cli_value() {
         let cfg = Config::default();
-        assert!(cfg.resolve_move_dialect(Some("aptos")).is_err());
+        assert!(cfg.resolve_move_dialect(Some("wat")).is_err());
     }
 }

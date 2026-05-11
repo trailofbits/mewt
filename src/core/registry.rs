@@ -42,9 +42,11 @@ pub fn language_filter_variants(language: &str) -> Vec<String> {
             "Move".to_string(),
             "Move/sui".to_string(),
             "Move/iota".to_string(),
+            "Move/aptos".to_string(),
         ],
         "move/sui" | "move:sui" => vec!["Move/sui".to_string(), "Move".to_string()],
         "move/iota" | "move:iota" => vec!["Move/iota".to_string()],
+        "move/aptos" | "move:aptos" => vec!["Move/aptos".to_string()],
         _ => vec![language.to_string()],
     }
 }
@@ -65,7 +67,7 @@ impl LanguageRegistry {
     ///
     /// Move names accepted here:
     /// - move (canonical selector)
-    /// - move/sui, move/iota (profiled names)
+    /// - move/sui, move/iota, move/aptos (profiled names)
     pub fn get_engine(&self, language_name: &str) -> Option<&dyn LanguageEngine> {
         self.engines
             .iter()
@@ -244,6 +246,7 @@ mod tests {
         assert!(registry.get_engine("sui_move").is_none());
         assert!(registry.get_engine("move/sui").is_some());
         assert!(registry.get_engine("move/iota").is_some());
+        assert!(registry.get_engine("move/aptos").is_some());
     }
 
     fn resolved_move_dialect_iota() -> ResolvedMoveDialect {
@@ -301,7 +304,7 @@ mod tests {
     fn shared_normalization_helpers_cover_move_variants() {
         assert_eq!(normalize_language_label("Move"), "Move/sui");
         assert_eq!(normalize_language_label("SuiMove"), "SuiMove");
-        assert_eq!(language_filter_variants("move").len(), 3);
+        assert_eq!(language_filter_variants("move").len(), 4);
     }
 
     #[test]
@@ -337,12 +340,12 @@ mod tests {
         let err = registry
             .resolve_selection_for_path(
                 Path::new("example.move"),
-                Some("move/aptos"),
+                Some("move/unknown"),
                 resolved_move_dialect_sui(),
             )
             .expect_err("invalid dialect label should fail");
 
-        assert!(err.contains("No engine found for language: move/aptos"));
+        assert!(err.contains("No engine found for language: move/unknown"));
     }
 
     #[test]

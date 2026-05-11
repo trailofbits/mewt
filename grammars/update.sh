@@ -22,6 +22,7 @@ declare -A REPO_URLS=(
   ["cpp"]="https://github.com/tree-sitter/tree-sitter-cpp"
   ["move-sui"]="https://github.com/MystenLabs/sui"
   ["move-iota"]="https://github.com/iotaledger/iota"
+  ["move-aptos"]="https://github.com/aptos-labs/tree-sitter-move-on-aptos"
 )
 
 declare -A GRAMMAR_PATHS=(
@@ -34,6 +35,7 @@ declare -A GRAMMAR_PATHS=(
   ["cpp"]="" # repo root
   ["move-sui"]="external-crates/move/tooling/tree-sitter" # grammar in Sui monorepo
   ["move-iota"]="external-crates/move/tooling/tree-sitter" # grammar in IOTA monorepo
+  ["move-aptos"]="" # repo root
 )
 
 # Languages that require sparse checkout (large monorepos)

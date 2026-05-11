@@ -15,9 +15,11 @@ impl MoveDialectProfile {
     pub fn parser_language(&self) -> &'static TsLanguage {
         match self.dialect {
             MoveDialect::Sui => SUI_MOVE_LANGUAGE
-                .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_move()) }),
+                .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_move_sui()) }),
             MoveDialect::Iota => IOTA_MOVE_LANGUAGE
-                .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_move()) }),
+                .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_move_iota()) }),
+            MoveDialect::Aptos => APTOS_MOVE_LANGUAGE
+                .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_move_on_aptos()) }),
         }
     }
 
@@ -45,6 +47,12 @@ pub fn profile_for_dialect(dialect: MoveDialect) -> MoveDialectProfile {
             // Start with same capabilities as Sui until grammar-specific deltas are added.
             unsupported_mutation_slugs: &["AAOS", "BAOS", "SAOS"],
         },
+        MoveDialect::Aptos => MoveDialectProfile {
+            dialect,
+            abort_statement: "abort 0;",
+            // Start with same capabilities as Sui until grammar-specific deltas are added.
+            unsupported_mutation_slugs: &["AAOS", "BAOS", "SAOS"],
+        },
     }
 }
 
@@ -67,6 +75,13 @@ pub fn validate_source_for_dialect(source: &str, dialect: MoveDialect) -> Result
         );
     }
 
+    if !matches!(dialect, MoveDialect::Aptos) && source.contains("@aptos_only") {
+        return Err(
+            "Construct marker '@aptos_only' requires Move/aptos and is not supported under this dialect"
+                .to_string(),
+        );
+    }
+
     Ok(())
 }
 
@@ -79,15 +94,19 @@ pub fn dialect_from_language_name(language_name: &str) -> Option<MoveDialect> {
     match normalized.as_str() {
         "move" | "move/sui" | "move:sui" => Some(MoveDialect::Sui),
         "move/iota" | "move:iota" => Some(MoveDialect::Iota),
+        "move/aptos" | "move:aptos" => Some(MoveDialect::Aptos),
         _ => None,
     }
 }
 
 static SUI_MOVE_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
 static IOTA_MOVE_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
+static APTOS_MOVE_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
 
 unsafe extern "C" {
-    fn tree_sitter_move() -> *const tree_sitter::ffi::TSLanguage;
+    fn tree_sitter_move_sui() -> *const tree_sitter::ffi::TSLanguage;
+    fn tree_sitter_move_iota() -> *const tree_sitter::ffi::TSLanguage;
+    fn tree_sitter_move_on_aptos() -> *const tree_sitter::ffi::TSLanguage;
 }
 
 #[cfg(test)]
@@ -101,6 +120,10 @@ mod tests {
             dialect_from_language_name("move/iota"),
             Some(MoveDialect::Iota)
         );
+        assert_eq!(
+            dialect_from_language_name("move/aptos"),
+            Some(MoveDialect::Aptos)
+        );
         assert_eq!(dialect_from_language_name("suimove"), None);
         assert_eq!(dialect_from_language_name("move: iota"), None);
     }
@@ -109,6 +132,7 @@ mod tests {
     fn emits_profiled_language_names() {
         assert_eq!(language_name_for_dialect(MoveDialect::Sui), "Move/sui");
         assert_eq!(language_name_for_dialect(MoveDialect::Iota), "Move/iota");
+        assert_eq!(language_name_for_dialect(MoveDialect::Aptos), "Move/aptos");
     }
 
     #[test]
@@ -123,5 +147,14 @@ mod tests {
         let err = validate_source_for_dialect("// @iota_only", MoveDialect::Sui)
             .expect_err("iota marker should fail under sui");
         assert!(err.contains("Move/iota"));
+    }
+
+    #[test]
+    fn rejects_aptos_sensitive_marker_for_non_aptos() {
+        let err = validate_source_for_dialect("// @aptos_only", MoveDialect::Sui)
+            .expect_err("aptos marker should fail under sui");
+        assert!(err.contains("Move/aptos"));
+
+        assert!(validate_source_for_dialect("// @aptos_only", MoveDialect::Aptos).is_ok());
     }
 }

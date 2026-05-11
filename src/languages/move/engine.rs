@@ -262,4 +262,18 @@ mod tests {
         let engine = MoveLanguageEngine::new();
         let _ = engine.mutate(&target);
     }
+
+    #[test]
+    fn aptos_profile_is_accepted() {
+        let text = "module test::m { fun foo(): bool { true } }";
+        let target = Target {
+            id: 0,
+            path: PathBuf::from("test.move"),
+            file_hash: crate::types::Hash::digest(text.to_string()),
+            text: text.to_string(),
+            language: "Move/aptos".to_string(),
+        };
+        let engine = MoveLanguageEngine::new();
+        let _ = engine.mutate(&target);
+    }
 }
