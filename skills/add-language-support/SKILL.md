@@ -39,6 +39,10 @@ Use this skill when:
 
 **API Simplicity**: The LanguageEngine trait has only 4 methods. Keep implementations minimal - no helper methods, just the trait interface and inline grammar loading.
 
+**Resolver First (Dialect-Aware Families)**: If a language family has multiple dialects sharing an extension, resolution must be owned by the registry/resolver layer (precedence, canonical labeling, deterministic ambiguity handling). Do not add command-specific branching for final language+dialect selection.
+
+**Canonical Labels Only**: For dialect-aware families, use canonical selectors/labels (e.g., `move`, `move/sui`, `move/iota`) and avoid introducing legacy alias compatibility unless explicitly requested.
+
 **Common First**: Start with COMMON_MUTATIONS only. Add language-specific mutations only for unique constructs not covered by common patterns. Most languages need zero custom mutations.
 
 **Per-Slug Mutation Tests**: Every mutation slug exposed by the engine must have a dedicated test module under `tests/<language>/mutations/<SLUG>.rs`. The guard test in `tests/languages.rs` enforces this convention. New languages must be wired into the guard before landing.
@@ -275,6 +279,8 @@ Use this skill when:
 
 ### Phase 4: Language Registration
 
+**Dialect-aware note**: If the language can have multiple dialects under one extension, also wire/update registry resolver metadata and canonical labeling rules so command flows consume one resolved selection object.
+
 **Entry Criteria**: Engine implementation compiles
 
 **Actions**:
@@ -295,6 +301,11 @@ Use this skill when:
 - [ ] `cargo build --release` succeeds
 
 ### Phase 5: Tests and Examples
+
+For dialect-aware families that share an extension, add:
+- Resolver integration tests proving deterministic selection for ambiguous extension paths.
+- Dialect-divergence tests with at least one construct accepted by one dialect and rejected (or treated differently) by another.
+- Filter/query tests using canonical labels/selectors (no implicit legacy alias guarantees).
 
 **Entry Criteria**: Language builds and registers
 
@@ -351,6 +362,8 @@ Use this skill when:
 **Exit Criteria**:
 - [ ] Canonical example fixture(s) created at `tests/<language>/example.<ext>` (or JavaScript `example.*` set)
 - [ ] Integration and per-slug test modules compiled into `tests/languages.rs`
+- [ ] (Dialect-aware only) Resolver tests cover deterministic extension resolution and canonical dialect labeling
+- [ ] (Dialect-aware only) Divergence tests assert meaningful behavior differences between dialects
 - [ ] `tests/<language>/integration_tests.rs` runs `run_common_language_checks(...)`
 - [ ] Every slug exposed by the engine has a dedicated test module under `tests/<language>/mutations`
 - [ ] Guard test passes without missing or unexpected modules
@@ -460,6 +473,15 @@ Use Read on `src/languages/rust/engine.rs` for complete examples of:
 
 **Problem**: Assuming compound assignments share the `binary_expression` node kind  
 **Solution**: Check `node-types.json` for the exact node kind (e.g., `augmented_assignment_expression`, `compound_assignment_expr`) and wire AAOS/BAOS/SAOS to that. Include all language-specific operator tokens when configuring `patterns::shuffle_operators`.
+
+## Success Checklist
+
+### Dialect-Aware Extension Checklist (apply when relevant)
+- [ ] Resolver owns final language+dialect selection (no command-level branching)
+- [ ] Canonical dialect labels/selectors are documented and used consistently
+- [ ] Ambiguous extension handling is deterministic and test-covered
+- [ ] Dialect-divergence behavior is explicit and test-enforced
+- [ ] Store/filter behavior uses canonical labels without assuming legacy alias support
 
 ## Success Checklist
 
