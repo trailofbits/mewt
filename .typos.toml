@@ -8,3 +8,7 @@ seh = "seh"
 # (_spec_block_memeber). It appears in vendored parser.c and grammar.js files that
 # we do not control. Accept it to avoid false positives in typos checks.
 memeber = "memeber"
+
+# "mis" appears in an upstream Aptos Move vendored grammar comment
+# ("mis-parsed") and is not project-authored prose.
+mis = "mis"

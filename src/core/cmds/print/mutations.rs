@@ -27,7 +27,7 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
             .map_err(|e| e.to_string())?;
         if resolved.defaulted {
             warn!(
-                "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|auto explicitly.",
+                "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|aptos|auto explicitly.",
                 resolved.dialect.as_str()
             );
         } else {
