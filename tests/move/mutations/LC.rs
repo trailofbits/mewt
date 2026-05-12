@@ -1,4 +1,4 @@
-use crate::sui_move::integration_tests::assert_only_slug_and_expected_new_texts;
+use crate::r#move::shared::assert_only_slug_and_expected_new_texts;
 
 #[test]
 fn lc_swaps_break_and_continue() {
@@ -12,5 +12,5 @@ fn lc_swaps_break_and_continue() {
     }
 }"#;
 
-    assert_only_slug_and_expected_new_texts(source, "LC", &["continue", "break"]);
+    assert_only_slug_and_expected_new_texts(source, "Move/sui", "LC", &["continue", "break"]);
 }

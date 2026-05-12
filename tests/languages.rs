@@ -9,7 +9,6 @@ mod javascript;
 mod r#move;
 mod rust;
 mod solidity;
-mod sui_move;
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -19,9 +18,9 @@ use mewt::LanguageEngine;
 use mewt::languages::cpp::engine::CppLanguageEngine;
 use mewt::languages::go::engine::GoLanguageEngine;
 use mewt::languages::javascript::engine::JavaScriptLanguageEngine;
+use mewt::languages::r#move::engine::MoveLanguageEngine;
 use mewt::languages::rust::engine::RustLanguageEngine;
 use mewt::languages::solidity::engine::SolidityLanguageEngine;
-use mewt::languages::sui_move::engine::MoveLanguageEngine;
 
 #[test]
 fn every_mutation_slug_has_a_per_language_test_module() {
@@ -43,7 +42,7 @@ fn every_mutation_slug_has_a_per_language_test_module() {
     check_language(manifest_dir, "Solidity", "solidity", &solidity);
 
     let move_language = MoveLanguageEngine::new();
-    check_language(manifest_dir, "Move", "sui_move", &move_language);
+    check_language(manifest_dir, "Move", "move", &move_language);
 }
 
 fn check_language(

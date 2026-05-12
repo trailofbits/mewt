@@ -11,7 +11,7 @@ fn move_sui_common_conformance_checks() {
 
 #[test]
 fn move_sui_example_file_generates_mutants() {
-    let source = conformance::read_example_source("tests/sui_move/example.move");
+    let source = conformance::read_example_source("tests/move/example.move");
     let mutants = shared::mutate_source(&source, "Move/sui");
 
     assert!(

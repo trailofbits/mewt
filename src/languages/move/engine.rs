@@ -6,7 +6,7 @@ use crate::utils::{node_text, parse_source};
 
 use super::dialect::profile_for_target_language;
 use super::mutations::MOVE_MUTATIONS;
-use super::syntax::{fields, nodes};
+use super::syntax::syntax_for_dialect;
 
 pub struct MoveLanguageEngine {
     mutations: Vec<Mutation>,
@@ -49,6 +49,11 @@ impl LanguageEngine for MoveLanguageEngine {
             None => return Vec::new(),
         };
         let root = tree.root_node();
+        let syntax = syntax_for_dialect(profile.dialect);
+        let statement_kinds = syntax
+            .block_item
+            .map(|kind| vec![kind])
+            .unwrap_or_else(|| vec![syntax.break_expression]);
 
         let mut all_mutants = Vec::new();
         for m in &self.mutations {
@@ -62,8 +67,7 @@ impl LanguageEngine for MoveLanguageEngine {
                         patterns::replace(
                             root,
                             source,
-                            // block_item includes the trailing semicolon
-                            &[nodes::BLOCK_ITEM],
+                            &statement_kinds,
                             profile.abort_statement,
                             &|node, src| !node_text(node, src).contains("abort "),
                         )
@@ -73,7 +77,7 @@ impl LanguageEngine for MoveLanguageEngine {
                 }
                 "CR" => {
                     all_mutants.extend(
-                        patterns::wrap(root, source, &[nodes::BLOCK_ITEM], "/* ", " */")
+                        patterns::wrap(root, source, &statement_kinds, "/* ", " */")
                             .into_iter()
                             .map(|p| Mutant::from_partial(p, target, "CR")),
                     );
@@ -82,8 +86,8 @@ impl LanguageEngine for MoveLanguageEngine {
                     patterns::replace_condition(
                         root,
                         source,
-                        nodes::IF_EXPRESSION,
-                        fields::CONDITION,
+                        syntax.if_expression,
+                        syntax.condition_field,
                         &["if"],
                         "false",
                     )
@@ -94,8 +98,8 @@ impl LanguageEngine for MoveLanguageEngine {
                     patterns::replace_condition(
                         root,
                         source,
-                        nodes::IF_EXPRESSION,
-                        fields::CONDITION,
+                        syntax.if_expression,
+                        syntax.condition_field,
                         &["if"],
                         "true",
                     )
@@ -106,8 +110,8 @@ impl LanguageEngine for MoveLanguageEngine {
                     patterns::replace_condition(
                         root,
                         source,
-                        nodes::WHILE_EXPRESSION,
-                        fields::CONDITION,
+                        syntax.while_expression,
+                        syntax.condition_field,
                         &["while"],
                         "false",
                     )
@@ -115,15 +119,20 @@ impl LanguageEngine for MoveLanguageEngine {
                     .map(|p| Mutant::from_partial(p, target, "WF")),
                 ),
                 "AS" => all_mutants.extend(
-                    patterns::swap_args(root, source, &[nodes::CALL_EXPRESSION], fields::ARGUMENTS)
-                        .into_iter()
-                        .map(|p| Mutant::from_partial(p, target, "AS")),
+                    patterns::swap_args(
+                        root,
+                        source,
+                        &[syntax.call_expression],
+                        syntax.arguments_field,
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "AS")),
                 ),
                 "LC" => all_mutants.extend(
                     patterns::shuffle_nodes(
                         root,
                         source,
-                        &[nodes::BREAK_EXPRESSION, nodes::CONTINUE_EXPRESSION],
+                        &[syntax.break_expression, syntax.continue_expression],
                         &["break", "continue"],
                     )
                     .into_iter()
@@ -133,7 +142,7 @@ impl LanguageEngine for MoveLanguageEngine {
                     patterns::shuffle_nodes(
                         root,
                         source,
-                        &[nodes::BOOL_LITERAL],
+                        &[syntax.bool_literal],
                         &["true", "false"],
                     )
                     .into_iter()
@@ -143,7 +152,7 @@ impl LanguageEngine for MoveLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[syntax.binary_expression],
                         &["+", "-", "*", "/", "%"],
                     )
                     .into_iter()
@@ -153,7 +162,7 @@ impl LanguageEngine for MoveLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[syntax.binary_expression],
                         &["&", "|", "^"],
                     )
                     .into_iter()
@@ -163,7 +172,7 @@ impl LanguageEngine for MoveLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[syntax.binary_expression],
                         &["&&", "||"],
                     )
                     .into_iter()
@@ -173,7 +182,7 @@ impl LanguageEngine for MoveLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[syntax.binary_expression],
                         &["==", "!=", "<", "<=", ">", ">="],
                     )
                     .into_iter()
@@ -183,24 +192,30 @@ impl LanguageEngine for MoveLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[syntax.binary_expression],
                         &["<<", ">>"],
                     )
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "SOS")),
                 ),
-                "NR" => all_mutants.extend(
-                    patterns::remove_unary_operator(
-                        root,
-                        source,
-                        nodes::UNARY_EXPRESSION,
-                        fields::OPERATOR,
-                        fields::OPERAND,
-                        "!",
-                    )
-                    .into_iter()
-                    .map(|p| Mutant::from_partial(p, target, "NR")),
-                ),
+                "NR" => {
+                    if let (Some(operator_field), Some(operand_field)) =
+                        (syntax.unary_operator_field, syntax.unary_operand_field)
+                    {
+                        all_mutants.extend(
+                            patterns::remove_unary_operator(
+                                root,
+                                source,
+                                syntax.unary_not_expression,
+                                operator_field,
+                                operand_field,
+                                "!",
+                            )
+                            .into_iter()
+                            .map(|p| Mutant::from_partial(p, target, "NR")),
+                        );
+                    }
+                }
                 _ => {
                     panic!(
                         "Unknown mutation slug encountered in Move engine: {}",

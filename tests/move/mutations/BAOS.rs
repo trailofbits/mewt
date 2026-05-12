@@ -1,4 +1,4 @@
-use crate::sui_move::integration_tests::mutants_for_slug;
+use crate::r#move::shared::mutants_for_slug;
 
 #[test]
 fn baos_mutation_is_not_generated_in_sui_move() {
@@ -8,7 +8,7 @@ fn baos_mutation_is_not_generated_in_sui_move() {
     }
 }"#;
 
-    let mutants = mutants_for_slug(source, "BAOS");
+    let mutants = mutants_for_slug(source, "Move/sui", "BAOS");
     assert!(
         mutants.is_empty(),
         "Sui Move should not produce BAOS mutants, found: {mutants:?}"

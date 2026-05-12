@@ -1,4 +1,4 @@
-use crate::sui_move::integration_tests::mutants_for_slug;
+use crate::r#move::shared::mutants_for_slug;
 
 #[test]
 fn nr_removes_simple_negation() {
@@ -8,7 +8,7 @@ fn nr_removes_simple_negation() {
     }
 }"#;
 
-    let mutants = mutants_for_slug(source, "NR");
+    let mutants = mutants_for_slug(source, "Move/sui", "NR");
     assert_eq!(
         mutants.len(),
         1,
@@ -26,7 +26,7 @@ fn nr_preserves_parenthesized_operands() {
     }
 }"#;
 
-    let mutants = mutants_for_slug(source, "NR");
+    let mutants = mutants_for_slug(source, "Move/sui", "NR");
     assert!(
         mutants
             .iter()
@@ -44,7 +44,7 @@ fn nr_ignores_negations_in_comments() {
     }
 }"#;
 
-    let mutants = mutants_for_slug(source, "NR");
+    let mutants = mutants_for_slug(source, "Move/sui", "NR");
     assert!(
         mutants.is_empty(),
         "NR should ignore negations that appear only in comments: {mutants:?}"

@@ -1,23 +1,54 @@
-pub mod nodes {
-    pub const BINARY_EXPRESSION: &str = "binary_expression";
-    pub const BLOCK_ITEM: &str = "block_item";
-    pub const BOOL_LITERAL: &str = "bool_literal";
-    pub const BREAK_EXPRESSION: &str = "break_expression";
-    pub const CALL_EXPRESSION: &str = "call_expression";
-    pub const CONTINUE_EXPRESSION: &str = "continue_expression";
-    pub const IF_EXPRESSION: &str = "if_expression";
-    pub const UNARY_EXPRESSION: &str = "unary_expression";
-    pub const WHILE_EXPRESSION: &str = "while_expression";
+use crate::types::config::MoveDialect;
+
+pub struct MoveSyntax {
+    pub binary_expression: &'static str,
+    pub block_item: Option<&'static str>,
+    pub bool_literal: &'static str,
+    pub break_expression: &'static str,
+    pub call_expression: &'static str,
+    pub continue_expression: &'static str,
+    pub if_expression: &'static str,
+    pub while_expression: &'static str,
+    pub condition_field: &'static str,
+    pub arguments_field: &'static str,
+    pub unary_not_expression: &'static str,
+    pub unary_operator_field: Option<&'static str>,
+    pub unary_operand_field: Option<&'static str>,
 }
 
-pub mod fields {
-    // Condition field in if_expression and while_expression (named "eb" in Sui Move grammar)
-    pub const CONDITION: &str = "eb";
-    // Arguments field in call_expression
-    pub const ARGUMENTS: &str = "args";
-    // Unary expression fields
-    pub const OPERATOR: &str = "op";
-    pub const OPERAND: &str = "expr";
+pub fn syntax_for_dialect(dialect: MoveDialect) -> MoveSyntax {
+    match dialect {
+        MoveDialect::Sui | MoveDialect::Iota => MoveSyntax {
+            binary_expression: "binary_expression",
+            block_item: Some("block_item"),
+            bool_literal: "bool_literal",
+            break_expression: "break_expression",
+            call_expression: "call_expression",
+            continue_expression: "continue_expression",
+            if_expression: "if_expression",
+            while_expression: "while_expression",
+            condition_field: "eb",
+            arguments_field: "args",
+            unary_not_expression: "unary_expression",
+            unary_operator_field: Some("op"),
+            unary_operand_field: Some("expr"),
+        },
+        MoveDialect::Aptos => MoveSyntax {
+            binary_expression: "binary_expression",
+            block_item: None,
+            bool_literal: "bool_literal",
+            break_expression: "break_expression",
+            call_expression: "call_expression",
+            continue_expression: "continue_expression",
+            if_expression: "if_expression",
+            while_expression: "while_expression",
+            condition_field: "condition",
+            arguments_field: "arguments",
+            unary_not_expression: "not_expression",
+            unary_operator_field: None,
+            unary_operand_field: None,
+        },
+    }
 }
 
 #[cfg(test)]
@@ -28,7 +59,7 @@ mod tests {
     use crate::types::config::MoveDialect;
     use crate::utils::parse_source;
 
-    use super::{fields, nodes};
+    use super::syntax_for_dialect;
 
     fn first_node_of_kind<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
         if node.kind() == kind {
@@ -77,83 +108,52 @@ mod tests {
 }"#;
 
         let profile = profile_for_dialect(dialect);
+        let syntax = syntax_for_dialect(dialect);
         let tree = parse_source(source, profile.parser_language())
             .expect("Move parser should parse grammar guard source");
         let root = tree.root_node();
 
-        let if_expr = first_node_of_kind(root, nodes::IF_EXPRESSION)
+        let if_expr = first_node_of_kind(root, syntax.if_expression)
             .expect("expected if_expression node in grammar guard source");
-        let condition_field = if matches!(dialect, MoveDialect::Aptos) {
-            "condition"
-        } else {
-            fields::CONDITION
-        };
         assert!(
-            if_expr.child_by_field_name(condition_field).is_some(),
+            if_expr
+                .child_by_field_name(syntax.condition_field)
+                .is_some(),
             "if_expression must expose condition field '{}'",
-            condition_field
+            syntax.condition_field
         );
 
-        let while_expr = first_node_of_kind(root, nodes::WHILE_EXPRESSION)
+        let while_expr = first_node_of_kind(root, syntax.while_expression)
             .expect("expected while_expression node in grammar guard source");
         assert!(
-            while_expr.child_by_field_name(condition_field).is_some(),
+            while_expr
+                .child_by_field_name(syntax.condition_field)
+                .is_some(),
             "while_expression must expose condition field '{}'",
-            condition_field
+            syntax.condition_field
         );
 
-        let call_expr = first_node_of_kind(root, nodes::CALL_EXPRESSION)
+        let call_expr = first_node_of_kind(root, syntax.call_expression)
             .expect("expected call_expression node in grammar guard source");
-        let arguments_field = if matches!(dialect, MoveDialect::Aptos) {
-            "arguments"
-        } else {
-            fields::ARGUMENTS
-        };
         assert!(
-            call_expr.child_by_field_name(arguments_field).is_some(),
+            call_expr
+                .child_by_field_name(syntax.arguments_field)
+                .is_some(),
             "call_expression must expose arguments field '{}'",
-            arguments_field
+            syntax.arguments_field
         );
 
-        if matches!(dialect, MoveDialect::Aptos) {
-            first_node_of_kind(root, "not_expression")
-                .expect("expected not_expression node in grammar guard source");
-        } else {
-            let unary_expr = first_node_of_kind(root, nodes::UNARY_EXPRESSION)
-                .expect("expected unary_expression node in grammar guard source");
-            assert!(
-                unary_expr.child_by_field_name(fields::OPERATOR).is_some(),
-                "unary_expression must expose operator field '{}'",
-                fields::OPERATOR
-            );
-            assert!(
-                unary_expr.child_by_field_name(fields::OPERAND).is_some(),
-                "unary_expression must expose operand field '{}'",
-                fields::OPERAND
-            );
-        }
+        first_node_of_kind(root, syntax.unary_not_expression)
+            .expect("expected unary/not expression node in grammar guard source");
 
-        if matches!(dialect, MoveDialect::Aptos) {
-            first_node_of_kind(root, "binary_expression")
-                .expect("expected binary_expression node in grammar guard source");
-            first_node_of_kind(root, "break_expression")
-                .expect("expected break_expression node in grammar guard source");
-            first_node_of_kind(root, "continue_expression")
-                .expect("expected continue_expression node in grammar guard source");
-            first_node_of_kind(root, "bool_literal")
-                .expect("expected bool_literal node in grammar guard source");
-        } else {
-            first_node_of_kind(root, nodes::BINARY_EXPRESSION)
-                .expect("expected binary_expression node in grammar guard source");
-            first_node_of_kind(root, nodes::BLOCK_ITEM)
-                .expect("expected block_item node in grammar guard source");
-            first_node_of_kind(root, nodes::BREAK_EXPRESSION)
-                .expect("expected break_expression node in grammar guard source");
-            first_node_of_kind(root, nodes::CONTINUE_EXPRESSION)
-                .expect("expected continue_expression node in grammar guard source");
-            first_node_of_kind(root, nodes::BOOL_LITERAL)
-                .expect("expected bool_literal node in grammar guard source");
-        }
+        first_node_of_kind(root, syntax.binary_expression)
+            .expect("expected binary_expression node in grammar guard source");
+        first_node_of_kind(root, syntax.break_expression)
+            .expect("expected break_expression node in grammar guard source");
+        first_node_of_kind(root, syntax.continue_expression)
+            .expect("expected continue_expression node in grammar guard source");
+        first_node_of_kind(root, syntax.bool_literal)
+            .expect("expected bool_literal node in grammar guard source");
     }
 
     #[test]

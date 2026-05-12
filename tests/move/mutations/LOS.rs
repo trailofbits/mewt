@@ -1,4 +1,4 @@
-use crate::sui_move::integration_tests::assert_only_slug_and_expected_new_texts;
+use crate::r#move::shared::assert_only_slug_and_expected_new_texts;
 
 #[test]
 fn los_mutates_logical_operators() {
@@ -8,5 +8,5 @@ fn los_mutates_logical_operators() {
     }
 }"#;
 
-    assert_only_slug_and_expected_new_texts(source, "LOS", &["||"]);
+    assert_only_slug_and_expected_new_texts(source, "Move/sui", "LOS", &["||"]);
 }

@@ -1,4 +1,4 @@
-use crate::sui_move::integration_tests::assert_only_slug_and_expected_new_texts;
+use crate::r#move::shared::assert_only_slug_and_expected_new_texts;
 
 #[test]
 fn it_hardcodes_if_conditions_to_true() {
@@ -8,5 +8,5 @@ fn it_hardcodes_if_conditions_to_true() {
     }
 }"#;
 
-    assert_only_slug_and_expected_new_texts(source, "IT", &["true"]);
+    assert_only_slug_and_expected_new_texts(source, "Move/sui", "IT", &["true"]);
 }

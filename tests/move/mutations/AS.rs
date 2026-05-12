@@ -1,4 +1,4 @@
-use crate::sui_move::integration_tests::assert_only_slug_and_expected_new_texts;
+use crate::r#move::shared::assert_only_slug_and_expected_new_texts;
 
 #[test]
 fn as_swaps_adjacent_arguments() {
@@ -12,5 +12,5 @@ fn as_swaps_adjacent_arguments() {
     }
 }"#;
 
-    assert_only_slug_and_expected_new_texts(source, "AS", &["2, 1", "3, 2"]);
+    assert_only_slug_and_expected_new_texts(source, "Move/sui", "AS", &["2, 1", "3, 2"]);
 }

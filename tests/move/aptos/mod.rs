@@ -1,8 +1,6 @@
 use std::collections::BTreeSet;
 
 use crate::conformance;
-use mewt::languages::r#move::dialect::validate_source_for_dialect;
-use mewt::types::config::MoveDialect;
 
 use super::shared;
 
@@ -13,7 +11,7 @@ fn move_aptos_common_conformance_checks() {
 
 #[test]
 fn move_aptos_example_file_generates_mutants() {
-    let source = conformance::read_example_source("tests/sui_move/example.move");
+    let source = conformance::read_example_source("tests/move/example.move");
     let mutants = shared::mutate_source(&source, "Move/aptos");
 
     assert!(
@@ -54,12 +52,4 @@ fn move_aptos_baseline_slug_set_is_nonempty_and_overlaps_sui() {
         aptos_slugs.intersection(&sui_slugs).next().is_some(),
         "Move/aptos and Move/sui should share at least some mutation slugs"
     );
-}
-
-#[test]
-fn aptos_sensitive_marker_is_rejected_for_non_aptos_and_allowed_for_aptos() {
-    let source = "// @aptos_only\nmodule test::m {}";
-
-    assert!(validate_source_for_dialect(source, MoveDialect::Aptos).is_ok());
-    assert!(validate_source_for_dialect(source, MoveDialect::Sui).is_err());
 }

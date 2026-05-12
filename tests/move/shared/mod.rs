@@ -14,6 +14,23 @@ pub(crate) fn mutate_source(source: &str, language: &str) -> Vec<Mutant> {
     engine.mutate(&target)
 }
 
+pub(crate) fn mutants_for_slug(source: &str, language: &str, slug: &str) -> Vec<Mutant> {
+    let (_tmp, target) = create_test_target(source, language);
+    let engine = MoveLanguageEngine::new();
+    utils::mutants_for_slug(&engine, &target, slug)
+}
+
+pub(crate) fn assert_only_slug_and_expected_new_texts(
+    source: &str,
+    language: &str,
+    slug: &str,
+    expected_new_texts: &[&str],
+) {
+    let (_tmp, target) = create_test_target(source, language);
+    let engine = MoveLanguageEngine::new();
+    utils::assert_only_slug_and_expected_new_texts(&engine, &target, slug, expected_new_texts);
+}
+
 pub(crate) fn run_common_conformance_checks(language: &str, language_name: &str) {
     let sources = conformance::CommonConformanceSources {
         basic_source: r#"module test::m {
