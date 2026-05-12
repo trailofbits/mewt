@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
+use crate::core::registry::{DialectDefault, ResolutionDefaults};
 use crate::core::utils::parse_csv;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -262,6 +263,22 @@ impl Config {
             source: MoveDialectSource::Default,
             defaulted: true,
         })
+    }
+
+    pub fn resolve_language_defaults(
+        &self,
+        cli_move_dialect: Option<&str>,
+    ) -> io::Result<ResolutionDefaults> {
+        let mut defaults = ResolutionDefaults::default();
+        let resolved = self.resolve_move_dialect(cli_move_dialect)?;
+        defaults.default_dialects.insert(
+            "move".to_string(),
+            DialectDefault {
+                dialect: resolved.dialect.as_str().to_string(),
+                defaulted: resolved.defaulted,
+            },
+        );
+        Ok(defaults)
     }
 
     pub fn to_effective(&self) -> Self {

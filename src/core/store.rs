@@ -4,7 +4,8 @@ use sqlx::{QueryBuilder, Row};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-use crate::core::registry::{language_filter_variants, normalize_language_label};
+use crate::LanguageRegistry;
+use crate::core::registry::canonicalize_language_label;
 use crate::types::{
     CampaignSeverityStats, CampaignSummary, Hash, Mutant, Outcome, Status, StoreError, StoreResult,
     Target, TargetStats,
@@ -621,6 +622,7 @@ impl SqlStore {
         language: Option<String>,
         mutation_types: Option<Vec<String>>,
         line: Option<u32>,
+        registry: &LanguageRegistry,
     ) -> StoreResult<Vec<(Mutant, Target, Outcome)>> {
         // Get target IDs matching the pattern (if provided)
         let target_ids = self.match_target_ids(target).await?;
@@ -657,7 +659,7 @@ impl SqlStore {
 
         // Add language filter
         if let Some(lang) = language {
-            let language_variants = language_filter_variants(&lang);
+            let language_variants = registry.filter_labels(&lang);
             add_separator(&mut query_builder, &mut has_where);
             if let Some(single_variant) = (language_variants.len() == 1)
                 .then(|| language_variants.first())
@@ -852,7 +854,7 @@ impl SqlStore {
 }
 
 fn normalize_stored_target_language(language: &str) -> String {
-    normalize_language_label(language)
+    canonicalize_language_label(language)
 }
 
 #[cfg(test)]
@@ -929,20 +931,34 @@ module test::canonical {
             .expect("store outcome");
 
         let move_results = store
-            .get_outcomes_filtered(None, None, Some("move".to_string()), None, None)
+            .get_outcomes_filtered(None, None, Some("move".to_string()), None, None, &registry)
             .await
             .expect("filter outcomes by move");
         assert_eq!(move_results.len(), 1);
         assert_eq!(move_results[0].1.language, "Move/sui");
 
         let sui_results = store
-            .get_outcomes_filtered(None, None, Some("move/sui".to_string()), None, None)
+            .get_outcomes_filtered(
+                None,
+                None,
+                Some("move/sui".to_string()),
+                None,
+                None,
+                &registry,
+            )
             .await
             .expect("filter outcomes by move/sui");
         assert_eq!(sui_results.len(), 1);
 
         let iota_results = store
-            .get_outcomes_filtered(None, None, Some("move/iota".to_string()), None, None)
+            .get_outcomes_filtered(
+                None,
+                None,
+                Some("move/iota".to_string()),
+                None,
+                None,
+                &registry,
+            )
             .await
             .expect("filter outcomes by move/iota");
         assert!(iota_results.is_empty());

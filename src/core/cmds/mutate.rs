@@ -4,8 +4,8 @@ use std::sync::Arc;
 use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::core::cli::MutateArgs;
-use crate::core::cmds::log_move_dialect_for_targets;
-use crate::types::config::{ResolvedMoveDialect, ResolvedTargets};
+use crate::core::registry::ResolutionDefaults;
+use crate::types::config::ResolvedTargets;
 use crate::types::{AppResult, MutationSeverity, Target};
 
 pub async fn execute_mutate(
@@ -14,7 +14,7 @@ pub async fn execute_mutate(
     registry: Arc<LanguageRegistry>,
     resolved_targets: ResolvedTargets,
     mutations: Option<Vec<String>>,
-    resolved_move_dialect: ResolvedMoveDialect,
+    resolution_defaults: ResolutionDefaults,
 ) -> AppResult<()> {
     info!(
         "Generating mutants for targets: {:?}",
@@ -29,11 +29,9 @@ pub async fn execute_mutate(
         &store,
         &registry,
         mutations_slice,
-        resolved_move_dialect,
+        &resolution_defaults,
     )
     .await?;
-
-    log_move_dialect_for_targets(&targets, resolved_move_dialect, ".move targets");
 
     let mut total_mutants = 0;
     let mut total_new_mutants = 0;

@@ -1,13 +1,11 @@
-use std::collections::HashMap;
-use std::path::Path;
-
 use log::{info, warn};
 use serde::Serialize;
+use std::collections::HashMap;
 
 use crate::LanguageRegistry;
 use crate::core::cmds::print::MutationsFilters;
-use crate::languages::r#move::dialect::is_move_language_name;
-use crate::types::config::{ResolvedMoveDialect, config};
+use crate::core::registry::ResolutionDefaults;
+use crate::types::config::config;
 use crate::types::{Mutation, MutationSeverity};
 
 #[derive(Serialize)]
@@ -19,30 +17,38 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
     let language = filters.language;
     let is_json_format = filters.format == "json";
 
-    if filters.dialect.is_some() && !language.as_deref().is_some_and(is_move_language_name) {
+    if filters.dialect.is_some()
+        && !language
+            .as_deref()
+            .is_some_and(|lang| registry.language_supports_dialect_selection(lang))
+    {
         return Err(
             "--dialect requires --language move (or move/<dialect>) for `print mutations`"
                 .to_string(),
         );
     }
 
-    let need_move_dialect = language.as_deref().is_some_and(is_move_language_name);
-    let resolved_move_dialect = if need_move_dialect {
-        let resolved = config()
-            .resolve_move_dialect(filters.dialect.as_deref())
+    let need_move_dialect = language
+        .as_deref()
+        .is_some_and(|lang| registry.language_supports_dialect_selection(lang));
+    let resolution_defaults = if need_move_dialect {
+        let defaults = config()
+            .resolve_language_defaults(filters.dialect.as_deref())
             .map_err(|e| e.to_string())?;
-        if resolved.defaulted {
-            warn!(
-                "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|aptos explicitly.",
-                resolved.dialect.as_str()
-            );
-        } else {
-            info!(
-                "Using Move dialect '{}' for mutation listing",
-                resolved.dialect.as_str()
-            );
+        if let Some(move_default) = defaults.default_dialects.get("move") {
+            if move_default.defaulted {
+                warn!(
+                    "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|aptos explicitly.",
+                    move_default.dialect
+                );
+            } else {
+                info!(
+                    "Using Move dialect '{}' for mutation listing",
+                    move_default.dialect
+                );
+            }
         }
-        Some(resolved)
+        Some(defaults)
     } else {
         None
     };
@@ -51,8 +57,12 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
         let mut all_mutations = Vec::new();
         match &language {
             Some(lang_str) => {
-                let (engine_name, _) =
-                    resolve_language_for_print(registry, lang_str, resolved_move_dialect)?;
+                let (engine_name, _) = resolve_language_for_print(
+                    registry,
+                    lang_str,
+                    filters.dialect.as_deref(),
+                    resolution_defaults.as_ref(),
+                )?;
                 let mutation_engine = registry
                     .get_engine(&engine_name)
                     .ok_or_else(|| format!("No engine found for language: {}", lang_str))?;
@@ -87,28 +97,24 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
     } else {
         match &language {
             Some(lang_str) => {
-                let (engine_name, display_name) =
-                    resolve_language_for_print(registry, lang_str, resolved_move_dialect)?;
+                let (engine_name, display_name) = resolve_language_for_print(
+                    registry,
+                    lang_str,
+                    filters.dialect.as_deref(),
+                    resolution_defaults.as_ref(),
+                )?;
                 print_mutations_for_language(&engine_name, &display_name, registry)?;
             }
             None => {
                 for lang_name in registry.all_languages() {
-                    let display_name = if is_move_language_name(lang_name) {
-                        if let Some(resolved) = resolved_move_dialect {
-                            registry
-                                .resolve_selection_for_path(
-                                    Path::new("__virtual__.move"),
-                                    Some(lang_name),
-                                    resolved,
-                                )
-                                .map(|selection| selection.canonical_label)
-                                .unwrap_or_else(|_| lang_name.to_string())
-                        } else {
-                            lang_name.to_string()
-                        }
-                    } else {
-                        lang_name.to_string()
-                    };
+                    let display_name = resolve_language_for_print(
+                        registry,
+                        lang_name,
+                        filters.dialect.as_deref(),
+                        resolution_defaults.as_ref(),
+                    )
+                    .map(|(_, display)| display)
+                    .unwrap_or_else(|_| lang_name.to_string());
                     print_mutations_for_language(lang_name, &display_name, registry)?;
                 }
             }
@@ -121,23 +127,12 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
 fn resolve_language_for_print(
     registry: &LanguageRegistry,
     raw_language: &str,
-    resolved_move_dialect: Option<ResolvedMoveDialect>,
+    explicit_dialect: Option<&str>,
+    defaults: Option<&ResolutionDefaults>,
 ) -> Result<(String, String), String> {
-    if is_move_language_name(raw_language) {
-        let resolved = resolved_move_dialect
-            .ok_or_else(|| "Move language selection requires resolved dialect".to_string())?;
-        let selection = registry.resolve_selection_for_path(
-            Path::new("__virtual__.move"),
-            Some(raw_language),
-            resolved,
-        )?;
-        return Ok((selection.language_key, selection.canonical_label));
-    }
-
-    let engine = registry
-        .get_engine(raw_language)
-        .ok_or_else(|| format!("No engine found for language: {}", raw_language))?;
-    Ok((engine.name().to_string(), engine.name().to_string()))
+    let selection =
+        registry.resolve_selection_for_language_label(raw_language, explicit_dialect, defaults)?;
+    Ok((selection.language_key, selection.canonical_label))
 }
 
 fn print_mutations_for_language(

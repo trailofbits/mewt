@@ -7,9 +7,9 @@ use std::collections::HashMap;
 use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::core::cli::RunArgs;
-use crate::core::cmds::log_move_dialect_for_targets;
+use crate::core::registry::ResolutionDefaults;
 use crate::core::runner::TestRunner;
-use crate::types::config::{ResolvedMoveDialect, ResolvedTargets, config, resolve_test_for_path};
+use crate::types::config::{ResolvedTargets, config, resolve_test_for_path};
 use crate::types::{AppResult, CampaignSummary, Target};
 
 #[allow(clippy::too_many_arguments)]
@@ -22,7 +22,7 @@ pub async fn execute_run(
     mutations: Option<Vec<String>>,
     test_cmd: Option<String>,
     test_timeout: Option<u32>,
-    resolved_move_dialect: ResolvedMoveDialect,
+    resolution_defaults: ResolutionDefaults,
 ) -> AppResult<Option<CampaignSummary>> {
     let mutations_slice = mutations.as_deref();
 
@@ -33,7 +33,7 @@ pub async fn execute_run(
             &store,
             &registry,
             mutations_slice,
-            resolved_move_dialect,
+            &resolution_defaults,
         )
         .await?;
         for target in targets.iter() {
@@ -71,8 +71,6 @@ pub async fn execute_run(
         }
         targets
     };
-
-    log_move_dialect_for_targets(&targets, resolved_move_dialect, ".move targets");
 
     // Group targets by resolved (test_cmd, timeout)
     let mut groups: HashMap<(String, Option<u32>), Vec<Target>> = HashMap::new();

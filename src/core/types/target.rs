@@ -3,14 +3,14 @@ use std::io;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use log::info;
+use log::{info, warn};
 use serde::Serialize;
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
-use crate::types::config::{
-    ResolvedMoveDialect, ResolvedTargets, config, is_path_excluded, is_slug_enabled,
-};
+use crate::core::registry::{ResolutionDefaults, ResolutionRequest};
+use crate::languages::r#move::dialect::is_move_language_name;
+use crate::types::config::{ResolvedTargets, config, is_path_excluded, is_slug_enabled};
 use crate::types::{Hash, Mutant};
 
 #[derive(Debug, Clone, Serialize)]
@@ -51,7 +51,7 @@ impl Target {
         store: &SqlStore,
         registry: &LanguageRegistry,
         mutations: Option<&[String]>,
-        resolved_move_dialect: ResolvedMoveDialect,
+        resolution_defaults: &ResolutionDefaults,
     ) -> io::Result<Vec<Target>> {
         let mut all_targets: Vec<Target> = vec![];
 
@@ -67,7 +67,7 @@ impl Target {
                         store,
                         registry,
                         mutations,
-                        resolved_move_dialect,
+                        resolution_defaults,
                     )
                     .await?
                     {
@@ -82,7 +82,7 @@ impl Target {
                     registry,
                     &resolved_targets.ignore,
                     mutations,
-                    resolved_move_dialect,
+                    resolution_defaults,
                 ))
                 .await?;
                 all_targets.extend(targets_from_dir);
@@ -101,7 +101,7 @@ impl Target {
                                             store,
                                             registry,
                                             mutations,
-                                            resolved_move_dialect,
+                                            resolution_defaults,
                                         )
                                         .await?
                                         {
@@ -114,7 +114,7 @@ impl Target {
                                             registry,
                                             &resolved_targets.ignore,
                                             mutations,
-                                            resolved_move_dialect,
+                                            resolution_defaults,
                                         ))
                                         .await?;
                                         all_targets.extend(targets_from_dir);
@@ -148,6 +148,8 @@ impl Target {
         // regardless of filesystem traversal order
         all_targets.sort_by(|a, b| a.path.cmp(&b.path));
 
+        log_move_dialect_resolution(&all_targets, resolution_defaults, ".move targets");
+
         Ok(all_targets)
     }
 
@@ -156,7 +158,7 @@ impl Target {
         store: &SqlStore,
         registry: &LanguageRegistry,
         _mutations: Option<&[String]>,
-        resolved_move_dialect: ResolvedMoveDialect,
+        resolution_defaults: &ResolutionDefaults,
     ) -> io::Result<Option<Target>> {
         let mut file = fs::File::open(&target_path)?;
         let mut text = String::new();
@@ -164,17 +166,17 @@ impl Target {
 
         // Determine language from the file extension.
         // For .move files, use explicitly resolved dialect from config/CLI.
-        let language =
-            match resolve_language_for_path(&target_path, registry, resolved_move_dialect) {
-                Some(language) => language,
-                None => {
-                    info!(
-                        "Skipping file {}: unsupported language",
-                        target_path.display()
-                    );
-                    return Ok(None);
-                }
-            };
+        let language = match resolve_language_for_path(&target_path, registry, resolution_defaults)
+        {
+            Some(language) => language,
+            None => {
+                info!(
+                    "Skipping file {}: unsupported language",
+                    target_path.display()
+                );
+                return Ok(None);
+            }
+        };
 
         let mut target = Target {
             id: 0, // dummy placeholder until we store it in the db
@@ -199,7 +201,7 @@ impl Target {
         registry: &LanguageRegistry,
         ignore_patterns: &[String],
         mutations: Option<&[String]>,
-        resolved_move_dialect: ResolvedMoveDialect,
+        resolution_defaults: &ResolutionDefaults,
     ) -> io::Result<Vec<Target>> {
         // Skip directory entirely if excluded
         if is_path_excluded(&dir_path, ignore_patterns) {
@@ -216,7 +218,7 @@ impl Target {
                         store,
                         registry,
                         mutations,
-                        resolved_move_dialect,
+                        resolution_defaults,
                     )
                     .await?
                     {
@@ -230,7 +232,7 @@ impl Target {
                     registry,
                     ignore_patterns,
                     mutations,
-                    resolved_move_dialect,
+                    resolution_defaults,
                 ))
                 .await?;
                 targets.extend(targets_from_subdir);
@@ -388,19 +390,51 @@ impl Target {
 fn resolve_language_for_path(
     target_path: &Path,
     registry: &LanguageRegistry,
-    resolved_move_dialect: ResolvedMoveDialect,
+    resolution_defaults: &ResolutionDefaults,
 ) -> Option<String> {
     registry
-        .resolve_selection_for_path(target_path, None, resolved_move_dialect)
+        .resolve_selection(ResolutionRequest {
+            path: target_path,
+            explicit_language: None,
+            explicit_dialect: None,
+            defaults: Some(resolution_defaults),
+        })
         .ok()
         .map(|selection| selection.canonical_label)
+}
+
+fn log_move_dialect_resolution(
+    targets: &[Target],
+    resolution_defaults: &ResolutionDefaults,
+    context: &str,
+) {
+    let has_move_targets = targets
+        .iter()
+        .any(|target| is_move_language_name(&target.language));
+    if !has_move_targets {
+        return;
+    }
+
+    if let Some(move_default) = resolution_defaults.default_dialects.get("move") {
+        if move_default.defaulted {
+            warn!(
+                "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|aptos explicitly.",
+                move_default.dialect
+            );
+        } else {
+            info!(
+                "Using Move dialect '{}' for {}",
+                move_default.dialect, context
+            );
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::registry::{DialectDefault, ResolutionDefaults};
     use crate::languages;
-    use crate::types::config::{MoveDialect, MoveDialectSource};
 
     fn test_registry() -> LanguageRegistry {
         let mut registry = LanguageRegistry::new();
@@ -409,12 +443,16 @@ mod tests {
         registry
     }
 
-    fn resolved_move_dialect(dialect: MoveDialect) -> ResolvedMoveDialect {
-        ResolvedMoveDialect {
-            dialect,
-            source: MoveDialectSource::Cli,
-            defaulted: false,
-        }
+    fn move_defaults(dialect: &str) -> ResolutionDefaults {
+        let mut defaults = ResolutionDefaults::default();
+        defaults.default_dialects.insert(
+            "move".to_string(),
+            DialectDefault {
+                dialect: dialect.to_string(),
+                defaulted: false,
+            },
+        );
+        defaults
     }
 
     #[test]
@@ -423,7 +461,7 @@ mod tests {
         let language = resolve_language_for_path(
             &PathBuf::from("example.move"),
             &registry,
-            resolved_move_dialect(MoveDialect::Iota),
+            &move_defaults("iota"),
         )
         .expect("move language");
 
@@ -436,12 +474,9 @@ mod tests {
     #[test]
     fn non_move_paths_use_extension_registry_lookup() {
         let registry = test_registry();
-        let language = resolve_language_for_path(
-            &PathBuf::from("lib.rs"),
-            &registry,
-            resolved_move_dialect(MoveDialect::Iota),
-        )
-        .expect("rust language");
+        let language =
+            resolve_language_for_path(&PathBuf::from("lib.rs"), &registry, &move_defaults("iota"))
+                .expect("rust language");
 
         assert_eq!(language, "Rust");
     }
