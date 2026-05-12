@@ -2,6 +2,10 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::LanguageEngine;
+use crate::languages::javascript::dialect::{
+    JavaScriptDialect, dialect_from_language_name as js_dialect_from_language_name,
+    is_javascript_language_name, language_name_for_dialect as js_language_name_for_dialect,
+};
 use crate::languages::r#move::dialect::{
     dialect_from_language_name, is_move_language_name, language_name_for_dialect,
 };
@@ -48,6 +52,8 @@ pub struct ResolutionRequest<'a> {
 pub fn canonicalize_language_label(language: &str) -> String {
     if let Some(dialect) = dialect_from_language_name(language) {
         language_name_for_dialect(dialect)
+    } else if let Some(dialect) = js_dialect_from_language_name(language) {
+        js_language_name_for_dialect(dialect)
     } else {
         language.to_string()
     }
@@ -77,6 +83,8 @@ impl LanguageRegistry {
                 engine.name().eq_ignore_ascii_case(language_name)
                     || (is_move_language_name(language_name)
                         && is_move_language_name(engine.name()))
+                    || (is_javascript_language_name(language_name)
+                        && is_javascript_language_name(engine.name()))
             })
             .map(|engine| engine.as_ref())
     }
@@ -146,6 +154,18 @@ impl LanguageRegistry {
                         });
                     }
                 }
+            }
+        }
+
+        if let Some(js_dialect) = JavaScriptDialect::from_extension(extension) {
+            if self.get_engine("javascript").is_some() {
+                return Ok(ResolvedLanguageSelection {
+                    language_key: "JavaScript".to_string(),
+                    dialect: Some(js_dialect.as_str().to_string()),
+                    canonical_label: js_language_name_for_dialect(js_dialect),
+                    source: ResolutionSource::Extension,
+                    defaulted: false,
+                });
             }
         }
 
@@ -259,6 +279,25 @@ impl LanguageRegistry {
             });
         }
 
+        if is_javascript_language_name(explicit_language) {
+            let dialect = if let Some(raw) = explicit_dialect {
+                JavaScriptDialect::from_extension(raw).ok_or_else(|| {
+                    format!("Invalid JavaScript dialect '{raw}'. Expected one of: js, jsx, ts, tsx")
+                })?
+            } else {
+                js_dialect_from_language_name(explicit_language)
+                    .unwrap_or(JavaScriptDialect::JavaScript)
+            };
+
+            return Ok(ResolvedLanguageSelection {
+                language_key: "JavaScript".to_string(),
+                dialect: Some(dialect.as_str().to_string()),
+                canonical_label: js_language_name_for_dialect(dialect),
+                source,
+                defaulted: false,
+            });
+        }
+
         let engine = self
             .get_engine(explicit_language)
             .ok_or_else(|| format!("No engine found for language: {explicit_language}"))?;
@@ -272,7 +311,7 @@ impl LanguageRegistry {
     }
 
     pub fn canonicalize_label(&self, raw: &str) -> Option<String> {
-        if is_move_language_name(raw) {
+        if is_move_language_name(raw) || is_javascript_language_name(raw) {
             return Some(canonicalize_language_label(raw));
         }
 
@@ -312,32 +351,54 @@ impl LanguageRegistry {
     fn expand_family_filter_labels(&self, query: &str) -> Option<Vec<String>> {
         let normalized = query.trim().to_ascii_lowercase();
 
-        if !is_move_language_name(&normalized) {
-            return None;
-        }
+        if is_move_language_name(&normalized) {
+            let move_profiles = ["sui", "iota", "aptos"];
 
-        let move_profiles = ["sui", "iota", "aptos"];
-
-        if normalized == "move" {
-            let mut labels = vec!["Move".to_string()];
-            labels.extend(
-                move_profiles
-                    .iter()
-                    .map(|profile| format!("Move/{profile}")),
-            );
-            return Some(labels);
-        }
-
-        let dialect = normalized
-            .split_once(['/', ':'])
-            .map(|(_, d)| d)
-            .unwrap_or_default();
-
-        if move_profiles.contains(&dialect) {
-            if dialect == "sui" {
-                return Some(vec!["Move/sui".to_string(), "Move".to_string()]);
+            if normalized == "move" {
+                let mut labels = vec!["Move".to_string()];
+                labels.extend(
+                    move_profiles
+                        .iter()
+                        .map(|profile| format!("Move/{profile}")),
+                );
+                return Some(labels);
             }
-            return Some(vec![format!("Move/{dialect}")]);
+
+            let dialect = normalized
+                .split_once(['/', ':'])
+                .map(|(_, d)| d)
+                .unwrap_or_default();
+
+            if move_profiles.contains(&dialect) {
+                if dialect == "sui" {
+                    return Some(vec!["Move/sui".to_string(), "Move".to_string()]);
+                }
+                return Some(vec![format!("Move/{dialect}")]);
+            }
+        }
+
+        if is_javascript_language_name(&normalized) {
+            let js_profiles = ["js", "jsx", "ts", "tsx"];
+
+            if normalized == "javascript" || normalized == "js" {
+                let mut labels = vec!["JavaScript/js".to_string()];
+                labels.extend(
+                    js_profiles
+                        .iter()
+                        .skip(1)
+                        .map(|profile| format!("JavaScript/{profile}")),
+                );
+                return Some(labels);
+            }
+
+            let dialect = normalized
+                .split_once(['/', ':'])
+                .map(|(_, d)| d)
+                .unwrap_or_default();
+
+            if js_profiles.contains(&dialect) {
+                return Some(vec![format!("JavaScript/{dialect}")]);
+            }
         }
 
         None
@@ -511,7 +572,8 @@ mod tests {
             })
             .expect("selection");
 
-        assert_eq!(selection.canonical_label, "JavaScript");
+        assert_eq!(selection.canonical_label, "JavaScript/tsx");
+        assert_eq!(selection.dialect.as_deref(), Some("tsx"));
         assert_eq!(selection.source, ResolutionSource::Extension);
         assert!(!selection.defaulted);
     }
@@ -534,5 +596,41 @@ mod tests {
         assert_eq!(selection.canonical_label, "Rust");
         assert_eq!(selection.source, ResolutionSource::ExplicitLanguage);
         assert!(!selection.defaulted);
+    }
+
+    #[test]
+    fn resolver_explicit_js_dialect_overrides_extension_default() {
+        let mut registry = LanguageRegistry::new();
+        registry.register(JavaScriptLanguageEngine::new());
+
+        let selection = registry
+            .resolve_selection(ResolutionRequest {
+                path: Path::new("component.js"),
+                explicit_language: Some("javascript"),
+                explicit_dialect: Some("tsx"),
+                defaults: None,
+            })
+            .expect("selection");
+
+        assert_eq!(selection.canonical_label, "JavaScript/tsx");
+        assert_eq!(selection.dialect.as_deref(), Some("tsx"));
+        assert_eq!(selection.source, ResolutionSource::ExplicitLanguage);
+    }
+
+    #[test]
+    fn javascript_family_filters_expand_to_all_dialects() {
+        let mut registry = LanguageRegistry::new();
+        registry.register(JavaScriptLanguageEngine::new());
+
+        let labels = registry.filter_labels("javascript");
+        assert_eq!(
+            labels,
+            vec![
+                "JavaScript/js".to_string(),
+                "JavaScript/jsx".to_string(),
+                "JavaScript/ts".to_string(),
+                "JavaScript/tsx".to_string()
+            ]
+        );
     }
 }

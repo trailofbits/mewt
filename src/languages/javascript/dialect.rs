@@ -20,6 +20,16 @@ impl JavaScriptDialect {
             Self::Tsx => "tsx",
         }
     }
+
+    pub fn from_extension(extension: &str) -> Option<Self> {
+        match extension.to_ascii_lowercase().as_str() {
+            "js" => Some(Self::JavaScript),
+            "jsx" => Some(Self::Jsx),
+            "ts" => Some(Self::TypeScript),
+            "tsx" => Some(Self::Tsx),
+            _ => None,
+        }
+    }
 }
 
 pub struct JavaScriptDialectProfile {
@@ -40,15 +50,41 @@ impl JavaScriptDialectProfile {
     }
 }
 
+pub fn language_name_for_dialect(dialect: JavaScriptDialect) -> String {
+    format!("JavaScript/{}", dialect.as_str())
+}
+
+pub fn is_javascript_language_name(raw: &str) -> bool {
+    dialect_from_language_name(raw).is_some()
+}
+
+pub fn dialect_from_language_name(raw: &str) -> Option<JavaScriptDialect> {
+    let normalized = raw.trim().to_ascii_lowercase();
+    if normalized == "javascript" || normalized == "js" {
+        return Some(JavaScriptDialect::JavaScript);
+    }
+
+    let dialect = normalized
+        .split_once(['/', ':'])
+        .and_then(|(family, dialect)| {
+            (family == "javascript" || family == "js").then_some(dialect)
+        })?;
+
+    JavaScriptDialect::from_extension(dialect)
+}
+
 pub fn profile_for_target_path(path: &Path) -> JavaScriptDialectProfile {
-    let dialect = match path.extension().and_then(|e| e.to_str()) {
-        Some("ts") => JavaScriptDialect::TypeScript,
-        Some("tsx") => JavaScriptDialect::Tsx,
-        Some("jsx") => JavaScriptDialect::Jsx,
-        _ => JavaScriptDialect::JavaScript,
-    };
+    let dialect = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .and_then(JavaScriptDialect::from_extension)
+        .unwrap_or(JavaScriptDialect::JavaScript);
 
     JavaScriptDialectProfile { dialect }
+}
+
+pub fn profile_for_language_name(language_name: &str) -> Option<JavaScriptDialectProfile> {
+    dialect_from_language_name(language_name).map(|dialect| JavaScriptDialectProfile { dialect })
 }
 
 static JS_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
