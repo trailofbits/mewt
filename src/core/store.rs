@@ -869,7 +869,6 @@ mod tests {
     fn normalizes_move_language_labels_in_memory() {
         assert_eq!(normalize_stored_target_language("move"), "Move/sui");
         assert_eq!(normalize_stored_target_language("Move/iota"), "Move/iota");
-        assert_eq!(normalize_stored_target_language("SuiMove"), "SuiMove");
         assert_eq!(normalize_stored_target_language("Rust"), "Rust");
     }
 
@@ -941,12 +940,6 @@ module test::canonical {
             .await
             .expect("filter outcomes by move/sui");
         assert_eq!(sui_results.len(), 1);
-
-        let legacy_results = store
-            .get_outcomes_filtered(None, None, Some("SuiMove".to_string()), None, None)
-            .await
-            .expect("filter outcomes by SuiMove");
-        assert!(legacy_results.is_empty());
 
         let iota_results = store
             .get_outcomes_filtered(None, None, Some("move/iota".to_string()), None, None)

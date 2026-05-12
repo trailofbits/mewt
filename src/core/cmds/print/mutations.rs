@@ -19,15 +19,21 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
     let language = filters.language;
     let is_json_format = filters.format == "json";
 
-    let need_move_dialect = language.as_deref().is_some_and(is_move_language_name)
-        || (language.is_none() && filters.dialect.is_some());
+    if filters.dialect.is_some() && !language.as_deref().is_some_and(is_move_language_name) {
+        return Err(
+            "--dialect requires --language move (or move/<dialect>) for `print mutations`"
+                .to_string(),
+        );
+    }
+
+    let need_move_dialect = language.as_deref().is_some_and(is_move_language_name);
     let resolved_move_dialect = if need_move_dialect {
         let resolved = config()
             .resolve_move_dialect(filters.dialect.as_deref())
             .map_err(|e| e.to_string())?;
         if resolved.defaulted {
             warn!(
-                "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|aptos|auto explicitly.",
+                "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|aptos explicitly.",
                 resolved.dialect.as_str()
             );
         } else {

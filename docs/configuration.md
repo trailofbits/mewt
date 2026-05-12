@@ -39,7 +39,7 @@ level = "info"                # trace, debug, info, warn, error
 # comprehensive = false        # test all mutants even if severe ones uncaught
 
 [languages.move]
-# dialect = "sui"             # one of: sui, iota, auto
+# dialect = "sui"             # one of: sui, iota, aptos
 
 [test]
 # cmd = "cargo test"           # default test command
@@ -67,7 +67,7 @@ For `.move` targets, mewt resolves dialect in this order:
 2. Config `[languages.move].dialect`
 3. Default `sui`
 
-If no explicit dialect is provided (or `auto` is selected), mewt defaults to `sui` and emits a warning when `.move` targets are processed.
+If no explicit dialect is provided (is selected), mewt defaults to `sui` and emits a warning when `.move` targets are processed.
 
 Examples:
 

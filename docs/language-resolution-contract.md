@@ -37,7 +37,7 @@ Resolution precedence (highest to lowest):
 
 Move-specific policy (current behavior baseline):
 - Dialect precedence: `--dialect` > `[languages.move].dialect` > default `sui`
-- `auto` resolves to `sui` and is marked `defaulted=true`
+- if omitted, dialect defaults to `sui` and is marked `defaulted=true`
 
 ## Ambiguity policy
 

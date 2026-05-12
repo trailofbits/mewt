@@ -28,7 +28,7 @@ pub(crate) fn log_move_dialect_for_targets(
 
     if resolved_move_dialect.defaulted {
         warn!(
-            "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|aptos|auto explicitly.",
+            "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|aptos explicitly.",
             resolved_move_dialect.dialect.as_str()
         );
     } else {

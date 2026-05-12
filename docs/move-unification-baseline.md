@@ -21,7 +21,7 @@ For `.move` targets, dialect resolves in this order:
 2. Config `[languages.move].dialect`
 3. Default `sui`
 
-`auto` is treated as defaulting behavior.
+omitting dialect uses defaulting behavior (sui).
 
 ## Persistence compatibility baseline
 

@@ -110,7 +110,7 @@ mewt print mutations --language move --dialect sui
 
 Compatibility note:
 - Use canonical Move language names: `move`, `move/sui`, and `move/iota`.
-- Legacy names such as `SuiMove`, `sui_move`, and `suimove` are not supported.
+- Use canonical Move names: `move`, `move/sui`, `move/iota`, `move/aptos`.
 
 ## Examples
 
@@ -121,7 +121,7 @@ This repo includes example files you can try:
 - JavaScript/TypeScript/JSX/TSX: `tests/javascript/example.js` (plus `example.ts`, `example.jsx`, `example.tsx`)
 - Rust: `tests/rust/example.rs`
 - Solidity: `tests/solidity/example.sol`
-- Move: `tests/sui_move/example.move` (path retained for compatibility during migration)
+- Move: `tests/move/example.move`
 
 ## Notes
 

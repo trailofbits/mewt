@@ -207,7 +207,7 @@ impl Default for LanguageRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::languages::sui_move::engine::MoveLanguageEngine;
+    use crate::languages::r#move::engine::MoveLanguageEngine;
     use crate::types::config::{MoveDialect, MoveDialectSource};
     use crate::types::{Mutant, Mutation, Target};
 
@@ -303,7 +303,7 @@ mod tests {
     #[test]
     fn shared_normalization_helpers_cover_move_variants() {
         assert_eq!(normalize_language_label("Move"), "Move/sui");
-        assert_eq!(normalize_language_label("SuiMove"), "SuiMove");
+        assert_eq!(normalize_language_label("Move/sui"), "Move/sui");
         assert_eq!(language_filter_variants("move").len(), 4);
     }
 

@@ -45,8 +45,8 @@ level = "info"
 
 [languages.move]
 # Move dialect selection for .move files
-# Values: "sui", "iota", "auto"
-# If omitted (or set to "auto"), mewt defaults to "sui"
+# Values: "sui", "iota", "aptos"
+# If omitted, mewt defaults to "sui"
 # dialect = "sui"
 
 [test]

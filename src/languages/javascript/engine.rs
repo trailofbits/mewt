@@ -1,24 +1,12 @@
-use std::sync::OnceLock;
-use tree_sitter::Language as TsLanguage;
-
 use crate::LanguageEngine;
 use crate::mutations::COMMON_MUTATIONS;
 use crate::patterns;
 use crate::types::{Mutant, Mutation, Target};
 use crate::utils::{node_text, parse_source};
 
+use super::dialect::profile_for_target_path;
 use super::mutations::JAVASCRIPT_MUTATIONS;
 use super::syntax::{fields, nodes};
-
-static JS_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
-static TS_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
-static TSX_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
-
-unsafe extern "C" {
-    fn tree_sitter_javascript() -> *const tree_sitter::ffi::TSLanguage;
-    fn tree_sitter_typescript() -> *const tree_sitter::ffi::TSLanguage;
-    fn tree_sitter_tsx() -> *const tree_sitter::ffi::TSLanguage;
-}
 
 pub struct JavaScriptLanguageEngine {
     mutations: Vec<Mutation>,
@@ -55,21 +43,8 @@ impl LanguageEngine for JavaScriptLanguageEngine {
     fn mutate(&self, target: &Target) -> Vec<Mutant> {
         let source = &target.text;
 
-        // Determine which grammar to use based on file extension
-        let extension = target.path.extension().and_then(|e| e.to_str());
-
-        let language = match extension {
-            Some("ts") => TS_LANGUAGE
-                .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_typescript()) }),
-            Some("tsx") => {
-                TSX_LANGUAGE.get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_tsx()) })
-            }
-            // Default to JavaScript for .js, .jsx, and any other files
-            _ => JS_LANGUAGE
-                .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_javascript()) }),
-        };
-
-        let tree = match parse_source(source, language) {
+        let profile = profile_for_target_path(&target.path);
+        let tree = match parse_source(source, profile.parser_language()) {
             Some(t) => t,
             None => return Vec::new(),
         };

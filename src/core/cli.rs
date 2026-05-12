@@ -99,7 +99,7 @@ pub struct RunArgs {
     #[arg(long)]
     pub verbose: bool,
 
-    /// Move dialect for .move targets: sui, iota, aptos, or auto
+    /// Move dialect for .move targets: sui, iota, or aptos
     #[arg(long)]
     pub dialect: Option<String>,
 }
@@ -125,7 +125,7 @@ pub struct MutateArgs {
     #[arg(long)]
     pub verbose: bool,
 
-    /// Move dialect for .move targets: sui, iota, aptos, or auto
+    /// Move dialect for .move targets: sui, iota, or aptos
     #[arg(long)]
     pub dialect: Option<String>,
 }
@@ -184,7 +184,7 @@ pub struct PrintMutationsArgs {
     #[arg(long, default_value = "table")]
     pub format: String,
 
-    /// Move dialect when --language is move: sui, iota, aptos, or auto
+    /// Move dialect when --language is move: sui, iota, or aptos
     #[arg(long)]
     pub dialect: Option<String>,
 }

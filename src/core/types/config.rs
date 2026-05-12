@@ -97,7 +97,6 @@ pub enum MoveDialectSetting {
     Sui,
     Iota,
     Aptos,
-    Auto,
 }
 
 impl MoveDialectSetting {
@@ -106,7 +105,6 @@ impl MoveDialectSetting {
             Self::Sui => "sui",
             Self::Iota => "iota",
             Self::Aptos => "aptos",
-            Self::Auto => "auto",
         }
     }
 }
@@ -283,10 +281,9 @@ fn parse_move_dialect(raw: &str) -> io::Result<MoveDialectSetting> {
         "sui" => Ok(MoveDialectSetting::Sui),
         "iota" => Ok(MoveDialectSetting::Iota),
         "aptos" => Ok(MoveDialectSetting::Aptos),
-        "auto" => Ok(MoveDialectSetting::Auto),
         value => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!("Invalid Move dialect '{value}'. Expected one of: sui, iota, aptos, auto"),
+            format!("Invalid Move dialect '{value}'. Expected one of: sui, iota, aptos"),
         )),
     }
 }
@@ -310,11 +307,6 @@ fn resolve_move_dialect_setting(
             dialect: MoveDialect::Aptos,
             source,
             defaulted: false,
-        },
-        MoveDialectSetting::Auto => ResolvedMoveDialect {
-            dialect: MoveDialect::Sui,
-            source,
-            defaulted: true,
         },
     }
 }
@@ -641,16 +633,6 @@ mod tests {
 
         assert_eq!(resolved.dialect, MoveDialect::Sui);
         assert_eq!(resolved.source, MoveDialectSource::Default);
-        assert!(resolved.defaulted);
-    }
-
-    #[test]
-    fn resolve_move_dialect_treats_auto_as_defaulted() {
-        let cfg = config_with_move_dialect(MoveDialectSetting::Auto);
-        let resolved = cfg.resolve_move_dialect(None).expect("auto dialect");
-
-        assert_eq!(resolved.dialect, MoveDialect::Sui);
-        assert_eq!(resolved.source, MoveDialectSource::Config);
         assert!(resolved.defaulted);
     }
 
