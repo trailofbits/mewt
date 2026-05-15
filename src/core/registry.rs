@@ -2,16 +2,11 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::LanguageEngine;
-use crate::languages::javascript::dialect::{
-    JavaScriptDialect, dialect_from_language_name as js_dialect_from_language_name,
-    is_javascript_language_name, language_name_for_dialect as js_language_name_for_dialect,
-};
-use crate::languages::r#move::dialect::{
-    dialect_from_language_name, is_move_language_name, language_name_for_dialect,
-};
-/// Registry for managing available language engines
+
+/// Registry for managing available language engines and language resolvers.
 pub struct LanguageRegistry {
     engines: Vec<Box<dyn LanguageEngine>>,
+    resolvers: Vec<Box<dyn LanguageResolver>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,47 +44,68 @@ pub struct ResolutionRequest<'a> {
     pub defaults: Option<&'a ResolutionDefaults>,
 }
 
-pub fn canonicalize_language_label(language: &str) -> String {
-    if let Some(dialect) = dialect_from_language_name(language) {
-        language_name_for_dialect(dialect)
-    } else if let Some(dialect) = js_dialect_from_language_name(language) {
-        js_language_name_for_dialect(dialect)
-    } else {
-        language.to_string()
-    }
+pub trait LanguageResolver {
+    fn is_language_name(&self, raw: &str) -> bool;
+
+    fn resolve_for_explicit_language(
+        &self,
+        explicit_language: &str,
+        explicit_dialect: Option<&str>,
+        defaults: Option<&ResolutionDefaults>,
+        source: ResolutionSource,
+    ) -> Result<ResolvedLanguageSelection, String>;
+
+    fn resolve_for_explicit_dialect(
+        &self,
+        explicit_dialect: &str,
+        defaults: Option<&ResolutionDefaults>,
+    ) -> Option<Result<ResolvedLanguageSelection, String>>;
+
+    fn resolve_for_extension(
+        &self,
+        extension: &str,
+        defaults: Option<&ResolutionDefaults>,
+        has_engine: &dyn Fn(&str) -> bool,
+    ) -> Option<Result<ResolvedLanguageSelection, String>>;
+
+    fn canonicalize_label(&self, raw: &str) -> Option<String>;
+
+    fn expand_filter_labels(&self, query: &str) -> Option<Vec<String>>;
 }
 
 impl LanguageRegistry {
     pub fn new() -> Self {
         Self {
             engines: Vec::new(),
+            resolvers: Vec::new(),
         }
     }
 
-    /// Register a language engine
+    /// Register a language engine.
     pub fn register<T: LanguageEngine + 'static>(&mut self, engine: T) {
         self.engines.push(Box::new(engine));
     }
 
+    /// Register a language resolver.
+    pub fn register_resolver<T: LanguageResolver + 'static>(&mut self, resolver: T) {
+        self.resolvers.push(Box::new(resolver));
+    }
+
     /// Get engine for a language name.
-    ///
-    /// Move names accepted here:
-    /// - move (canonical selector)
-    /// - move/sui, move/iota, move/aptos (profiled names)
     pub fn get_engine(&self, language_name: &str) -> Option<&dyn LanguageEngine> {
         self.engines
             .iter()
             .find(|engine| {
                 engine.name().eq_ignore_ascii_case(language_name)
-                    || (is_move_language_name(language_name)
-                        && is_move_language_name(engine.name()))
-                    || (is_javascript_language_name(language_name)
-                        && is_javascript_language_name(engine.name()))
+                    || self.resolvers.iter().any(|resolver| {
+                        resolver.is_language_name(language_name)
+                            && resolver.is_language_name(engine.name())
+                    })
             })
             .map(|engine| engine.as_ref())
     }
 
-    /// Determine language from file path
+    /// Determine language from file path.
     pub fn language_from_path(&self, path: &Path) -> Option<&dyn LanguageEngine> {
         let extension = path.extension().and_then(|ext| ext.to_str())?;
 
@@ -138,34 +154,13 @@ impl LanguageRegistry {
             .and_then(|ext| ext.to_str())
             .ok_or_else(|| format!("No extension for path: {}", request.path.display()))?;
 
-        if extension.eq_ignore_ascii_case("move") {
-            if let Some(defaults) = request.defaults {
-                if let Some(default_move_dialect) = defaults.default_dialects.get("move") {
-                    if let Some(dialect) = dialect_from_language_name(&format!(
-                        "move/{}",
-                        default_move_dialect.dialect
-                    )) {
-                        return Ok(ResolvedLanguageSelection {
-                            language_key: "Move".to_string(),
-                            dialect: Some(dialect.as_str().to_string()),
-                            canonical_label: language_name_for_dialect(dialect),
-                            source: ResolutionSource::Extension,
-                            defaulted: default_move_dialect.defaulted,
-                        });
-                    }
-                }
-            }
-        }
-
-        if let Some(js_dialect) = JavaScriptDialect::from_extension(extension) {
-            if self.get_engine("javascript").is_some() {
-                return Ok(ResolvedLanguageSelection {
-                    language_key: "JavaScript".to_string(),
-                    dialect: Some(js_dialect.as_str().to_string()),
-                    canonical_label: js_language_name_for_dialect(js_dialect),
-                    source: ResolutionSource::Extension,
-                    defaulted: false,
-                });
+        for resolver in &self.resolvers {
+            if let Some(result) =
+                resolver.resolve_for_extension(extension, request.defaults, &|name| {
+                    self.get_engine(name).is_some()
+                })
+            {
+                return result;
             }
         }
 
@@ -213,14 +208,11 @@ impl LanguageRegistry {
         explicit_dialect: &str,
         defaults: Option<&ResolutionDefaults>,
     ) -> Result<ResolvedLanguageSelection, String> {
-        if let Some(dialect) = dialect_from_language_name(&format!("move/{explicit_dialect}")) {
-            return Ok(ResolvedLanguageSelection {
-                language_key: "Move".to_string(),
-                dialect: Some(dialect.as_str().to_string()),
-                canonical_label: language_name_for_dialect(dialect),
-                source: ResolutionSource::ExplicitLanguage,
-                defaulted: false,
-            });
+        for resolver in &self.resolvers {
+            if let Some(result) = resolver.resolve_for_explicit_dialect(explicit_dialect, defaults)
+            {
+                return result;
+            }
         }
 
         if let Some(defaults) = defaults {
@@ -246,56 +238,15 @@ impl LanguageRegistry {
         defaults: Option<&ResolutionDefaults>,
         source: ResolutionSource,
     ) -> Result<ResolvedLanguageSelection, String> {
-        if is_move_language_name(explicit_language) {
-            let dialect = if let Some(raw) = explicit_dialect {
-                dialect_from_language_name(&format!("move/{raw}")).ok_or_else(|| {
-                    format!("Invalid Move dialect '{raw}'. Expected one of: sui, iota, aptos")
-                })?
-            } else if let Some(from_label) = dialect_from_language_name(explicit_language) {
-                from_label
-            } else if let Some(defaults) = defaults {
-                defaults
-                    .default_dialects
-                    .get("move")
-                    .and_then(|entry| {
-                        dialect_from_language_name(&format!("move/{}", entry.dialect))
-                    })
-                    .unwrap_or(crate::types::config::MoveDialect::Sui)
-            } else {
-                crate::types::config::MoveDialect::Sui
-            };
-
-            let defaulted = explicit_dialect.is_none()
-                && defaults
-                    .and_then(|d| d.default_dialects.get("move"))
-                    .is_some_and(|entry| entry.defaulted);
-
-            return Ok(ResolvedLanguageSelection {
-                language_key: "Move".to_string(),
-                dialect: Some(dialect.as_str().to_string()),
-                canonical_label: language_name_for_dialect(dialect),
-                source,
-                defaulted,
-            });
-        }
-
-        if is_javascript_language_name(explicit_language) {
-            let dialect = if let Some(raw) = explicit_dialect {
-                JavaScriptDialect::from_extension(raw).ok_or_else(|| {
-                    format!("Invalid JavaScript dialect '{raw}'. Expected one of: js, jsx, ts, tsx")
-                })?
-            } else {
-                js_dialect_from_language_name(explicit_language)
-                    .unwrap_or(JavaScriptDialect::JavaScript)
-            };
-
-            return Ok(ResolvedLanguageSelection {
-                language_key: "JavaScript".to_string(),
-                dialect: Some(dialect.as_str().to_string()),
-                canonical_label: js_language_name_for_dialect(dialect),
-                source,
-                defaulted: false,
-            });
+        for resolver in &self.resolvers {
+            if resolver.is_language_name(explicit_language) {
+                return resolver.resolve_for_explicit_language(
+                    explicit_language,
+                    explicit_dialect,
+                    defaults,
+                    source,
+                );
+            }
         }
 
         let engine = self
@@ -311,8 +262,10 @@ impl LanguageRegistry {
     }
 
     pub fn canonicalize_label(&self, raw: &str) -> Option<String> {
-        if is_move_language_name(raw) || is_javascript_language_name(raw) {
-            return Some(canonicalize_language_label(raw));
+        for resolver in &self.resolvers {
+            if let Some(label) = resolver.canonicalize_label(raw) {
+                return Some(label);
+            }
         }
 
         self.get_engine(raw).map(|engine| engine.name().to_string())
@@ -339,8 +292,10 @@ impl LanguageRegistry {
     }
 
     pub fn filter_labels(&self, query: &str) -> Vec<String> {
-        if let Some(expanded) = self.expand_family_filter_labels(query) {
-            return expanded;
+        for resolver in &self.resolvers {
+            if let Some(expanded) = resolver.expand_filter_labels(query) {
+                return expanded;
+            }
         }
 
         self.canonicalize_label(query)
@@ -348,74 +303,18 @@ impl LanguageRegistry {
             .unwrap_or_else(|| vec![query.to_string()])
     }
 
-    fn expand_family_filter_labels(&self, query: &str) -> Option<Vec<String>> {
-        let normalized = query.trim().to_ascii_lowercase();
-
-        if is_move_language_name(&normalized) {
-            let move_profiles = ["sui", "iota", "aptos"];
-
-            if normalized == "move" {
-                let mut labels = vec!["Move".to_string()];
-                labels.extend(
-                    move_profiles
-                        .iter()
-                        .map(|profile| format!("Move/{profile}")),
-                );
-                return Some(labels);
-            }
-
-            let dialect = normalized
-                .split_once(['/', ':'])
-                .map(|(_, d)| d)
-                .unwrap_or_default();
-
-            if move_profiles.contains(&dialect) {
-                if dialect == "sui" {
-                    return Some(vec!["Move/sui".to_string(), "Move".to_string()]);
-                }
-                return Some(vec![format!("Move/{dialect}")]);
-            }
-        }
-
-        if is_javascript_language_name(&normalized) {
-            let js_profiles = ["js", "jsx", "ts", "tsx"];
-
-            if normalized == "javascript" || normalized == "js" {
-                let mut labels = vec!["JavaScript/js".to_string()];
-                labels.extend(
-                    js_profiles
-                        .iter()
-                        .skip(1)
-                        .map(|profile| format!("JavaScript/{profile}")),
-                );
-                return Some(labels);
-            }
-
-            let dialect = normalized
-                .split_once(['/', ':'])
-                .map(|(_, d)| d)
-                .unwrap_or_default();
-
-            if js_profiles.contains(&dialect) {
-                return Some(vec![format!("JavaScript/{dialect}")]);
-            }
-        }
-
-        None
-    }
-
-    /// Get all registered language names
+    /// Get all registered language names.
     pub fn all_languages(&self) -> Vec<&str> {
         self.engines.iter().map(|engine| engine.name()).collect()
     }
 
-    /// Get a specific mutation by language and slug
+    /// Get a specific mutation by language and slug.
     pub fn get_mutation(&self, language_name: &str, slug: &str) -> Option<&crate::types::Mutation> {
         let engine = self.get_engine(language_name)?;
         engine.get_mutations().iter().find(|m| m.slug == slug)
     }
 
-    /// Get severity for a mutation, defaults to Low if not found
+    /// Get severity for a mutation, defaults to Low if not found.
     pub fn get_severity(&self, language_name: &str, slug: &str) -> crate::types::MutationSeverity {
         self.get_mutation(language_name, slug)
             .map(|m| m.severity.clone())
@@ -433,7 +332,9 @@ impl Default for LanguageRegistry {
 mod tests {
     use super::*;
     use crate::languages::javascript::engine::JavaScriptLanguageEngine;
+    use crate::languages::javascript::resolver::JavaScriptLanguageResolver;
     use crate::languages::r#move::engine::MoveLanguageEngine;
+    use crate::languages::r#move::resolver::MoveLanguageResolver;
     use crate::types::{Mutant, Mutation, Target};
 
     struct MockEngine {
@@ -472,6 +373,7 @@ mod tests {
     fn move_engine_resolves_via_canonical_names() {
         let mut registry = LanguageRegistry::new();
         registry.register(MoveLanguageEngine::new());
+        registry.register_resolver(MoveLanguageResolver::new());
         assert!(registry.get_engine("move").is_some());
         assert!(registry.get_engine("move/iota").is_some());
     }
@@ -480,6 +382,7 @@ mod tests {
     fn resolver_uses_explicit_language_over_extension() {
         let mut registry = LanguageRegistry::new();
         registry.register(crate::languages::rust::engine::RustLanguageEngine::new());
+        registry.register_resolver(MoveLanguageResolver::new());
 
         let defaults = move_defaults("iota", false);
         let selection = registry
@@ -498,6 +401,7 @@ mod tests {
     fn resolver_uses_default_dialect_for_move_extension() {
         let mut registry = LanguageRegistry::new();
         registry.register(MoveLanguageEngine::new());
+        registry.register_resolver(MoveLanguageResolver::new());
 
         let defaults = move_defaults("iota", true);
         let selection = registry
@@ -517,6 +421,7 @@ mod tests {
     fn resolver_uses_explicit_dialect_precedence() {
         let mut registry = LanguageRegistry::new();
         registry.register(MoveLanguageEngine::new());
+        registry.register_resolver(MoveLanguageResolver::new());
 
         let defaults = move_defaults("sui", true);
         let selection = registry
@@ -562,6 +467,7 @@ mod tests {
     fn resolver_uses_javascript_engine_for_js_family_extensions() {
         let mut registry = LanguageRegistry::new();
         registry.register(JavaScriptLanguageEngine::new());
+        registry.register_resolver(JavaScriptLanguageResolver::new());
 
         let selection = registry
             .resolve_selection(ResolutionRequest {
@@ -583,6 +489,7 @@ mod tests {
         let mut registry = LanguageRegistry::new();
         registry.register(JavaScriptLanguageEngine::new());
         registry.register(crate::languages::rust::engine::RustLanguageEngine::new());
+        registry.register_resolver(JavaScriptLanguageResolver::new());
 
         let selection = registry
             .resolve_selection(ResolutionRequest {
@@ -602,6 +509,7 @@ mod tests {
     fn resolver_explicit_js_dialect_overrides_extension_default() {
         let mut registry = LanguageRegistry::new();
         registry.register(JavaScriptLanguageEngine::new());
+        registry.register_resolver(JavaScriptLanguageResolver::new());
 
         let selection = registry
             .resolve_selection(ResolutionRequest {
@@ -621,6 +529,7 @@ mod tests {
     fn javascript_family_filters_expand_to_all_dialects() {
         let mut registry = LanguageRegistry::new();
         registry.register(JavaScriptLanguageEngine::new());
+        registry.register_resolver(JavaScriptLanguageResolver::new());
 
         let labels = registry.filter_labels("javascript");
         assert_eq!(

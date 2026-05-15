@@ -5,7 +5,14 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::LanguageRegistry;
-use crate::core::registry::canonicalize_language_label;
+use crate::languages::javascript::dialect::{
+    dialect_from_language_name as js_dialect_from_language_name,
+    language_name_for_dialect as js_language_name_for_dialect,
+};
+use crate::languages::r#move::dialect::{
+    dialect_from_language_name as move_dialect_from_language_name,
+    language_name_for_dialect as move_language_name_for_dialect,
+};
 use crate::types::{
     CampaignSeverityStats, CampaignSummary, Hash, Mutant, Outcome, Status, StoreError, StoreResult,
     Target, TargetStats,
@@ -854,7 +861,13 @@ impl SqlStore {
 }
 
 fn normalize_stored_target_language(language: &str) -> String {
-    canonicalize_language_label(language)
+    if let Some(dialect) = move_dialect_from_language_name(language) {
+        move_language_name_for_dialect(dialect)
+    } else if let Some(dialect) = js_dialect_from_language_name(language) {
+        js_language_name_for_dialect(dialect)
+    } else {
+        language.to_string()
+    }
 }
 
 #[cfg(test)]
