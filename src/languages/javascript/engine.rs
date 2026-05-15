@@ -32,10 +32,6 @@ impl LanguageEngine for JavaScriptLanguageEngine {
         "JavaScript"
     }
 
-    fn extensions(&self) -> &[&'static str] {
-        &["js", "ts", "jsx", "tsx"]
-    }
-
     fn get_mutations(&self) -> &[Mutation] {
         &self.mutations
     }

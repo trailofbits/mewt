@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::core::cli::RunArgs;
-use crate::core::registry::ResolutionDefaults;
+use crate::core::resolver::ResolutionDefaults;
 use crate::core::runner::TestRunner;
 use crate::types::config::{ResolvedTargets, config, resolve_test_for_path};
 use crate::types::{AppResult, CampaignSummary, Target};

@@ -1,5 +1,5 @@
 use crate::LanguageEngine;
-use crate::core::registry::{LanguageResolver, ResolutionDefaults};
+use crate::core::resolver::{LanguageResolver, ResolutionDefaults};
 use crate::languages::r#move::dialect::{
     dialect_from_language_name, is_move_language_name, language_name_for_dialect,
 };

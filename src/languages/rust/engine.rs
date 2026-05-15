@@ -40,10 +40,6 @@ impl LanguageEngine for RustLanguageEngine {
         "Rust"
     }
 
-    fn extensions(&self) -> &[&'static str] {
-        &["rs"]
-    }
-
     fn get_mutations(&self) -> &[Mutation] {
         &self.mutations
     }

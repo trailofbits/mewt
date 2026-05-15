@@ -1,5 +1,5 @@
 use crate::LanguageEngine;
-use crate::core::registry::{LanguageResolver, ResolutionDefaults};
+use crate::core::resolver::{LanguageResolver, ResolutionDefaults};
 use crate::languages::javascript::dialect::{
     JavaScriptDialect, dialect_from_language_name, is_javascript_language_name,
     language_name_for_dialect,

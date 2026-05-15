@@ -1,5 +1,5 @@
 use crate::LanguageEngine;
-use crate::core::registry::{LanguageResolver, ResolutionDefaults};
+use crate::core::resolver::{LanguageResolver, ResolutionDefaults};
 
 use super::engine::RustLanguageEngine;
 

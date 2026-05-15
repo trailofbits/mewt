@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::LanguageRegistry;
 use crate::core::cmds::print::MutationsFilters;
-use crate::core::registry::ResolutionDefaults;
+use crate::core::resolver::ResolutionDefaults;
 use crate::types::config::config;
 use crate::types::{Mutation, MutationSeverity};
 

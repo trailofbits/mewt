@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
-use crate::core::registry::{DialectDefault, ResolutionDefaults};
+use crate::core::resolver::{DialectDefault, ResolutionDefaults};
 use crate::core::utils::parse_csv;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]

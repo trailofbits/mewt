@@ -42,10 +42,6 @@ impl LanguageEngine for CppLanguageEngine {
         "C++"
     }
 
-    fn extensions(&self) -> &[&'static str] {
-        &["cpp", "cc", "cxx", "hpp", "hxx"]
-    }
-
     fn get_mutations(&self) -> &[Mutation] {
         &self.mutations
     }

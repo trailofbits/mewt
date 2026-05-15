@@ -1,5 +1,5 @@
 use crate::LanguageEngine;
-use crate::core::registry::{LanguageResolver, ResolutionDefaults};
+use crate::core::resolver::{LanguageResolver, ResolutionDefaults};
 
 use super::engine::CppLanguageEngine;
 
@@ -65,7 +65,7 @@ impl LanguageResolver for CppLanguageResolver {
         extension: &str,
         _defaults: Option<&ResolutionDefaults>,
     ) -> Option<Result<String, String>> {
-        ["cpp", "cc", "cxx", "c"]
+        ["cpp", "cc", "cxx", "c", "hpp", "hxx"]
             .iter()
             .any(|ext| ext.eq_ignore_ascii_case(extension))
             .then(|| Ok(self.engine.canonical_name().to_string()))

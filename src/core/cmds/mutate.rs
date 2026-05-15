@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::core::cli::MutateArgs;
-use crate::core::registry::ResolutionDefaults;
+use crate::core::resolver::ResolutionDefaults;
 use crate::types::config::ResolvedTargets;
 use crate::types::{AppResult, MutationSeverity, Target};
 

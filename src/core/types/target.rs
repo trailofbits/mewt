@@ -8,7 +8,7 @@ use serde::Serialize;
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
-use crate::core::registry::{ResolutionDefaults, ResolutionRequest};
+use crate::core::resolver::{ResolutionDefaults, ResolutionRequest};
 use crate::languages::r#move::dialect::is_move_language_name;
 use crate::types::config::{ResolvedTargets, config, is_path_excluded, is_slug_enabled};
 use crate::types::{Hash, Mutant};
@@ -432,7 +432,7 @@ fn log_move_dialect_resolution(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::registry::{DialectDefault, ResolutionDefaults};
+    use crate::core::resolver::{DialectDefault, ResolutionDefaults};
     use crate::languages;
 
     fn test_registry() -> LanguageRegistry {

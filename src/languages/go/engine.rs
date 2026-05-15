@@ -40,10 +40,6 @@ impl LanguageEngine for GoLanguageEngine {
         "Go"
     }
 
-    fn extensions(&self) -> &[&'static str] {
-        &["go"]
-    }
-
     fn get_mutations(&self) -> &[Mutation] {
         &self.mutations
     }

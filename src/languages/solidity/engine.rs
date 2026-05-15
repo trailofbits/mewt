@@ -42,10 +42,6 @@ impl LanguageEngine for SolidityLanguageEngine {
         "Solidity"
     }
 
-    fn extensions(&self) -> &[&'static str] {
-        &["sol"]
-    }
-
     fn get_mutations(&self) -> &[Mutation] {
         &self.mutations
     }

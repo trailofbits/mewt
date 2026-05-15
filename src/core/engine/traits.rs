@@ -12,11 +12,6 @@ pub trait LanguageEngine: Send + Sync {
         self.name()
     }
 
-    /// File extensions this language handles (e.g., ["rs", "rust"]).
-    ///
-    /// Note: for resolver-aware languages, extension logic should live in resolvers.
-    fn extensions(&self) -> &[&'static str];
-
     /// Get all available mutations for this language
     fn get_mutations(&self) -> &[Mutation];
 

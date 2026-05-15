@@ -32,10 +32,6 @@ impl LanguageEngine for MoveLanguageEngine {
         "Move"
     }
 
-    fn extensions(&self) -> &[&'static str] {
-        &["move"]
-    }
-
     fn get_mutations(&self) -> &[Mutation] {
         &self.mutations
     }
