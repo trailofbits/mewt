@@ -393,14 +393,13 @@ fn resolve_language_for_path(
     resolution_defaults: &ResolutionDefaults,
 ) -> Option<String> {
     registry
-        .resolve_selection(ResolutionRequest {
+        .resolve_canonical_language(ResolutionRequest {
             path: target_path,
             explicit_language: None,
             explicit_dialect: None,
             defaults: Some(resolution_defaults),
         })
         .ok()
-        .map(|selection| selection.canonical_label)
 }
 
 fn log_move_dialect_resolution(
@@ -438,8 +437,8 @@ mod tests {
 
     fn test_registry() -> LanguageRegistry {
         let mut registry = LanguageRegistry::new();
-        registry.register(languages::rust::engine::RustLanguageEngine::new());
-        registry.register(languages::r#move::engine::MoveLanguageEngine::new());
+        registry.register_resolver(languages::rust::resolver::RustLanguageResolver::new());
+        registry.register_resolver(languages::r#move::resolver::MoveLanguageResolver::new());
         registry
     }
 

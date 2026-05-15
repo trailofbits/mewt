@@ -130,9 +130,9 @@ fn resolve_language_for_print(
     explicit_dialect: Option<&str>,
     defaults: Option<&ResolutionDefaults>,
 ) -> Result<(String, String), String> {
-    let selection =
-        registry.resolve_selection_for_language_label(raw_language, explicit_dialect, defaults)?;
-    Ok((selection.language_key, selection.canonical_label))
+    let canonical =
+        registry.resolve_canonical_for_language_label(raw_language, explicit_dialect, defaults)?;
+    Ok((canonical.clone(), canonical))
 }
 
 fn print_mutations_for_language(

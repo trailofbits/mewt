@@ -1,20 +1,35 @@
-use crate::core::registry::{
-    LanguageResolver, ResolutionDefaults, ResolutionSource, ResolvedLanguageSelection,
-};
+use crate::LanguageEngine;
+use crate::core::registry::{LanguageResolver, ResolutionDefaults};
 use crate::languages::javascript::dialect::{
     JavaScriptDialect, dialect_from_language_name, is_javascript_language_name,
     language_name_for_dialect,
 };
 
-pub struct JavaScriptLanguageResolver;
+use super::engine::JavaScriptLanguageEngine;
+
+pub struct JavaScriptLanguageResolver {
+    engine: JavaScriptLanguageEngine,
+}
 
 impl JavaScriptLanguageResolver {
     pub fn new() -> Self {
-        Self
+        Self {
+            engine: JavaScriptLanguageEngine::new(),
+        }
+    }
+}
+
+impl Default for JavaScriptLanguageResolver {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl LanguageResolver for JavaScriptLanguageResolver {
+    fn engine(&self) -> &dyn LanguageEngine {
+        &self.engine
+    }
+
     fn is_language_name(&self, raw: &str) -> bool {
         is_javascript_language_name(raw)
     }
@@ -24,8 +39,7 @@ impl LanguageResolver for JavaScriptLanguageResolver {
         explicit_language: &str,
         explicit_dialect: Option<&str>,
         _defaults: Option<&ResolutionDefaults>,
-        source: ResolutionSource,
-    ) -> Result<ResolvedLanguageSelection, String> {
+    ) -> Result<String, String> {
         let dialect = if let Some(raw) = explicit_dialect {
             JavaScriptDialect::from_extension(raw).ok_or_else(|| {
                 format!("Invalid JavaScript dialect '{raw}'. Expected one of: js, jsx, ts, tsx")
@@ -34,49 +48,25 @@ impl LanguageResolver for JavaScriptLanguageResolver {
             dialect_from_language_name(explicit_language).unwrap_or(JavaScriptDialect::JavaScript)
         };
 
-        Ok(ResolvedLanguageSelection {
-            language_key: "JavaScript".to_string(),
-            dialect: Some(dialect.as_str().to_string()),
-            canonical_label: language_name_for_dialect(dialect),
-            source,
-            defaulted: false,
-        })
+        Ok(language_name_for_dialect(dialect))
     }
 
     fn resolve_for_explicit_dialect(
         &self,
         explicit_dialect: &str,
         _defaults: Option<&ResolutionDefaults>,
-    ) -> Option<Result<ResolvedLanguageSelection, String>> {
-        JavaScriptDialect::from_extension(explicit_dialect).map(|dialect| {
-            Ok(ResolvedLanguageSelection {
-                language_key: "JavaScript".to_string(),
-                dialect: Some(dialect.as_str().to_string()),
-                canonical_label: language_name_for_dialect(dialect),
-                source: ResolutionSource::ExplicitLanguage,
-                defaulted: false,
-            })
-        })
+    ) -> Option<Result<String, String>> {
+        JavaScriptDialect::from_extension(explicit_dialect)
+            .map(|dialect| Ok(language_name_for_dialect(dialect)))
     }
 
     fn resolve_for_extension(
         &self,
         extension: &str,
         _defaults: Option<&ResolutionDefaults>,
-        has_engine: &dyn Fn(&str) -> bool,
-    ) -> Option<Result<ResolvedLanguageSelection, String>> {
+    ) -> Option<Result<String, String>> {
         let js_dialect = JavaScriptDialect::from_extension(extension)?;
-        if !has_engine("javascript") {
-            return None;
-        }
-
-        Some(Ok(ResolvedLanguageSelection {
-            language_key: "JavaScript".to_string(),
-            dialect: Some(js_dialect.as_str().to_string()),
-            canonical_label: language_name_for_dialect(js_dialect),
-            source: ResolutionSource::Extension,
-            defaulted: false,
-        }))
+        Some(Ok(language_name_for_dialect(js_dialect)))
     }
 
     fn canonicalize_label(&self, raw: &str) -> Option<String> {

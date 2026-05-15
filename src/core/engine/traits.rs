@@ -2,10 +2,19 @@ use crate::types::{Mutant, Mutation, Target};
 
 /// Core trait that language implementations must provide
 pub trait LanguageEngine: Send + Sync {
-    /// Language name (e.g., "Rust", "Solidity")
+    /// User-facing language name (e.g., "Rust", "Iota Move")
     fn name(&self) -> &'static str;
 
-    /// File extensions this language handles (e.g., ["rs", "rust"])
+    /// Stable canonical language key used for storage and lookups.
+    ///
+    /// This is a compatibility contract once persisted in the DB.
+    fn canonical_name(&self) -> &'static str {
+        self.name()
+    }
+
+    /// File extensions this language handles (e.g., ["rs", "rust"]).
+    ///
+    /// Note: for resolver-aware languages, extension logic should live in resolvers.
     fn extensions(&self) -> &[&'static str];
 
     /// Get all available mutations for this language

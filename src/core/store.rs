@@ -878,7 +878,6 @@ mod tests {
 
     use super::*;
     use crate::LanguageRegistry;
-    use crate::languages::r#move::engine::MoveLanguageEngine;
 
     #[test]
     fn normalizes_move_language_labels_in_memory() {
@@ -917,7 +916,7 @@ module test::canonical {
         assert_eq!(reloaded.language, "Move/sui");
 
         let mut registry = LanguageRegistry::new();
-        registry.register(MoveLanguageEngine::new());
+        registry.register_resolver(crate::languages::r#move::resolver::MoveLanguageResolver::new());
 
         let mutants = reloaded
             .generate_mutants(&registry, None)
