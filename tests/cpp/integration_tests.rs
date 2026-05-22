@@ -1,7 +1,9 @@
 use crate::conformance;
 use crate::utils;
 use mewt::LanguageEngine;
+use mewt::core::resolver::LanguageResolver;
 use mewt::languages::cpp::engine::CppLanguageEngine;
+use mewt::languages::cpp::resolver::CppLanguageResolver;
 use mewt::types::{Mutant, Target};
 use std::collections::HashSet;
 
@@ -306,14 +308,15 @@ public:
 
 #[test]
 fn test_different_extensions() {
-    // Verify the engine claims the right extensions
-    let engine = CppLanguageEngine::new();
-    let exts = engine.extensions();
-    assert!(exts.contains(&"cpp"), "Should support .cpp");
-    assert!(exts.contains(&"cc"), "Should support .cc");
-    assert!(exts.contains(&"cxx"), "Should support .cxx");
-    assert!(exts.contains(&"hpp"), "Should support .hpp");
-    assert!(exts.contains(&"hxx"), "Should support .hxx");
+    // Verify resolver handles supported extensions
+    let resolver = CppLanguageResolver::new();
+    for ext in ["cpp", "cc", "cxx", "hpp", "hxx"] {
+        let resolved = resolver
+            .resolve_for_extension(ext, None)
+            .expect("extension should be recognized")
+            .expect("resolution should succeed");
+        assert_eq!(resolved, "C++");
+    }
 }
 
 #[test]
