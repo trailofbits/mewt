@@ -30,7 +30,7 @@ impl LanguageResolver for SolidityLanguageResolver {
         raw.eq_ignore_ascii_case("solidity") || raw.eq_ignore_ascii_case("sol")
     }
 
-    fn supports_dialect_selection(&self, _raw: &str) -> bool {
+    fn supports_cli_dialect_flag(&self, _raw: &str) -> bool {
         false
     }
 

@@ -4,7 +4,7 @@ use crate::patterns;
 use crate::types::{Mutant, Mutation, Target};
 use crate::utils::{node_text, parse_source};
 
-use super::dialect::{profile_for_language_name, profile_for_target_path};
+use super::dialect::{config_for_language_name, config_for_target_path};
 use super::mutations::JAVASCRIPT_MUTATIONS;
 use super::syntax::{fields, nodes};
 
@@ -39,9 +39,9 @@ impl LanguageEngine for JavaScriptLanguageEngine {
     fn mutate(&self, target: &Target) -> Vec<Mutant> {
         let source = &target.text;
 
-        let profile = profile_for_language_name(&target.language)
-            .unwrap_or_else(|| profile_for_target_path(&target.path));
-        let tree = match parse_source(source, profile.parser_language()) {
+        let dialect_config = config_for_language_name(&target.language)
+            .unwrap_or_else(|| config_for_target_path(&target.path));
+        let tree = match parse_source(source, dialect_config.parser_language()) {
             Some(t) => t,
             None => return Vec::new(),
         };

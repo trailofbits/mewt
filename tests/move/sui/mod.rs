@@ -1,5 +1,5 @@
 use crate::conformance;
-use mewt::languages::r#move::dialect::profile_for_dialect;
+use mewt::languages::r#move::dialect::config_for_dialect;
 use mewt::types::config::MoveDialect;
 
 use super::shared;
@@ -21,13 +21,13 @@ fn move_sui_example_file_generates_mutants() {
 }
 
 #[test]
-fn sui_profile_accepts_package_visibility_construct() {
+fn sui_dialect_accepts_package_visibility_construct() {
     let source = r#"module test::m {
     public(package) fun demo() {}
 }"#;
 
-    let profile = profile_for_dialect(MoveDialect::Sui);
-    let tree = mewt::utils::parse_source(source, profile.parser_language());
+    let dialect_config = config_for_dialect(MoveDialect::Sui);
+    let tree = mewt::utils::parse_source(source, dialect_config.parser_language());
     assert!(
         tree.is_some(),
         "Sui grammar should accept public(package) visibility"

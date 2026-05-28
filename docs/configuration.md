@@ -67,7 +67,7 @@ For `.move` targets, mewt resolves dialect in this order:
 2. Config `[languages.move].dialect`
 3. Default `sui`
 
-If no explicit dialect is provided (is selected), mewt defaults to `sui` and emits a warning when `.move` targets are processed.
+If no explicit dialect is selected, mewt defaults to `sui` and emits a warning when `.move` targets are processed.
 
 Examples:
 
@@ -77,12 +77,16 @@ mewt mutate src --dialect iota
 
 # Print mutation catalog for Move under sui dialect
 mewt print mutations --language move --dialect sui
+
+# Equivalent canonical profiled selector
+mewt print mutations --language move/sui
 ```
 
 Language selection:
-- `--language move` is the canonical Move selector.
-- `--language move/sui` and `--language move/iota` are supported profiled selectors.
-- Legacy aliases (`suimove`, `sui_move`) are not supported.
+- `--language move` is the canonical Move family selector and uses `--dialect`, config, or the `sui` default.
+- `--language move/sui`, `--language move/iota`, and `--language move/aptos` are canonical profiled selectors.
+- For `print mutations`, use either `--language move/<dialect>` or `--language move --dialect <dialect>`, not both.
+- Legacy aliases (`suimove`, `sui_move`, `SuiMove`) are not supported.
 
 ### Ignore flag
 

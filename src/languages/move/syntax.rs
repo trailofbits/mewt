@@ -55,7 +55,7 @@ pub fn syntax_for_dialect(dialect: MoveDialect) -> MoveSyntax {
 mod tests {
     use tree_sitter::Node;
 
-    use crate::languages::r#move::dialect::profile_for_dialect;
+    use crate::languages::r#move::dialect::config_for_dialect;
     use crate::types::config::MoveDialect;
     use crate::utils::parse_source;
 
@@ -107,9 +107,9 @@ mod tests {
     }
 }"#;
 
-        let profile = profile_for_dialect(dialect);
+        let dialect_config = config_for_dialect(dialect);
         let syntax = syntax_for_dialect(dialect);
-        let tree = parse_source(source, profile.parser_language())
+        let tree = parse_source(source, dialect_config.parser_language())
             .expect("Move parser should parse grammar guard source");
         let root = tree.root_node();
 
@@ -157,17 +157,17 @@ mod tests {
     }
 
     #[test]
-    fn grammar_contract_holds_for_sui_profile() {
+    fn grammar_contract_holds_for_sui_dialect() {
         assert_grammar_contract_for_dialect(MoveDialect::Sui);
     }
 
     #[test]
-    fn grammar_contract_holds_for_iota_profile() {
+    fn grammar_contract_holds_for_iota_dialect() {
         assert_grammar_contract_for_dialect(MoveDialect::Iota);
     }
 
     #[test]
-    fn grammar_contract_holds_for_aptos_profile() {
+    fn grammar_contract_holds_for_aptos_dialect() {
         assert_grammar_contract_for_dialect(MoveDialect::Aptos);
     }
 }

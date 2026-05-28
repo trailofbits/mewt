@@ -106,15 +106,15 @@ impl LanguageResolver for MoveLanguageResolver {
             return None;
         }
 
-        let move_profiles = ["sui", "iota", "aptos"];
+        let move_dialects = ["sui", "iota", "aptos"];
 
         if normalized == "move" {
             let mut labels = vec!["Move/sui".to_string()];
             labels.extend(
-                move_profiles
+                move_dialects
                     .iter()
                     .skip(1)
-                    .map(|profile| format!("Move/{profile}")),
+                    .map(|dialect| format!("Move/{dialect}")),
             );
             return Some(labels);
         }
@@ -124,7 +124,7 @@ impl LanguageResolver for MoveLanguageResolver {
             .map(|(_, d)| d)
             .unwrap_or_default();
 
-        if move_profiles.contains(&dialect) {
+        if move_dialects.contains(&dialect) {
             return Some(vec![format!("Move/{dialect}")]);
         }
 

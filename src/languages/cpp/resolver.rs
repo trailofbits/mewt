@@ -30,7 +30,7 @@ impl LanguageResolver for CppLanguageResolver {
         raw.eq_ignore_ascii_case("c++") || raw.eq_ignore_ascii_case("cpp")
     }
 
-    fn supports_dialect_selection(&self, _raw: &str) -> bool {
+    fn supports_cli_dialect_flag(&self, _raw: &str) -> bool {
         false
     }
 

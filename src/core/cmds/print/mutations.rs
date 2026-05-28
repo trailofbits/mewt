@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use crate::LanguageRegistry;
 use crate::core::cmds::print::MutationsFilters;
 use crate::core::resolver::ResolutionDefaults;
+use crate::languages::r#move::dialect::{config_for_target_language, is_move_language_name};
 use crate::types::config::config;
 use crate::types::{Mutation, MutationSeverity};
 
@@ -20,17 +21,25 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
     if filters.dialect.is_some()
         && !language
             .as_deref()
-            .is_some_and(|lang| registry.language_supports_dialect_selection(lang))
+            .is_some_and(|lang| registry.language_supports_cli_dialect_flag(lang))
+    {
+        return Err("--dialect requires --language move for `print mutations`".to_string());
+    }
+
+    if filters.dialect.is_some()
+        && language
+            .as_deref()
+            .is_some_and(language_label_includes_dialect)
     {
         return Err(
-            "--dialect requires --language move (or move/<dialect>) for `print mutations`"
+            "Use either --language move/<dialect> or --language move --dialect <dialect>, not both"
                 .to_string(),
         );
     }
 
-    let need_move_dialect = language
-        .as_deref()
-        .is_some_and(|lang| registry.language_supports_dialect_selection(lang));
+    let need_move_dialect = language.as_deref().is_some_and(|lang| {
+        registry.language_supports_cli_dialect_flag(lang) && !language_label_includes_dialect(lang)
+    });
     let resolution_defaults = if need_move_dialect {
         let defaults = config()
             .resolve_language_defaults(filters.dialect.as_deref())
@@ -39,11 +48,6 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
             if move_default.defaulted {
                 warn!(
                     "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|aptos explicitly.",
-                    move_default.dialect
-                );
-            } else {
-                info!(
-                    "Using Move dialect '{}' for mutation listing",
                     move_default.dialect
                 );
             }
@@ -57,7 +61,7 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
         let mut all_mutations = Vec::new();
         match &language {
             Some(lang_str) => {
-                let (engine_name, _) = resolve_language_for_print(
+                let (engine_name, display_name) = resolve_language_for_print(
                     registry,
                     lang_str,
                     filters.dialect.as_deref(),
@@ -66,24 +70,37 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
                 let mutation_engine = registry
                     .get_engine(&engine_name)
                     .ok_or_else(|| format!("No engine found for language: {}", lang_str))?;
-                all_mutations.extend(mutation_engine.get_mutations().iter().map(|m| Mutation {
-                    slug: m.slug,
-                    description: m.description,
-                    severity: m.severity.clone(),
-                }));
-            }
-            None => {
-                for lang_name in registry.all_languages() {
-                    let mutation_engine = registry
-                        .get_engine(lang_name)
-                        .ok_or_else(|| format!("No engine found for language: {}", lang_name))?;
-                    all_mutations.extend(mutation_engine.get_mutations().iter().map(|m| {
-                        Mutation {
+                all_mutations.extend(
+                    mutation_engine
+                        .get_mutations()
+                        .iter()
+                        .filter(|m| mutation_is_available_for_label(&display_name, m.slug))
+                        .map(|m| Mutation {
                             slug: m.slug,
                             description: m.description,
                             severity: m.severity.clone(),
-                        }
-                    }));
+                        }),
+                );
+            }
+            None => {
+                for lang_name in registry.all_languages() {
+                    let display_name = resolve_language_for_print(registry, lang_name, None, None)
+                        .map(|(_, display)| display)
+                        .unwrap_or_else(|_| lang_name.to_string());
+                    let mutation_engine = registry
+                        .get_engine(lang_name)
+                        .ok_or_else(|| format!("No engine found for language: {}", lang_name))?;
+                    all_mutations.extend(
+                        mutation_engine
+                            .get_mutations()
+                            .iter()
+                            .filter(|m| mutation_is_available_for_label(&display_name, m.slug))
+                            .map(|m| Mutation {
+                                slug: m.slug,
+                                description: m.description,
+                                severity: m.severity.clone(),
+                            }),
+                    );
                 }
             }
         }
@@ -135,6 +152,18 @@ fn resolve_language_for_print(
     Ok((canonical.clone(), canonical))
 }
 
+fn language_label_includes_dialect(raw_language: &str) -> bool {
+    raw_language.contains('/') || raw_language.contains(':')
+}
+
+fn mutation_is_available_for_label(language_label: &str, slug: &str) -> bool {
+    if is_move_language_name(language_label) {
+        return config_for_target_language(language_label).supports_mutation_slug(slug);
+    }
+
+    true
+}
+
 fn print_mutations_for_language(
     engine_lookup_name: &str,
     display_name: &str,
@@ -149,6 +178,10 @@ fn print_mutations_for_language(
     let mut mutation_groups: HashMap<&str, (MutationSeverity, Vec<&str>)> = HashMap::new();
 
     for mutation in mutations {
+        if !mutation_is_available_for_label(display_name, mutation.slug) {
+            continue;
+        }
+
         let entry = mutation_groups
             .entry(mutation.slug)
             .or_insert((mutation.severity.clone(), Vec::new()));

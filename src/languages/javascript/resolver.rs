@@ -34,6 +34,10 @@ impl LanguageResolver for JavaScriptLanguageResolver {
         is_javascript_language_name(raw)
     }
 
+    fn supports_cli_dialect_flag(&self, _raw: &str) -> bool {
+        false
+    }
+
     fn resolve_for_explicit_language(
         &self,
         explicit_language: &str,
@@ -79,15 +83,15 @@ impl LanguageResolver for JavaScriptLanguageResolver {
             return None;
         }
 
-        let js_profiles = ["js", "jsx", "ts", "tsx"];
+        let js_dialects = ["js", "jsx", "ts", "tsx"];
 
         if normalized == "javascript" || normalized == "js" {
             let mut labels = vec!["JavaScript/js".to_string()];
             labels.extend(
-                js_profiles
+                js_dialects
                     .iter()
                     .skip(1)
-                    .map(|profile| format!("JavaScript/{profile}")),
+                    .map(|dialect| format!("JavaScript/{dialect}")),
             );
             return Some(labels);
         }
@@ -97,7 +101,7 @@ impl LanguageResolver for JavaScriptLanguageResolver {
             .map(|(_, d)| d)
             .unwrap_or_default();
 
-        if js_profiles.contains(&dialect) {
+        if js_dialects.contains(&dialect) {
             return Some(vec![format!("JavaScript/{dialect}")]);
         }
 

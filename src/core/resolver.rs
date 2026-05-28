@@ -27,7 +27,12 @@ pub trait LanguageResolver: Send + Sync {
 
     fn is_language_name(&self, raw: &str) -> bool;
 
-    fn supports_dialect_selection(&self, raw: &str) -> bool {
+    /// Whether this resolver accepts the global CLI `--dialect` flag.
+    ///
+    /// Some language families are dialect-aware without using this flag. For example,
+    /// JavaScript selects `js`/`jsx`/`ts`/`tsx` from the language label or file extension,
+    /// while Move currently uses the global `--dialect` flag for `.move` files.
+    fn supports_cli_dialect_flag(&self, raw: &str) -> bool {
         self.is_language_name(raw)
     }
 

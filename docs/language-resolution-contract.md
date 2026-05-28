@@ -20,8 +20,8 @@ Required inputs:
 Resolver output should be one normalized value used everywhere:
 
 - `language_key`: canonical base language key (example: `Move`)
-- `dialect`: optional dialect (example: `sui`, `iota`; `None` for non-dialect languages)
-- `canonical_label`: storage/log label (examples: `Rust`, `Move/sui`, `Move/iota`)
+- `dialect`: optional dialect (example: `sui`, `iota`, `aptos`; `None` for non-dialect languages)
+- `canonical_label`: storage/log label (examples: `Rust`, `Move/sui`, `Move/iota`, `Move/aptos`)
 - `source`: where resolution came from (CLI, config, extension/fallback)
 - `defaulted`: whether fallback/default behavior was used
 
@@ -55,14 +55,14 @@ Move-specific policy (current behavior baseline):
 2. `src/core/types/target.rs`
    - `resolve_language_for_path(...)` special-cases `.move` and uses `language_name_for_dialect(...)`.
 3. `src/core/registry.rs`
-   - `get_engine(...)` includes Move alias matching logic.
-   - `language_from_path(...)` returns first extension match (no ambiguity contract).
+   - `get_engine(...)` resolves through registered language resolvers and canonical labels.
+   - `language_from_path(...)` resolves through the registry resolution contract.
 4. `src/core/cmds/run.rs`
    - Move-specific post-resolution warnings and checks via `is_move_language_name(...)`.
 5. `src/core/cmds/mutate.rs`
    - Same Move-specific checks/warnings as run.
 6. `src/core/cmds/print/mutations.rs`
-   - Local duplicated Move-name detection helper and dialect-resolution behavior.
+   - Uses registry resolution for canonical language labels and filters dialect-specific mutation listings.
 7. `src/core/store.rs`
    - Read/filter normalization helpers (`normalize_stored_target_language`, `language_filter_variants`) carry alias logic.
 8. `src/languages/move/dialect.rs`

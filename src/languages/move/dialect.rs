@@ -5,13 +5,13 @@ use tree_sitter::Language as TsLanguage;
 use crate::types::config::MoveDialect;
 
 #[derive(Debug, Clone, Copy)]
-pub struct MoveDialectProfile {
+pub struct MoveDialectConfig {
     pub dialect: MoveDialect,
     pub abort_statement: &'static str,
     unsupported_mutation_slugs: &'static [&'static str],
 }
 
-impl MoveDialectProfile {
+impl MoveDialectConfig {
     pub fn parser_language(&self) -> &'static TsLanguage {
         match self.dialect {
             MoveDialect::Sui => SUI_MOVE_LANGUAGE
@@ -28,26 +28,26 @@ impl MoveDialectProfile {
     }
 }
 
-pub fn profile_for_target_language(language_name: &str) -> MoveDialectProfile {
+pub fn config_for_target_language(language_name: &str) -> MoveDialectConfig {
     let dialect = dialect_from_language_name(language_name).unwrap_or(MoveDialect::Sui);
-    profile_for_dialect(dialect)
+    config_for_dialect(dialect)
 }
 
-pub fn profile_for_dialect(dialect: MoveDialect) -> MoveDialectProfile {
+pub fn config_for_dialect(dialect: MoveDialect) -> MoveDialectConfig {
     match dialect {
-        MoveDialect::Sui => MoveDialectProfile {
+        MoveDialect::Sui => MoveDialectConfig {
             dialect,
             abort_statement: "abort 0;",
-            // Move has no compound assignment operators in this parser profile.
+            // Move has no compound assignment operators in this parser dialect.
             unsupported_mutation_slugs: &["AAOS", "BAOS", "SAOS"],
         },
-        MoveDialect::Iota => MoveDialectProfile {
+        MoveDialect::Iota => MoveDialectConfig {
             dialect,
             abort_statement: "abort 0;",
             // Start with same capabilities as Sui until grammar-specific deltas are added.
             unsupported_mutation_slugs: &["AAOS", "BAOS", "SAOS"],
         },
-        MoveDialect::Aptos => MoveDialectProfile {
+        MoveDialect::Aptos => MoveDialectConfig {
             dialect,
             abort_statement: "abort 0;",
             // Start with same capabilities as Sui until grammar-specific deltas are added.
@@ -89,7 +89,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_canonical_and_profiled_move_names() {
+    fn parses_canonical_and_dialect_move_names() {
         assert_eq!(dialect_from_language_name("Move"), Some(MoveDialect::Sui));
         assert_eq!(
             dialect_from_language_name("move/iota"),
@@ -104,7 +104,7 @@ mod tests {
     }
 
     #[test]
-    fn emits_profiled_language_names() {
+    fn emits_dialect_language_names() {
         assert_eq!(language_name_for_dialect(MoveDialect::Sui), "Move/sui");
         assert_eq!(language_name_for_dialect(MoveDialect::Iota), "Move/iota");
         assert_eq!(language_name_for_dialect(MoveDialect::Aptos), "Move/aptos");

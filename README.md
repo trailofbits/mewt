@@ -17,7 +17,7 @@ wrong.
 - JavaScript/TypeScript
 - Rust
 - Solidity
-- Move (dialects: `sui`, `iota`; use `move`, `move/sui`, or `move/iota`)
+- Move (dialects: `sui`, `iota`, `aptos`; use `move`, `move/sui`, `move/iota`, or `move/aptos`)
 
 For details on how campaigns work under the hood, see
 [How it works](docs/how-it-works.md). For the language/dialect resolver contract,
@@ -109,8 +109,7 @@ mewt print mutations --language move --dialect sui
 ```
 
 Compatibility note:
-- Use canonical Move language names: `move`, `move/sui`, and `move/iota`.
-- Use canonical Move names: `move`, `move/sui`, `move/iota`, `move/aptos`.
+- Use canonical Move names: `move`, `move/sui`, `move/iota`, and `move/aptos`.
 
 ## Examples
 

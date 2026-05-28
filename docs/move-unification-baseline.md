@@ -9,9 +9,11 @@ This note captures the baseline behavior and compatibility touchpoints after the
   - `move`
   - `move/sui`
   - `move/iota`
+  - `move/aptos`
 - Internal profiled labels for `.move` targets are:
   - `Move/sui`
   - `Move/iota`
+  - `Move/aptos`
 
 ## Dialect resolution baseline
 
@@ -26,8 +28,9 @@ omitting dialect uses defaulting behavior (sui).
 ## Persistence compatibility baseline
 
 - No schema changes are required.
-- Canonical persisted language values are `Move/sui` and `Move/iota`.
-- Query/filter logic targets canonical/profiler Move language variants.
+- Canonical persisted language values are `Move/sui`, `Move/iota`, and `Move/aptos`.
+- Legacy persisted `SuiMove` labels are not migrated automatically; purge or regenerate existing databases when upgrading.
+- Query/filter logic targets canonical/profiled Move language variants.
 
 ## Regression safety net currently in place
 
@@ -35,7 +38,7 @@ omitting dialect uses defaulting behavior (sui).
 - Target loading tests proving `.move` files receive deterministic profiled labels.
 - Registry tests proving canonical/profiler Move name resolution.
 - Store tests proving canonical Move labels remain queryable by canonical selectors.
-- Dialect-aware Move test suites (`Move/sui` and `Move/iota`).
+- Dialect-aware Move test suites (`Move/sui`, `Move/iota`, and `Move/aptos`).
 - Move grammar drift guard tests for critical node/field contracts used by mutation operators.
 
 ## Command-level validation baseline

@@ -4,7 +4,7 @@ use crate::patterns;
 use crate::types::{Mutant, Mutation, Target};
 use crate::utils::{node_text, parse_source};
 
-use super::dialect::profile_for_target_language;
+use super::dialect::config_for_target_language;
 use super::mutations::MOVE_MUTATIONS;
 use super::syntax::syntax_for_dialect;
 
@@ -38,14 +38,14 @@ impl LanguageEngine for MoveLanguageEngine {
 
     fn mutate(&self, target: &Target) -> Vec<Mutant> {
         let source = &target.text;
-        let profile = profile_for_target_language(&target.language);
+        let dialect_config = config_for_target_language(&target.language);
 
-        let tree = match parse_source(source, profile.parser_language()) {
+        let tree = match parse_source(source, dialect_config.parser_language()) {
             Some(t) => t,
             None => return Vec::new(),
         };
         let root = tree.root_node();
-        let syntax = syntax_for_dialect(profile.dialect);
+        let syntax = syntax_for_dialect(dialect_config.dialect);
         let statement_kinds = syntax
             .block_item
             .map(|kind| vec![kind])
@@ -53,7 +53,7 @@ impl LanguageEngine for MoveLanguageEngine {
 
         let mut all_mutants = Vec::new();
         for m in &self.mutations {
-            if !profile.supports_mutation_slug(m.slug) {
+            if !dialect_config.supports_mutation_slug(m.slug) {
                 continue;
             }
 
@@ -64,7 +64,7 @@ impl LanguageEngine for MoveLanguageEngine {
                             root,
                             source,
                             &statement_kinds,
-                            profile.abort_statement,
+                            dialect_config.abort_statement,
                             &|node, src| !node_text(node, src).contains("abort "),
                         )
                         .into_iter()
@@ -261,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    fn iota_profile_is_accepted() {
+    fn iota_dialect_is_accepted() {
         let text = "module test::m { fun foo(): bool { true } }";
         let target = Target {
             id: 0,
@@ -275,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn aptos_profile_is_accepted() {
+    fn aptos_dialect_is_accepted() {
         let text = "module test::m { fun foo(): bool { true } }";
         let target = Target {
             id: 0,

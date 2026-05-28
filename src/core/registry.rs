@@ -151,10 +151,10 @@ impl LanguageRegistry {
         None
     }
 
-    pub fn language_supports_dialect_selection(&self, raw: &str) -> bool {
+    pub fn language_supports_cli_dialect_flag(&self, raw: &str) -> bool {
         self.resolvers
             .iter()
-            .any(|resolver| resolver.supports_dialect_selection(raw))
+            .any(|resolver| resolver.supports_cli_dialect_flag(raw))
     }
 
     pub fn resolve_canonical_for_language_label(
@@ -205,5 +205,31 @@ impl LanguageRegistry {
 impl Default for LanguageRegistry {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::languages;
+
+    #[test]
+    fn cli_dialect_flag_is_move_only_even_when_other_languages_have_dialects() {
+        let mut registry = LanguageRegistry::new();
+        registry
+            .register_resolver(languages::javascript::resolver::JavaScriptLanguageResolver::new());
+        registry.register_resolver(languages::r#move::resolver::MoveLanguageResolver::new());
+
+        assert_eq!(
+            registry
+                .resolve_canonical_for_language_label("javascript/ts", None, None)
+                .expect("javascript dialect"),
+            "JavaScript/ts"
+        );
+        assert!(registry.language_supports_cli_dialect_flag("move"));
+        assert!(registry.language_supports_cli_dialect_flag("move/iota"));
+        assert!(!registry.language_supports_cli_dialect_flag("javascript"));
+        assert!(!registry.language_supports_cli_dialect_flag("javascript/ts"));
+        assert!(!registry.language_supports_cli_dialect_flag("js"));
     }
 }

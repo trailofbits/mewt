@@ -32,11 +32,11 @@ impl JavaScriptDialect {
     }
 }
 
-pub struct JavaScriptDialectProfile {
+pub struct JavaScriptDialectConfig {
     pub dialect: JavaScriptDialect,
 }
 
-impl JavaScriptDialectProfile {
+impl JavaScriptDialectConfig {
     pub fn parser_language(&self) -> &'static TsLanguage {
         match self.dialect {
             JavaScriptDialect::JavaScript | JavaScriptDialect::Jsx => JS_LANGUAGE
@@ -73,18 +73,18 @@ pub fn dialect_from_language_name(raw: &str) -> Option<JavaScriptDialect> {
     JavaScriptDialect::from_extension(dialect)
 }
 
-pub fn profile_for_target_path(path: &Path) -> JavaScriptDialectProfile {
+pub fn config_for_target_path(path: &Path) -> JavaScriptDialectConfig {
     let dialect = path
         .extension()
         .and_then(|e| e.to_str())
         .and_then(JavaScriptDialect::from_extension)
         .unwrap_or(JavaScriptDialect::JavaScript);
 
-    JavaScriptDialectProfile { dialect }
+    JavaScriptDialectConfig { dialect }
 }
 
-pub fn profile_for_language_name(language_name: &str) -> Option<JavaScriptDialectProfile> {
-    dialect_from_language_name(language_name).map(|dialect| JavaScriptDialectProfile { dialect })
+pub fn config_for_language_name(language_name: &str) -> Option<JavaScriptDialectConfig> {
+    dialect_from_language_name(language_name).map(|dialect| JavaScriptDialectConfig { dialect })
 }
 
 static JS_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();

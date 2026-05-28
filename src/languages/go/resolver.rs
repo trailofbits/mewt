@@ -30,7 +30,7 @@ impl LanguageResolver for GoLanguageResolver {
         raw.eq_ignore_ascii_case("go") || raw.eq_ignore_ascii_case("golang")
     }
 
-    fn supports_dialect_selection(&self, _raw: &str) -> bool {
+    fn supports_cli_dialect_flag(&self, _raw: &str) -> bool {
         false
     }
 
