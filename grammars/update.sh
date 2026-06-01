@@ -21,6 +21,7 @@ declare -A REPO_URLS=(
   ["tsx"]="https://github.com/tree-sitter/tree-sitter-typescript"
   ["cpp"]="https://github.com/tree-sitter/tree-sitter-cpp"
   ["move"]="https://github.com/MystenLabs/sui"
+  ["haskell"]="https://github.com/tree-sitter/tree-sitter-haskell"
 )
 
 declare -A GRAMMAR_PATHS=(
@@ -32,6 +33,7 @@ declare -A GRAMMAR_PATHS=(
   ["tsx"]="tsx" # grammar is in tsx/ subdirectory
   ["cpp"]="" # repo root
   ["move"]="external-crates/move/tooling/tree-sitter" # grammar in Sui monorepo
+  ["haskell"]="" # repo root; used by DAML language
 )
 
 # Languages that require sparse checkout (large monorepos)
