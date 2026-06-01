@@ -106,4 +106,8 @@ fn main() {
     // Build Sui Move grammar
     let move_dir: PathBuf = ["grammars", "move", "src"].iter().collect();
     build_grammar(&move_dir, "tree-sitter-move");
+
+    // Build Haskell grammar (used by the DAML language)
+    let haskell_dir: PathBuf = ["grammars", "haskell", "src"].iter().collect();
+    build_grammar(&haskell_dir, "tree-sitter-haskell");
 }
