@@ -8,3 +8,11 @@ seh = "seh"
 # (_spec_block_memeber). It appears in vendored parser.c and grammar.js files that
 # we do not control. Accept it to avoid false positives in typos checks.
 memeber = "memeber"
+
+# "synomym" is a typo in the upstream tree-sitter-haskell grammar's symbol name
+# (sym_type_synomym). It appears in vendored parser.c that we do not control.
+synomym = "synomym"
+
+# "tyops" is the upstream tree-sitter-haskell grammar's abbreviation for
+# "type operators" (`_tyops` rule). Not a typo, despite what `typos` thinks.
+tyops = "tyops"
