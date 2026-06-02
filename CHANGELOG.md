@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- DAML language support (`.daml`)
+- New mutation operators:
+  - `CPS` (Controller Party Swap) and `CPR` (Controller Party Removal) for DAML
+
 ## 3.1.0 - 2026-04-20
 
 ### Added

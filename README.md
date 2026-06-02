@@ -13,6 +13,7 @@ wrong.
 
 **Supported languages:**
 - C++
+- DAML
 - Go
 - JavaScript/TypeScript
 - Rust
@@ -89,6 +90,7 @@ See [Configuration](docs/configuration.md) for the full reference and [`src/exam
 This repo includes example files you can try:
 
 - C++: `tests/cpp/example.cpp`
+- DAML: `tests/daml/example.daml`
 - Go: `tests/go/example.go`
 - JavaScript/TypeScript/JSX/TSX: `tests/javascript/example.js` (plus `example.ts`, `example.jsx`, `example.tsx`)
 - Rust: `tests/rust/example.rs`
