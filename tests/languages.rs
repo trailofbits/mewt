@@ -4,6 +4,7 @@ mod conformance;
 mod utils;
 
 mod cpp;
+mod daml;
 mod go;
 mod javascript;
 mod rust;
@@ -16,6 +17,7 @@ use std::path::Path;
 
 use mewt::LanguageEngine;
 use mewt::languages::cpp::engine::CppLanguageEngine;
+use mewt::languages::daml::engine::DamlLanguageEngine;
 use mewt::languages::go::engine::GoLanguageEngine;
 use mewt::languages::javascript::engine::JavaScriptLanguageEngine;
 use mewt::languages::rust::engine::RustLanguageEngine;
@@ -28,6 +30,9 @@ fn every_mutation_slug_has_a_per_language_test_module() {
 
     let cpp = CppLanguageEngine::new();
     check_language(manifest_dir, "C++", "cpp", &cpp);
+
+    let daml = DamlLanguageEngine::new();
+    check_language(manifest_dir, "DAML", "daml", &daml);
 
     let rust = RustLanguageEngine::new();
     check_language(manifest_dir, "Rust", "rust", &rust);
