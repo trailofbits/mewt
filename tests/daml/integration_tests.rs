@@ -158,11 +158,8 @@ f = True
 
 #[test]
 fn inline_trailing_comments_are_not_mutated() {
-    // Adversarial: the trailing comment repeats the SAME text as the live
-    // boolean (`True`). If comment-skipping regressed, the engine would
-    // tokenize the commented `True` as a second constructor and emit 2 BL
-    // mutants. With suppression intact, only the live `True` flips, so the
-    // count stays at exactly 1.
+    // The trailing comment repeats the live `True`. If comment-skipping
+    // regressed the count would be 2; intact, only the live `True` flips.
     let source = r#"module M where
 
 f : Bool

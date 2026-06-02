@@ -88,7 +88,6 @@ template T
 "#;
     let m = cps_mutants(source);
     assert_eq!(m.len(), 2, "expected 2 CPS mutants, got {m:?}");
-    // Position 0 swap: a -> c (in source "a, b"). Position 1 swap: b -> c.
     let pairs: HashSet<(&str, &str)> = m
         .iter()
         .map(|m| (m.old_text.as_str(), m.new_text.as_str()))
@@ -239,26 +238,11 @@ template B
 
 #[test]
 fn cps_targets_choice_local_party_parameters_within_their_own_choice() {
-    // CPS now offers a choice's OWN `with`-block Party params as swap targets
-    // for THAT choice's controller, in addition to the template-level params.
-    // Choice-local params are scoped to their own choice only.
-    //
-    // Here the template has ONE template-level Party (`primary`). The FIRST
-    // choice (Reassign) declares a choice-local `actor : Party`; the SECOND
-    // choice (Cancel) does not.
-    //
-    // We reason about the exact CPS mutants:
-    //   - Reassign controller is `primary`. In-scope params are `primary`
-    //     (template) and `actor` (choice-local). The only target not already in
-    //     the controller list is `actor`, so we expect exactly one mutant here:
-    //     `primary` -> `actor`.
-    //   - Cancel controller is `primary`. The only in-scope param is the
-    //     template-level `primary`, which is already the controller, so no
-    //     swap target exists and Cancel yields no CPS mutant.
-    // Therefore the whole source produces exactly one CPS mutant, and it is the
-    // `actor` target at the Reassign site. `actor` is NOT offered at Cancel
-    // (it is out of scope there), which we verify by counting the `actor`
-    // targets: exactly 1.
+    // A choice's own `with`-block Party params are swap targets for that
+    // choice's controller, scoped to that choice only. Reassign declares a
+    // choice-local `actor`; Cancel does not. So Reassign's `primary` controller
+    // can swap to `actor` while Cancel's cannot, giving exactly one CPS mutant
+    // overall. If `actor` leaked into Cancel's scope it would appear twice.
     let source = r#"
 module M where
 
@@ -282,7 +266,6 @@ template Escrow
 "#;
     let m = cps_mutants(source);
 
-    // The choice-local `actor` is offered at the Reassign controller.
     assert!(
         m.iter()
             .any(|mu| mu.old_text == "primary" && mu.new_text == "actor"),
@@ -290,9 +273,8 @@ template Escrow
         controller; got {m:?}"
     );
 
-    // `actor` is scoped to the Reassign choice only. We count the mutants whose
-    // new_text is `actor`: it must be exactly 1 (the Reassign site). If `actor`
-    // leaked into the Cancel controller's scope this count would be 2.
+    // Exactly one `actor` target (at Reassign); a count of 2 would mean it
+    // leaked into Cancel's scope.
     let actor_targets: Vec<&Mutant> = m.iter().filter(|mu| mu.new_text == "actor").collect();
     assert_eq!(
         actor_targets.len(),
@@ -300,14 +282,8 @@ template Escrow
         "choice-local `actor` must be offered only at its own (Reassign) \
         controller, not at Cancel; got {actor_targets:?}"
     );
-
-    // Sanity: the single `actor` target is the Reassign controller (the swap
-    // replaces `primary`), confirming scope rather than just the count.
     assert_eq!(actor_targets[0].old_text, "primary");
 
-    // Cancel's controller has only the template-level `primary` in scope (which
-    // is already the controller), so the whole source yields exactly one CPS
-    // mutant overall.
     assert_eq!(
         m.len(),
         1,

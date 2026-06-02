@@ -216,11 +216,9 @@ template T
 
 #[test]
 fn cpr_does_not_offer_removal_that_leaves_party_set_unchanged() {
-    // `controller a, a` lists the same authoriser twice. Removing one `a`
-    // still leaves `controller a`, so the required authorization set is
-    // unchanged: the mutant is a guaranteed no-op (equivalent mutant), and
-    // both positions would produce the same `controller a`. CPR must not
-    // offer a removal when an identical party name still remains afterward.
+    // `controller a, a` names the same authoriser twice, so dropping either
+    // `a` leaves `controller a`: the authorization set is unchanged
+    // (equivalent mutant). CPR must offer no removal here.
     let source = r#"
 module M where
 
@@ -247,8 +245,6 @@ template T
             line, "controller a, a",
             "removal must change the controller line; got {mu:?}"
         );
-        // The original set is {a}; any offered removal must shrink it, never
-        // leave another `a` standing in for the removed one.
         assert_ne!(
             line, "controller a",
             "removing a duplicate `a` leaves the authorization set unchanged \
