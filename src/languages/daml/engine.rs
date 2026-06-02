@@ -437,7 +437,7 @@ fn removal_byte_range(parties: &[Leaf], idx: usize) -> (usize, usize) {
 /// the walk, and no legal DAML construct following a party list begins with
 /// a bare comma, so the list is implicitly bounded.
 ///
-/// TODO: missed coverage on `controller (alice)`. A bare party wrapped in
+/// Known limitation: missed coverage on `controller (alice)`. A bare party wrapped in
 /// superfluous parens would be safe to swap (the result `controller
 /// (custodian)` compiles), but we currently abort the site because we
 /// can't tell from a single `(` whether the contents are a plain variable
