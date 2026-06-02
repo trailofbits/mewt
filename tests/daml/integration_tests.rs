@@ -37,7 +37,7 @@ pub(crate) fn assert_only_slug_and_expected_new_texts(
 
 #[test]
 fn daml_common_conformance_checks() {
-    // DAML's mutatable constructs (if-expressions, infix operators, boolean
+    // The DAML constructs mewt mutates (if-expressions, infix operators, boolean
     // constructors) live in plain top-level functions; template/choice bodies
     // are handled separately by the CPS/CPR suites.
     let sources = conformance::CommonConformanceSources {
