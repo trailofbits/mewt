@@ -1,5 +1,6 @@
 use crate::types::config::MoveDialect;
 
+#[derive(Debug, Clone, Copy)]
 pub struct MoveSyntax {
     pub binary_expression: &'static str,
     pub block_item: Option<&'static str>,

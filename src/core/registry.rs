@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::LanguageEngine;
 
-use super::resolver::{LanguageResolver, ResolutionDefaults, ResolutionRequest};
+use super::resolver::{LanguageResolver, ResolutionRequest};
 
 /// Registry for managing language resolvers.
 pub struct LanguageRegistry {
@@ -23,145 +23,98 @@ impl LanguageRegistry {
     pub fn get_engine(&self, language_name: &str) -> Option<&dyn LanguageEngine> {
         self.resolvers
             .iter()
-            .find(|resolver| {
-                resolver.is_language_name(language_name)
-                    || resolver
-                        .engine()
-                        .canonical_name()
-                        .eq_ignore_ascii_case(language_name)
-                    || resolver.engine().name().eq_ignore_ascii_case(language_name)
+            .flat_map(|resolver| resolver.engines())
+            .find(|engine| {
+                engine.canonical_name().eq_ignore_ascii_case(language_name)
+                    || engine.name().eq_ignore_ascii_case(language_name)
             })
-            .map(|resolver| resolver.engine())
+            .or_else(|| {
+                let request = ResolutionRequest {
+                    path: Path::new("__virtual__.txt"),
+                    explicit_language: Some(language_name),
+                    explicit_dialect: None,
+                    defaults: None,
+                };
+                self.resolve_engine(request).ok()
+            })
     }
 
     pub fn language_from_path(&self, path: &Path) -> Option<&dyn LanguageEngine> {
-        let canonical = self
-            .resolve_canonical_language(ResolutionRequest {
-                path,
-                explicit_language: None,
-                explicit_dialect: None,
-                defaults: None,
-            })
-            .ok()?;
-        self.get_engine(&canonical)
+        self.resolve_engine(ResolutionRequest {
+            path,
+            explicit_language: None,
+            explicit_dialect: None,
+            defaults: None,
+        })
+        .ok()
     }
 
     pub fn resolve_engine(
         &self,
         request: ResolutionRequest<'_>,
     ) -> Result<&dyn LanguageEngine, String> {
-        let canonical = self.resolve_canonical_language(request)?;
-        self.get_engine(&canonical)
-            .ok_or_else(|| format!("No engine found for canonical language: {canonical}"))
-    }
-
-    pub fn resolve_canonical_language(
-        &self,
-        request: ResolutionRequest<'_>,
-    ) -> Result<String, String> {
-        if let Some(explicit) = request.explicit_language {
-            return self.resolve_for_explicit_language(
-                explicit,
-                request.explicit_dialect,
-                request.defaults,
-            );
-        }
-
-        if let Some(explicit_dialect) = request.explicit_dialect {
-            return self.resolve_for_explicit_dialect(explicit_dialect, request.defaults);
-        }
-
-        if let Some(defaults) = request.defaults {
-            if let Some(default_language) = defaults.default_language.as_deref() {
-                return self.resolve_for_explicit_language(default_language, None, Some(defaults));
+        if request.explicit_dialect.is_some() && request.explicit_language.is_none() {
+            let accepting: Vec<_> = self
+                .resolvers
+                .iter()
+                .filter(|resolver| resolver.accepts_cli_dialect())
+                .collect();
+            if accepting.len() == 1 {
+                if let Some(result) = accepting[0].resolve(&request) {
+                    return result;
+                }
             }
+        }
+
+        for resolver in &self.resolvers {
+            if let Some(result) = resolver.resolve(&request) {
+                return result;
+            }
+        }
+
+        if let Some(explicit_language) = request.explicit_language {
+            return Err(format!(
+                "No language resolver found for language: {explicit_language}"
+            ));
         }
 
         let extension = request
             .path
             .extension()
             .and_then(|ext| ext.to_str())
-            .ok_or_else(|| format!("No extension for path: {}", request.path.display()))?;
-
-        for resolver in &self.resolvers {
-            if let Some(result) = resolver.resolve_for_extension(extension, request.defaults) {
-                return result;
-            }
-        }
-
+            .map(|ext| format!(".{ext}"))
+            .unwrap_or_else(|| "<none>".to_string());
         Err(format!(
-            "No language resolver found for extension: .{extension}"
+            "No language resolver found for extension: {extension}"
         ))
     }
 
-    fn resolve_for_explicit_dialect(
+    pub fn resolve_canonical_language(
         &self,
-        explicit_dialect: &str,
-        defaults: Option<&ResolutionDefaults>,
+        request: ResolutionRequest<'_>,
     ) -> Result<String, String> {
-        for resolver in &self.resolvers {
-            if let Some(result) = resolver.resolve_for_explicit_dialect(explicit_dialect, defaults)
-            {
-                return result;
-            }
-        }
-
-        if let Some(defaults) = defaults {
-            if let Some(default_language) = defaults.default_language.as_deref() {
-                return self.resolve_for_explicit_language(
-                    default_language,
-                    Some(explicit_dialect),
-                    Some(defaults),
-                );
-            }
-        }
-
-        Err(format!(
-            "No language family found for dialect: {explicit_dialect}"
-        ))
-    }
-
-    fn resolve_for_explicit_language(
-        &self,
-        explicit_language: &str,
-        explicit_dialect: Option<&str>,
-        defaults: Option<&ResolutionDefaults>,
-    ) -> Result<String, String> {
-        for resolver in &self.resolvers {
-            if resolver.is_language_name(explicit_language) {
-                return resolver.resolve_for_explicit_language(
-                    explicit_language,
-                    explicit_dialect,
-                    defaults,
-                );
-            }
-        }
-
-        Err(format!(
-            "No language resolver found for language: {explicit_language}"
-        ))
+        self.resolve_engine(request)
+            .map(|engine| engine.canonical_name().to_string())
     }
 
     pub fn canonicalize_label(&self, raw: &str) -> Option<String> {
-        for resolver in &self.resolvers {
-            if let Some(label) = resolver.canonicalize_label(raw) {
-                return Some(label);
-            }
-        }
-        None
+        self.filter_labels(raw).into_iter().next()
     }
 
     pub fn language_supports_cli_dialect_flag(&self, raw: &str) -> bool {
-        self.resolvers
-            .iter()
-            .any(|resolver| resolver.supports_cli_dialect_flag(raw))
+        self.resolvers.iter().any(|resolver| {
+            resolver.accepts_cli_dialect()
+                && resolver
+                    .filter_labels(raw)
+                    .is_some_and(|labels| !labels.is_empty())
+        })
     }
 
     pub fn resolve_canonical_for_language_label(
         &self,
         raw_language: &str,
         explicit_dialect: Option<&str>,
-        defaults: Option<&ResolutionDefaults>,
+        defaults: Option<&super::resolver::ResolutionDefaults>,
     ) -> Result<String, String> {
         self.resolve_canonical_language(ResolutionRequest {
             path: Path::new("__virtual__.txt"),
@@ -173,20 +126,19 @@ impl LanguageRegistry {
 
     pub fn filter_labels(&self, query: &str) -> Vec<String> {
         for resolver in &self.resolvers {
-            if let Some(expanded) = resolver.expand_filter_labels(query) {
+            if let Some(expanded) = resolver.filter_labels(query) {
                 return expanded;
             }
         }
 
-        self.canonicalize_label(query)
-            .map(|label| vec![label])
-            .unwrap_or_else(|| vec![query.to_string()])
+        vec![query.to_string()]
     }
 
     pub fn all_languages(&self) -> Vec<&str> {
         self.resolvers
             .iter()
-            .map(|resolver| resolver.engine().canonical_name())
+            .flat_map(|resolver| resolver.engines())
+            .map(|engine| engine.canonical_name())
             .collect()
     }
 

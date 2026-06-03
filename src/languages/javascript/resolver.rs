@@ -1,20 +1,35 @@
 use crate::LanguageEngine;
-use crate::core::resolver::{LanguageResolver, ResolutionDefaults};
+use crate::core::resolver::{LanguageResolver, ResolutionRequest};
 use crate::languages::javascript::dialect::{
     JavaScriptDialect, dialect_from_language_name, is_javascript_language_name,
     language_name_for_dialect,
 };
 
-use super::engine::JavaScriptLanguageEngine;
+use super::engine::JavaScriptDialectEngine;
 
 pub struct JavaScriptLanguageResolver {
-    engine: JavaScriptLanguageEngine,
+    js: JavaScriptDialectEngine,
+    jsx: JavaScriptDialectEngine,
+    ts: JavaScriptDialectEngine,
+    tsx: JavaScriptDialectEngine,
 }
 
 impl JavaScriptLanguageResolver {
     pub fn new() -> Self {
         Self {
-            engine: JavaScriptLanguageEngine::new(),
+            js: JavaScriptDialectEngine::new(JavaScriptDialect::JavaScript),
+            jsx: JavaScriptDialectEngine::new(JavaScriptDialect::Jsx),
+            ts: JavaScriptDialectEngine::new(JavaScriptDialect::TypeScript),
+            tsx: JavaScriptDialectEngine::new(JavaScriptDialect::Tsx),
+        }
+    }
+
+    fn engine_for_dialect(&self, dialect: JavaScriptDialect) -> &dyn LanguageEngine {
+        match dialect {
+            JavaScriptDialect::JavaScript => &self.js,
+            JavaScriptDialect::Jsx => &self.jsx,
+            JavaScriptDialect::TypeScript => &self.ts,
+            JavaScriptDialect::Tsx => &self.tsx,
         }
     }
 }
@@ -26,58 +41,45 @@ impl Default for JavaScriptLanguageResolver {
 }
 
 impl LanguageResolver for JavaScriptLanguageResolver {
-    fn engine(&self) -> &dyn LanguageEngine {
-        &self.engine
+    fn family(&self) -> &'static str {
+        "javascript"
     }
 
-    fn is_language_name(&self, raw: &str) -> bool {
-        is_javascript_language_name(raw)
+    fn engines(&self) -> Vec<&dyn LanguageEngine> {
+        vec![&self.js, &self.jsx, &self.ts, &self.tsx]
     }
 
-    fn supports_cli_dialect_flag(&self, _raw: &str) -> bool {
-        false
+    fn resolve<'a>(
+        &'a self,
+        request: &ResolutionRequest<'_>,
+    ) -> Option<Result<&'a dyn LanguageEngine, String>> {
+        if request.explicit_dialect.is_some() {
+            if request
+                .explicit_language
+                .is_some_and(is_javascript_language_name)
+            {
+                return Some(Err(
+                    "JavaScript does not support --dialect; use .js/.jsx/.ts/.tsx extensions or an explicit JavaScript/<dialect> label"
+                        .to_string(),
+                ));
+            }
+            return None;
+        }
+
+        if let Some(explicit_language) = request.explicit_language {
+            let dialect = dialect_from_language_name(explicit_language)?;
+            return Some(Ok(self.engine_for_dialect(dialect)));
+        }
+
+        let dialect = request
+            .path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .and_then(JavaScriptDialect::from_extension)?;
+        Some(Ok(self.engine_for_dialect(dialect)))
     }
 
-    fn resolve_for_explicit_language(
-        &self,
-        explicit_language: &str,
-        explicit_dialect: Option<&str>,
-        _defaults: Option<&ResolutionDefaults>,
-    ) -> Result<String, String> {
-        let dialect = if let Some(raw) = explicit_dialect {
-            JavaScriptDialect::from_extension(raw).ok_or_else(|| {
-                format!("Invalid JavaScript dialect '{raw}'. Expected one of: js, jsx, ts, tsx")
-            })?
-        } else {
-            dialect_from_language_name(explicit_language).unwrap_or(JavaScriptDialect::JavaScript)
-        };
-
-        Ok(language_name_for_dialect(dialect))
-    }
-
-    fn resolve_for_explicit_dialect(
-        &self,
-        explicit_dialect: &str,
-        _defaults: Option<&ResolutionDefaults>,
-    ) -> Option<Result<String, String>> {
-        JavaScriptDialect::from_extension(explicit_dialect)
-            .map(|dialect| Ok(language_name_for_dialect(dialect)))
-    }
-
-    fn resolve_for_extension(
-        &self,
-        extension: &str,
-        _defaults: Option<&ResolutionDefaults>,
-    ) -> Option<Result<String, String>> {
-        let js_dialect = JavaScriptDialect::from_extension(extension)?;
-        Some(Ok(language_name_for_dialect(js_dialect)))
-    }
-
-    fn canonicalize_label(&self, raw: &str) -> Option<String> {
-        dialect_from_language_name(raw).map(language_name_for_dialect)
-    }
-
-    fn expand_filter_labels(&self, query: &str) -> Option<Vec<String>> {
+    fn filter_labels(&self, query: &str) -> Option<Vec<String>> {
         let normalized = query.trim().to_ascii_lowercase();
         if !is_javascript_language_name(&normalized) {
             return None;
@@ -86,14 +88,12 @@ impl LanguageResolver for JavaScriptLanguageResolver {
         let js_dialects = ["js", "jsx", "ts", "tsx"];
 
         if normalized == "javascript" || normalized == "js" {
-            let mut labels = vec!["JavaScript/js".to_string()];
-            labels.extend(
+            return Some(
                 js_dialects
                     .iter()
-                    .skip(1)
-                    .map(|dialect| format!("JavaScript/{dialect}")),
+                    .map(|dialect| format!("JavaScript/{dialect}"))
+                    .collect(),
             );
-            return Some(labels);
         }
 
         let dialect = normalized
@@ -102,7 +102,9 @@ impl LanguageResolver for JavaScriptLanguageResolver {
             .unwrap_or_default();
 
         if js_dialects.contains(&dialect) {
-            return Some(vec![format!("JavaScript/{dialect}")]);
+            return Some(vec![language_name_for_dialect(
+                JavaScriptDialect::from_extension(dialect)?,
+            )]);
         }
 
         None

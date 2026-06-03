@@ -73,6 +73,10 @@ pub fn dialect_from_language_name(raw: &str) -> Option<JavaScriptDialect> {
     JavaScriptDialect::from_extension(dialect)
 }
 
+pub fn config_for_dialect(dialect: JavaScriptDialect) -> JavaScriptDialectConfig {
+    JavaScriptDialectConfig { dialect }
+}
+
 pub fn config_for_target_path(path: &Path) -> JavaScriptDialectConfig {
     let dialect = path
         .extension()
@@ -80,11 +84,11 @@ pub fn config_for_target_path(path: &Path) -> JavaScriptDialectConfig {
         .and_then(JavaScriptDialect::from_extension)
         .unwrap_or(JavaScriptDialect::JavaScript);
 
-    JavaScriptDialectConfig { dialect }
+    config_for_dialect(dialect)
 }
 
 pub fn config_for_language_name(language_name: &str) -> Option<JavaScriptDialectConfig> {
-    dialect_from_language_name(language_name).map(|dialect| JavaScriptDialectConfig { dialect })
+    dialect_from_language_name(language_name).map(config_for_dialect)
 }
 
 static JS_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();

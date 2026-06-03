@@ -4,32 +4,52 @@ use crate::patterns;
 use crate::types::{Mutant, Mutation, Target};
 use crate::utils::{node_text, parse_source};
 
-use super::dialect::{config_for_language_name, config_for_target_path};
+use super::dialect::{JavaScriptDialect, JavaScriptDialectConfig, config_for_dialect};
 use super::mutations::JAVASCRIPT_MUTATIONS;
 use super::syntax::{fields, nodes};
 
-pub struct JavaScriptLanguageEngine {
+pub struct JavaScriptDialectEngine {
+    dialect: JavaScriptDialect,
+    canonical_name: &'static str,
+    display_name: &'static str,
+    config: JavaScriptDialectConfig,
     mutations: Vec<Mutation>,
 }
 
-impl Default for JavaScriptLanguageEngine {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl JavaScriptLanguageEngine {
-    pub fn new() -> Self {
+impl JavaScriptDialectEngine {
+    pub fn new(dialect: JavaScriptDialect) -> Self {
         let mut mutations: Vec<Mutation> = Vec::new();
         mutations.extend_from_slice(COMMON_MUTATIONS);
         mutations.extend_from_slice(JAVASCRIPT_MUTATIONS);
-        Self { mutations }
+
+        let (canonical_name, display_name) = match dialect {
+            JavaScriptDialect::JavaScript => ("JavaScript/js", "JavaScript"),
+            JavaScriptDialect::Jsx => ("JavaScript/jsx", "JavaScript JSX"),
+            JavaScriptDialect::TypeScript => ("JavaScript/ts", "TypeScript"),
+            JavaScriptDialect::Tsx => ("JavaScript/tsx", "TypeScript JSX"),
+        };
+
+        Self {
+            dialect,
+            canonical_name,
+            display_name,
+            config: config_for_dialect(dialect),
+            mutations,
+        }
+    }
+
+    pub fn dialect(&self) -> JavaScriptDialect {
+        self.dialect
     }
 }
 
-impl LanguageEngine for JavaScriptLanguageEngine {
+impl LanguageEngine for JavaScriptDialectEngine {
     fn name(&self) -> &'static str {
-        "JavaScript"
+        self.display_name
+    }
+
+    fn canonical_name(&self) -> &'static str {
+        self.canonical_name
     }
 
     fn get_mutations(&self) -> &[Mutation] {
@@ -39,9 +59,7 @@ impl LanguageEngine for JavaScriptLanguageEngine {
     fn mutate(&self, target: &Target) -> Vec<Mutant> {
         let source = &target.text;
 
-        let dialect_config = config_for_language_name(&target.language)
-            .unwrap_or_else(|| config_for_target_path(&target.path));
-        let tree = match parse_source(source, dialect_config.parser_language()) {
+        let tree = match parse_source(source, self.config.parser_language()) {
             Some(t) => t,
             None => return Vec::new(),
         };
@@ -251,6 +269,42 @@ impl LanguageEngine for JavaScriptLanguageEngine {
         }
 
         all_mutants
+    }
+}
+
+pub struct JavaScriptLanguageEngine {
+    inner: JavaScriptDialectEngine,
+}
+
+impl Default for JavaScriptLanguageEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl JavaScriptLanguageEngine {
+    pub fn new() -> Self {
+        Self {
+            inner: JavaScriptDialectEngine::new(JavaScriptDialect::JavaScript),
+        }
+    }
+}
+
+impl LanguageEngine for JavaScriptLanguageEngine {
+    fn name(&self) -> &'static str {
+        self.inner.name()
+    }
+
+    fn canonical_name(&self) -> &'static str {
+        self.inner.canonical_name()
+    }
+
+    fn get_mutations(&self) -> &[Mutation] {
+        self.inner.get_mutations()
+    }
+
+    fn mutate(&self, target: &Target) -> Vec<Mutant> {
+        self.inner.mutate(target)
     }
 }
 

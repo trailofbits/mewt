@@ -1,5 +1,5 @@
 use crate::LanguageEngine;
-use crate::core::resolver::{LanguageResolver, ResolutionDefaults};
+use crate::core::resolver::{LanguageResolver, ResolutionRequest};
 
 use super::engine::RustLanguageEngine;
 
@@ -13,6 +13,10 @@ impl RustLanguageResolver {
             engine: RustLanguageEngine::new(),
         }
     }
+
+    fn is_language_name(raw: &str) -> bool {
+        raw.eq_ignore_ascii_case("rust")
+    }
 }
 
 impl Default for RustLanguageResolver {
@@ -22,61 +26,39 @@ impl Default for RustLanguageResolver {
 }
 
 impl LanguageResolver for RustLanguageResolver {
-    fn engine(&self) -> &dyn LanguageEngine {
-        &self.engine
+    fn family(&self) -> &'static str {
+        "rust"
     }
 
-    fn is_language_name(&self, raw: &str) -> bool {
-        raw.eq_ignore_ascii_case("rust")
+    fn engines(&self) -> Vec<&dyn LanguageEngine> {
+        vec![&self.engine]
     }
 
-    fn supports_cli_dialect_flag(&self, _raw: &str) -> bool {
-        false
-    }
-
-    fn resolve_for_explicit_language(
-        &self,
-        explicit_language: &str,
-        explicit_dialect: Option<&str>,
-        _defaults: Option<&ResolutionDefaults>,
-    ) -> Result<String, String> {
-        if explicit_dialect.is_some() {
-            return Err("Dialect selection is not supported for Rust".to_string());
+    fn resolve<'a>(
+        &'a self,
+        request: &ResolutionRequest<'_>,
+    ) -> Option<Result<&'a dyn LanguageEngine, String>> {
+        if let Some(explicit_language) = request.explicit_language {
+            if !Self::is_language_name(explicit_language) {
+                return None;
+            }
+            if request.explicit_dialect.is_some() {
+                return Some(Err(
+                    "Dialect selection is not supported for Rust".to_string()
+                ));
+            }
+            return Some(Ok(&self.engine));
         }
-        if self.is_language_name(explicit_language) {
-            Ok(self.engine.canonical_name().to_string())
-        } else {
-            Err(format!(
-                "No language resolver found for language: {explicit_language}"
-            ))
-        }
+
+        request
+            .path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("rs"))
+            .then_some(Ok(&self.engine as &dyn LanguageEngine))
     }
 
-    fn resolve_for_explicit_dialect(
-        &self,
-        _explicit_dialect: &str,
-        _defaults: Option<&ResolutionDefaults>,
-    ) -> Option<Result<String, String>> {
-        None
-    }
-
-    fn resolve_for_extension(
-        &self,
-        extension: &str,
-        _defaults: Option<&ResolutionDefaults>,
-    ) -> Option<Result<String, String>> {
-        extension
-            .eq_ignore_ascii_case("rs")
-            .then(|| Ok(self.engine.canonical_name().to_string()))
-    }
-
-    fn canonicalize_label(&self, raw: &str) -> Option<String> {
-        self.is_language_name(raw)
-            .then(|| self.engine.canonical_name().to_string())
-    }
-
-    fn expand_filter_labels(&self, query: &str) -> Option<Vec<String>> {
-        self.is_language_name(query)
-            .then(|| vec![self.engine.canonical_name().to_string()])
+    fn filter_labels(&self, query: &str) -> Option<Vec<String>> {
+        Self::is_language_name(query).then(|| vec![self.engine.canonical_name().to_string()])
     }
 }

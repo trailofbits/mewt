@@ -1,20 +1,78 @@
 use crate::LanguageEngine;
-use crate::core::resolver::{LanguageResolver, ResolutionDefaults};
+use crate::core::resolver::{LanguageResolver, ResolutionRequest};
+use crate::types::config::MoveDialect;
+
 use crate::languages::r#move::dialect::{
     dialect_from_language_name, is_move_language_name, language_name_for_dialect,
 };
 
-use super::engine::MoveLanguageEngine;
+use super::engine::MoveDialectEngine;
 
 pub struct MoveLanguageResolver {
-    engine: MoveLanguageEngine,
+    sui: MoveDialectEngine,
+    iota: MoveDialectEngine,
+    aptos: MoveDialectEngine,
 }
 
 impl MoveLanguageResolver {
     pub fn new() -> Self {
         Self {
-            engine: MoveLanguageEngine::new(),
+            sui: MoveDialectEngine::new(MoveDialect::Sui),
+            iota: MoveDialectEngine::new(MoveDialect::Iota),
+            aptos: MoveDialectEngine::new(MoveDialect::Aptos),
         }
+    }
+
+    fn engine_for_dialect(&self, dialect: MoveDialect) -> &dyn LanguageEngine {
+        match dialect {
+            MoveDialect::Sui => &self.sui,
+            MoveDialect::Iota => &self.iota,
+            MoveDialect::Aptos => &self.aptos,
+        }
+    }
+
+    fn dialect_from_raw(raw: &str) -> Result<MoveDialect, String> {
+        dialect_from_language_name(&format!("move/{raw}")).ok_or_else(|| {
+            format!("Invalid Move dialect '{raw}'. Expected one of: sui, iota, aptos")
+        })
+    }
+
+    fn default_dialect(&self, request: &ResolutionRequest<'_>) -> MoveDialect {
+        request
+            .defaults
+            .and_then(|defaults| defaults.default_dialects.get("move"))
+            .and_then(|entry| dialect_from_language_name(&format!("move/{}", entry.dialect)))
+            .unwrap_or(MoveDialect::Sui)
+    }
+
+    fn resolve_dialect(&self, request: &ResolutionRequest<'_>) -> Result<MoveDialect, String> {
+        if let Some(explicit_language) = request.explicit_language {
+            if let Some(label_dialect) = dialect_from_language_name(explicit_language) {
+                if request.explicit_dialect.is_some()
+                    && !explicit_language.eq_ignore_ascii_case("move")
+                {
+                    return Err(
+                        "Use either --language move/<dialect> or --language move --dialect <dialect>, not both"
+                            .to_string(),
+                    );
+                }
+
+                if explicit_language.eq_ignore_ascii_case("move") {
+                    if let Some(explicit_dialect) = request.explicit_dialect {
+                        return Self::dialect_from_raw(explicit_dialect);
+                    }
+                    return Ok(self.default_dialect(request));
+                }
+
+                return Ok(label_dialect);
+            }
+        }
+
+        if let Some(explicit_dialect) = request.explicit_dialect {
+            return Self::dialect_from_raw(explicit_dialect);
+        }
+
+        Ok(self.default_dialect(request))
     }
 }
 
@@ -25,82 +83,55 @@ impl Default for MoveLanguageResolver {
 }
 
 impl LanguageResolver for MoveLanguageResolver {
-    fn engine(&self) -> &dyn LanguageEngine {
-        &self.engine
+    fn family(&self) -> &'static str {
+        "move"
     }
 
-    fn is_language_name(&self, raw: &str) -> bool {
-        is_move_language_name(raw)
+    fn engines(&self) -> Vec<&dyn LanguageEngine> {
+        vec![&self.sui, &self.iota, &self.aptos]
     }
 
-    fn resolve_for_explicit_language(
-        &self,
-        explicit_language: &str,
-        explicit_dialect: Option<&str>,
-        defaults: Option<&ResolutionDefaults>,
-    ) -> Result<String, String> {
-        let dialect = if let Some(raw) = explicit_dialect {
-            dialect_from_language_name(&format!("move/{raw}")).ok_or_else(|| {
-                format!("Invalid Move dialect '{raw}'. Expected one of: sui, iota, aptos")
-            })?
-        } else if let Some(from_label) = dialect_from_language_name(explicit_language) {
-            from_label
-        } else if let Some(defaults) = defaults {
-            defaults
-                .default_dialects
-                .get("move")
-                .and_then(|entry| dialect_from_language_name(&format!("move/{}", entry.dialect)))
-                .unwrap_or(crate::types::config::MoveDialect::Sui)
-        } else {
-            crate::types::config::MoveDialect::Sui
-        };
-
-        Ok(language_name_for_dialect(dialect))
+    fn accepts_cli_dialect(&self) -> bool {
+        true
     }
 
-    fn resolve_for_explicit_dialect(
-        &self,
-        explicit_dialect: &str,
-        _defaults: Option<&ResolutionDefaults>,
-    ) -> Option<Result<String, String>> {
-        Some(
-            dialect_from_language_name(&format!("move/{explicit_dialect}"))
-                .ok_or_else(|| {
-                    format!(
-                        "Invalid Move dialect '{explicit_dialect}'. Expected one of: sui, iota, aptos"
-                    )
-                })
-                .map(language_name_for_dialect),
-        )
-    }
+    fn resolve<'a>(
+        &'a self,
+        request: &ResolutionRequest<'_>,
+    ) -> Option<Result<&'a dyn LanguageEngine, String>> {
+        if let Some(explicit_language) = request.explicit_language {
+            if !is_move_language_name(explicit_language) {
+                return None;
+            }
+            return Some(
+                self.resolve_dialect(request)
+                    .map(|dialect| self.engine_for_dialect(dialect)),
+            );
+        }
 
-    fn resolve_for_extension(
-        &self,
-        extension: &str,
-        defaults: Option<&ResolutionDefaults>,
-    ) -> Option<Result<String, String>> {
-        if !extension.eq_ignore_ascii_case("move") {
+        if request.explicit_dialect.is_some() {
+            return Some(
+                self.resolve_dialect(request)
+                    .map(|dialect| self.engine_for_dialect(dialect)),
+            );
+        }
+
+        let is_move_extension = request
+            .path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("move"));
+        if !is_move_extension {
             return None;
         }
 
-        if let Some(defaults) = defaults {
-            if let Some(default_move_dialect) = defaults.default_dialects.get("move") {
-                if let Some(dialect) =
-                    dialect_from_language_name(&format!("move/{}", default_move_dialect.dialect))
-                {
-                    return Some(Ok(language_name_for_dialect(dialect)));
-                }
-            }
-        }
-
-        Some(Ok("Move/sui".to_string()))
+        Some(
+            self.resolve_dialect(request)
+                .map(|dialect| self.engine_for_dialect(dialect)),
+        )
     }
 
-    fn canonicalize_label(&self, raw: &str) -> Option<String> {
-        dialect_from_language_name(raw).map(language_name_for_dialect)
-    }
-
-    fn expand_filter_labels(&self, query: &str) -> Option<Vec<String>> {
+    fn filter_labels(&self, query: &str) -> Option<Vec<String>> {
         let normalized = query.trim().to_ascii_lowercase();
         if !is_move_language_name(&normalized) {
             return None;
@@ -109,14 +140,12 @@ impl LanguageResolver for MoveLanguageResolver {
         let move_dialects = ["sui", "iota", "aptos"];
 
         if normalized == "move" {
-            let mut labels = vec!["Move/sui".to_string()];
-            labels.extend(
+            return Some(
                 move_dialects
                     .iter()
-                    .skip(1)
-                    .map(|dialect| format!("Move/{dialect}")),
+                    .map(|dialect| format!("Move/{dialect}"))
+                    .collect(),
             );
-            return Some(labels);
         }
 
         let dialect = normalized
@@ -125,7 +154,9 @@ impl LanguageResolver for MoveLanguageResolver {
             .unwrap_or_default();
 
         if move_dialects.contains(&dialect) {
-            return Some(vec![format!("Move/{dialect}")]);
+            return Some(vec![language_name_for_dialect(dialect_from_language_name(
+                &format!("move/{dialect}"),
+            )?)]);
         }
 
         None

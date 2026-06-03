@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use crate::LanguageRegistry;
 use crate::core::cmds::print::MutationsFilters;
 use crate::core::resolver::ResolutionDefaults;
-use crate::languages::r#move::dialect::{config_for_target_language, is_move_language_name};
 use crate::types::config::config;
 use crate::types::{Mutation, MutationSeverity};
 
@@ -61,7 +60,7 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
         let mut all_mutations = Vec::new();
         match &language {
             Some(lang_str) => {
-                let (engine_name, display_name) = resolve_language_for_print(
+                let (engine_name, _display_name) = resolve_language_for_print(
                     registry,
                     lang_str,
                     filters.dialect.as_deref(),
@@ -70,37 +69,24 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
                 let mutation_engine = registry
                     .get_engine(&engine_name)
                     .ok_or_else(|| format!("No engine found for language: {}", lang_str))?;
-                all_mutations.extend(
-                    mutation_engine
-                        .get_mutations()
-                        .iter()
-                        .filter(|m| mutation_is_available_for_label(&display_name, m.slug))
-                        .map(|m| Mutation {
-                            slug: m.slug,
-                            description: m.description,
-                            severity: m.severity.clone(),
-                        }),
-                );
+                all_mutations.extend(mutation_engine.get_mutations().iter().map(|m| Mutation {
+                    slug: m.slug,
+                    description: m.description,
+                    severity: m.severity.clone(),
+                }));
             }
             None => {
                 for lang_name in registry.all_languages() {
-                    let display_name = resolve_language_for_print(registry, lang_name, None, None)
-                        .map(|(_, display)| display)
-                        .unwrap_or_else(|_| lang_name.to_string());
                     let mutation_engine = registry
                         .get_engine(lang_name)
                         .ok_or_else(|| format!("No engine found for language: {}", lang_name))?;
-                    all_mutations.extend(
-                        mutation_engine
-                            .get_mutations()
-                            .iter()
-                            .filter(|m| mutation_is_available_for_label(&display_name, m.slug))
-                            .map(|m| Mutation {
-                                slug: m.slug,
-                                description: m.description,
-                                severity: m.severity.clone(),
-                            }),
-                    );
+                    all_mutations.extend(mutation_engine.get_mutations().iter().map(|m| {
+                        Mutation {
+                            slug: m.slug,
+                            description: m.description,
+                            severity: m.severity.clone(),
+                        }
+                    }));
                 }
             }
         }
@@ -156,14 +142,6 @@ fn language_label_includes_dialect(raw_language: &str) -> bool {
     raw_language.contains('/') || raw_language.contains(':')
 }
 
-fn mutation_is_available_for_label(language_label: &str, slug: &str) -> bool {
-    if is_move_language_name(language_label) {
-        return config_for_target_language(language_label).supports_mutation_slug(slug);
-    }
-
-    true
-}
-
 fn print_mutations_for_language(
     engine_lookup_name: &str,
     display_name: &str,
@@ -178,10 +156,6 @@ fn print_mutations_for_language(
     let mut mutation_groups: HashMap<&str, (MutationSeverity, Vec<&str>)> = HashMap::new();
 
     for mutation in mutations {
-        if !mutation_is_available_for_label(display_name, mutation.slug) {
-            continue;
-        }
-
         let entry = mutation_groups
             .entry(mutation.slug)
             .or_insert((mutation.severity.clone(), Vec::new()));

@@ -1,7 +1,7 @@
 use crate::conformance;
 use crate::utils;
 use mewt::LanguageEngine;
-use mewt::core::resolver::LanguageResolver;
+use mewt::core::resolver::{LanguageResolver, ResolutionRequest};
 use mewt::languages::cpp::engine::CppLanguageEngine;
 use mewt::languages::cpp::resolver::CppLanguageResolver;
 use mewt::types::{Mutant, Target};
@@ -311,11 +311,18 @@ fn test_different_extensions() {
     // Verify resolver handles supported extensions
     let resolver = CppLanguageResolver::new();
     for ext in ["cpp", "cc", "cxx", "hpp", "hxx"] {
-        let resolved = resolver
-            .resolve_for_extension(ext, None)
+        let path = std::path::PathBuf::from(format!("test.{ext}"));
+        let request = ResolutionRequest {
+            path: &path,
+            explicit_language: None,
+            explicit_dialect: None,
+            defaults: None,
+        };
+        let engine = resolver
+            .resolve(&request)
             .expect("extension should be recognized")
             .expect("resolution should succeed");
-        assert_eq!(resolved, "C++");
+        assert_eq!(engine.canonical_name(), "C++");
     }
 }
 

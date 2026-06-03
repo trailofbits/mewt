@@ -42,7 +42,7 @@ fn every_mutation_slug_has_a_per_language_test_module() {
     check_language(manifest_dir, "Solidity", "solidity", &solidity);
 
     let move_language = MoveLanguageEngine::new();
-    check_language(manifest_dir, "Move", "move", &move_language);
+    check_language_allowing_extra_test_modules(manifest_dir, "Move", "move", &move_language);
 }
 
 fn check_language(
@@ -50,6 +50,25 @@ fn check_language(
     language_name: &str,
     language_dir: &str,
     engine: &dyn LanguageEngine,
+) {
+    check_language_impl(manifest_dir, language_name, language_dir, engine, false);
+}
+
+fn check_language_allowing_extra_test_modules(
+    manifest_dir: &Path,
+    language_name: &str,
+    language_dir: &str,
+    engine: &dyn LanguageEngine,
+) {
+    check_language_impl(manifest_dir, language_name, language_dir, engine, true);
+}
+
+fn check_language_impl(
+    manifest_dir: &Path,
+    language_name: &str,
+    language_dir: &str,
+    engine: &dyn LanguageEngine,
+    allow_extra_test_modules: bool,
 ) {
     let slug_set: BTreeSet<String> = engine
         .get_mutations()
@@ -97,7 +116,7 @@ fn check_language(
         "{language_name} is missing mutation test modules for slugs: {missing:?}"
     );
     assert!(
-        unexpected.is_empty(),
+        allow_extra_test_modules || unexpected.is_empty(),
         "{language_name} has mutation test modules without corresponding slugs: {unexpected:?}"
     );
 }

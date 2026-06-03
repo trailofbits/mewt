@@ -23,39 +23,32 @@ pub struct ResolutionRequest<'a> {
 }
 
 pub trait LanguageResolver: Send + Sync {
-    fn engine(&self) -> &dyn LanguageEngine;
+    /// Stable family key used for generic config lookup and diagnostics.
+    fn family(&self) -> &'static str;
 
-    fn is_language_name(&self, raw: &str) -> bool;
+    /// All concrete engines owned by this family resolver.
+    ///
+    /// Dialect-aware families return one engine per concrete dialect label.
+    fn engines(&self) -> Vec<&dyn LanguageEngine>;
 
     /// Whether this resolver accepts the global CLI `--dialect` flag.
-    ///
-    /// Some language families are dialect-aware without using this flag. For example,
-    /// JavaScript selects `js`/`jsx`/`ts`/`tsx` from the language label or file extension,
-    /// while Move currently uses the global `--dialect` flag for `.move` files.
-    fn supports_cli_dialect_flag(&self, raw: &str) -> bool {
-        self.is_language_name(raw)
+    fn accepts_cli_dialect(&self) -> bool {
+        false
     }
 
-    fn resolve_for_explicit_language(
-        &self,
-        explicit_language: &str,
-        explicit_dialect: Option<&str>,
-        defaults: Option<&ResolutionDefaults>,
-    ) -> Result<String, String>;
+    /// Resolve a request to one concrete engine.
+    ///
+    /// This is the dialect-resolution boundary. Implementations may inspect the
+    /// path, explicit language label, explicit dialect, and language defaults,
+    /// but the returned engine must already contain the selected dialect config.
+    fn resolve<'a>(
+        &'a self,
+        request: &ResolutionRequest<'_>,
+    ) -> Option<Result<&'a dyn LanguageEngine, String>>;
 
-    fn resolve_for_explicit_dialect(
-        &self,
-        explicit_dialect: &str,
-        defaults: Option<&ResolutionDefaults>,
-    ) -> Option<Result<String, String>>;
-
-    fn resolve_for_extension(
-        &self,
-        extension: &str,
-        defaults: Option<&ResolutionDefaults>,
-    ) -> Option<Result<String, String>>;
-
-    fn canonicalize_label(&self, raw: &str) -> Option<String>;
-
-    fn expand_filter_labels(&self, query: &str) -> Option<Vec<String>>;
+    /// Expand/canonicalize labels used in filtering contexts.
+    ///
+    /// Filtering is separate from target resolution because family selectors such
+    /// as `move` or `javascript` may expand to many concrete labels.
+    fn filter_labels(&self, query: &str) -> Option<Vec<String>>;
 }
