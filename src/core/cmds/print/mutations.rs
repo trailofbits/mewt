@@ -22,7 +22,9 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
             .as_deref()
             .is_some_and(|lang| registry.language_supports_cli_dialect_flag(lang))
     {
-        return Err("--dialect requires --language move for `print mutations`".to_string());
+        return Err(
+            "--dialect requires a --language value whose resolver accepts CLI dialects".to_string(),
+        );
     }
 
     if filters.dialect.is_some()
@@ -31,7 +33,7 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
             .is_some_and(language_label_includes_dialect)
     {
         return Err(
-            "Use either --language move/<dialect> or --language move --dialect <dialect>, not both"
+            "Use either a dialect-qualified --language or --language with --dialect, not both"
                 .to_string(),
         );
     }

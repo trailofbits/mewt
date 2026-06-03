@@ -452,9 +452,6 @@ mod tests {
         )
         .expect("move language");
 
-        assert!(crate::languages::r#move::dialect::is_move_language_name(
-            &language
-        ));
         assert_eq!(language, "Move/iota");
     }
 

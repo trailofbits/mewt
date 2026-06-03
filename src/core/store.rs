@@ -5,14 +5,6 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::LanguageRegistry;
-use crate::languages::javascript::dialect::{
-    dialect_from_language_name as js_dialect_from_language_name,
-    language_name_for_dialect as js_language_name_for_dialect,
-};
-use crate::languages::r#move::dialect::{
-    dialect_from_language_name as move_dialect_from_language_name,
-    language_name_for_dialect as move_language_name_for_dialect,
-};
 use crate::types::{
     CampaignSeverityStats, CampaignSummary, Hash, Mutant, Outcome, Status, StoreError, StoreResult,
     Target, TargetStats,
@@ -194,7 +186,7 @@ impl SqlStore {
             path: PathBuf::from(record.path),
             file_hash: Hash::try_from(record.file_hash)?,
             text: record.text,
-            language: normalize_stored_target_language(&record.language),
+            language: record.language,
         })
     }
 
@@ -216,7 +208,7 @@ impl SqlStore {
                 path: PathBuf::from(record.path),
                 file_hash: Hash::try_from(record.file_hash)?,
                 text: record.text,
-                language: normalize_stored_target_language(&record.language),
+                language: record.language,
             });
         }
 
@@ -605,7 +597,7 @@ impl SqlStore {
                 path: PathBuf::from(row.try_get::<String, _>("path")?),
                 file_hash: Hash::try_from(row.try_get::<String, _>("file_hash")?)?,
                 text: row.try_get("text")?,
-                language: normalize_stored_target_language(&row.try_get::<String, _>("language")?),
+                language: row.try_get::<String, _>("language")?,
             };
             results.push((mutant, target));
         }
@@ -736,7 +728,7 @@ impl SqlStore {
                 path: PathBuf::from(row.try_get::<String, _>("path")?),
                 file_hash: Hash::try_from(row.try_get::<String, _>("file_hash")?)?,
                 text: row.try_get("text")?,
-                language: normalize_stored_target_language(&row.try_get::<String, _>("language")?),
+                language: row.try_get::<String, _>("language")?,
             };
             let outcome = Outcome {
                 mutant_id: row.try_get("mutant_id")?,
@@ -860,16 +852,6 @@ impl SqlStore {
     }
 }
 
-fn normalize_stored_target_language(language: &str) -> String {
-    if let Some(dialect) = move_dialect_from_language_name(language) {
-        move_language_name_for_dialect(dialect)
-    } else if let Some(dialect) = js_dialect_from_language_name(language) {
-        js_language_name_for_dialect(dialect)
-    } else {
-        language.to_string()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -878,13 +860,6 @@ mod tests {
 
     use super::*;
     use crate::LanguageRegistry;
-
-    #[test]
-    fn normalizes_move_language_labels_in_memory() {
-        assert_eq!(normalize_stored_target_language("move"), "Move/sui");
-        assert_eq!(normalize_stored_target_language("Move/iota"), "Move/iota");
-        assert_eq!(normalize_stored_target_language("Rust"), "Rust");
-    }
 
     #[tokio::test]
     async fn canonical_move_targets_are_filterable_by_move_and_dialect() {
