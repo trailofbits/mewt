@@ -1,11 +1,10 @@
 use crate::LanguageEngine;
 use crate::mutations::COMMON_MUTATIONS;
 use crate::patterns;
-use crate::types::config::MoveDialect;
 use crate::types::{Mutant, Mutation, Target};
 use crate::utils::{node_text, parse_source};
 
-use super::dialect::{MoveDialectConfig, config_for_dialect};
+use super::dialect::{MoveDialect, MoveDialectConfig, config_for_dialect};
 use super::mutations::MOVE_MUTATIONS;
 use super::syntax::{MoveSyntax, syntax_for_dialect};
 

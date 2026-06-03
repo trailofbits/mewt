@@ -70,14 +70,16 @@ pub async fn execute(format: String) -> AppResult<()> {
         info!("");
         info!("Languages:");
         if let Some(languages) = &effective_config.languages {
-            if let Some(move_cfg) = &languages.move_language {
-                if let Some(dialect) = move_cfg.dialect {
-                    info!("  move.dialect: {}", dialect.as_str());
-                } else {
-                    info!("  move.dialect: (not set)");
-                }
+            if languages.families.is_empty() {
+                info!("  (not configured)");
             } else {
-                info!("  move: (not configured)");
+                for (family, language_cfg) in languages.iter() {
+                    if let Some(dialect) = &language_cfg.dialect {
+                        info!("  {}.dialect: {}", family, dialect);
+                    } else {
+                        info!("  {}.dialect: (not set)", family);
+                    }
+                }
             }
         } else {
             info!("  (not configured)");

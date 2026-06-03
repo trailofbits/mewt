@@ -1,9 +1,8 @@
 use crate::LanguageEngine;
 use crate::core::resolver::{LanguageResolver, ResolutionRequest};
-use crate::types::config::MoveDialect;
 
 use crate::languages::r#move::dialect::{
-    dialect_from_language_name, is_move_language_name, language_name_for_dialect,
+    MoveDialect, dialect_from_language_name, is_move_language_name, language_name_for_dialect,
 };
 
 use super::engine::MoveDialectEngine;
@@ -37,12 +36,15 @@ impl MoveLanguageResolver {
         })
     }
 
-    fn default_dialect(&self, request: &ResolutionRequest<'_>) -> MoveDialect {
-        request
+    fn default_dialect(&self, request: &ResolutionRequest<'_>) -> Result<MoveDialect, String> {
+        let Some(entry) = request
             .defaults
             .and_then(|defaults| defaults.default_dialects.get("move"))
-            .and_then(|entry| dialect_from_language_name(&format!("move/{}", entry.dialect)))
-            .unwrap_or(MoveDialect::Sui)
+        else {
+            return Ok(MoveDialect::Sui);
+        };
+
+        Self::dialect_from_raw(&entry.dialect)
     }
 
     fn resolve_dialect(&self, request: &ResolutionRequest<'_>) -> Result<MoveDialect, String> {
@@ -61,7 +63,7 @@ impl MoveLanguageResolver {
                     if let Some(explicit_dialect) = request.explicit_dialect {
                         return Self::dialect_from_raw(explicit_dialect);
                     }
-                    return Ok(self.default_dialect(request));
+                    return self.default_dialect(request);
                 }
 
                 return Ok(label_dialect);
@@ -72,7 +74,7 @@ impl MoveLanguageResolver {
             return Self::dialect_from_raw(explicit_dialect);
         }
 
-        Ok(self.default_dialect(request))
+        self.default_dialect(request)
     }
 }
 

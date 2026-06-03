@@ -110,6 +110,24 @@ impl LanguageRegistry {
         })
     }
 
+    pub fn cli_dialect_family(&self) -> Result<Option<&'static str>, String> {
+        let accepting: Vec<_> = self
+            .resolvers
+            .iter()
+            .filter(|resolver| resolver.accepts_cli_dialect())
+            .map(|resolver| resolver.family())
+            .collect();
+
+        match accepting.as_slice() {
+            [] => Ok(None),
+            [family] => Ok(Some(*family)),
+            families => Err(format!(
+                "--dialect is ambiguous; accepting language families: {}",
+                families.join(", ")
+            )),
+        }
+    }
+
     pub fn resolve_canonical_for_language_label(
         &self,
         raw_language: &str,

@@ -3,13 +3,12 @@ use std::io;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use log::{info, warn};
+use log::info;
 use serde::Serialize;
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::core::resolver::{ResolutionDefaults, ResolutionRequest};
-use crate::languages::r#move::dialect::is_move_language_name;
 use crate::types::config::{ResolvedTargets, config, is_path_excluded, is_slug_enabled};
 use crate::types::{Hash, Mutant};
 
@@ -148,7 +147,7 @@ impl Target {
         // regardless of filesystem traversal order
         all_targets.sort_by(|a, b| a.path.cmp(&b.path));
 
-        log_move_dialect_resolution(&all_targets, resolution_defaults, ".move targets");
+        log_language_dialect_defaults(resolution_defaults, "loaded targets");
 
         Ok(all_targets)
     }
@@ -402,28 +401,17 @@ fn resolve_language_for_path(
         .ok()
 }
 
-fn log_move_dialect_resolution(
-    targets: &[Target],
-    resolution_defaults: &ResolutionDefaults,
-    context: &str,
-) {
-    let has_move_targets = targets
-        .iter()
-        .any(|target| is_move_language_name(&target.language));
-    if !has_move_targets {
-        return;
-    }
-
-    if let Some(move_default) = resolution_defaults.default_dialects.get("move") {
-        if move_default.defaulted {
-            warn!(
-                "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|aptos explicitly.",
-                move_default.dialect
+fn log_language_dialect_defaults(resolution_defaults: &ResolutionDefaults, context: &str) {
+    for (family, dialect_default) in &resolution_defaults.default_dialects {
+        if dialect_default.defaulted {
+            info!(
+                "Using default {} dialect '{}' for {}",
+                family, dialect_default.dialect, context
             );
         } else {
             info!(
-                "Using Move dialect '{}' for {}",
-                move_default.dialect, context
+                "Using configured {} dialect '{}' for {}",
+                family, dialect_default.dialect, context
             );
         }
     }

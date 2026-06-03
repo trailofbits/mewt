@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -92,64 +93,30 @@ pub struct RunConfig {
     pub comprehensive: Option<bool>,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum MoveDialectSetting {
-    Sui,
-    Iota,
-    Aptos,
-}
-
-impl MoveDialectSetting {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Sui => "sui",
-            Self::Iota => "iota",
-            Self::Aptos => "aptos",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MoveDialect {
-    Sui,
-    Iota,
-    Aptos,
-}
-
-impl MoveDialect {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Sui => "sui",
-            Self::Iota => "iota",
-            Self::Aptos => "aptos",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MoveDialectSource {
-    Cli,
-    Config,
-    Default,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ResolvedMoveDialect {
-    pub dialect: MoveDialect,
-    pub source: MoveDialectSource,
-    pub defaulted: bool,
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
-pub struct MoveLanguageConfig {
-    pub dialect: Option<MoveDialectSetting>,
+pub struct LanguageConfig {
+    pub dialect: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct LanguagesConfig {
-    #[serde(rename = "move")]
-    pub move_language: Option<MoveLanguageConfig>,
+    #[serde(flatten)]
+    pub families: BTreeMap<String, LanguageConfig>,
+}
+
+impl LanguagesConfig {
+    pub fn get(&self, family: &str) -> Option<&LanguageConfig> {
+        self.families.get(&family.to_ascii_lowercase())
+    }
+
+    pub fn insert(&mut self, family: impl Into<String>, config: LanguageConfig) {
+        self.families
+            .insert(family.into().to_ascii_lowercase(), config);
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &LanguageConfig)> {
+        self.families.iter()
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -234,50 +201,44 @@ impl Config {
         cli_timeout.or_else(|| self.test().timeout())
     }
 
-    pub fn resolve_move_dialect(
-        &self,
-        cli_dialect: Option<&str>,
-    ) -> io::Result<ResolvedMoveDialect> {
-        if let Some(cli_value) = cli_dialect {
-            let setting = parse_move_dialect(cli_value)?;
-            return Ok(resolve_move_dialect_setting(
-                setting,
-                MoveDialectSource::Cli,
-            ));
-        }
-
-        if let Some(setting) = self
-            .languages
-            .as_ref()
-            .and_then(|languages| languages.move_language.as_ref())
-            .and_then(|move_cfg| move_cfg.dialect)
-        {
-            return Ok(resolve_move_dialect_setting(
-                setting,
-                MoveDialectSource::Config,
-            ));
-        }
-
-        Ok(ResolvedMoveDialect {
-            dialect: MoveDialect::Sui,
-            source: MoveDialectSource::Default,
-            defaulted: true,
-        })
-    }
-
     pub fn resolve_language_defaults(
         &self,
-        cli_move_dialect: Option<&str>,
+        cli_dialect_family: Option<&str>,
+        cli_dialect: Option<&str>,
     ) -> io::Result<ResolutionDefaults> {
+        if cli_dialect.is_some() && cli_dialect_family.is_none() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "--dialect was provided, but no registered language accepts CLI dialects",
+            ));
+        }
+
         let mut defaults = ResolutionDefaults::default();
-        let resolved = self.resolve_move_dialect(cli_move_dialect)?;
-        defaults.default_dialects.insert(
-            "move".to_string(),
-            DialectDefault {
-                dialect: resolved.dialect.as_str().to_string(),
-                defaulted: resolved.defaulted,
-            },
-        );
+
+        if let Some(languages) = &self.languages {
+            for (family, language_cfg) in languages.iter() {
+                if let Some(dialect) = language_cfg.dialect.as_deref() {
+                    defaults.default_dialects.insert(
+                        family.to_ascii_lowercase(),
+                        DialectDefault {
+                            dialect: dialect.to_string(),
+                            defaulted: false,
+                        },
+                    );
+                }
+            }
+        }
+
+        if let (Some(family), Some(dialect)) = (cli_dialect_family, cli_dialect) {
+            defaults.default_dialects.insert(
+                family.to_ascii_lowercase(),
+                DialectDefault {
+                    dialect: dialect.to_string(),
+                    defaulted: false,
+                },
+            );
+        }
+
         Ok(defaults)
     }
 
@@ -290,41 +251,6 @@ impl Config {
             run: self.run.clone(),
             languages: self.languages.clone(),
         }
-    }
-}
-
-fn parse_move_dialect(raw: &str) -> io::Result<MoveDialectSetting> {
-    match raw.trim().to_ascii_lowercase().as_str() {
-        "sui" => Ok(MoveDialectSetting::Sui),
-        "iota" => Ok(MoveDialectSetting::Iota),
-        "aptos" => Ok(MoveDialectSetting::Aptos),
-        value => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("Invalid Move dialect '{value}'. Expected one of: sui, iota, aptos"),
-        )),
-    }
-}
-
-fn resolve_move_dialect_setting(
-    setting: MoveDialectSetting,
-    source: MoveDialectSource,
-) -> ResolvedMoveDialect {
-    match setting {
-        MoveDialectSetting::Sui => ResolvedMoveDialect {
-            dialect: MoveDialect::Sui,
-            source,
-            defaulted: false,
-        },
-        MoveDialectSetting::Iota => ResolvedMoveDialect {
-            dialect: MoveDialect::Iota,
-            source,
-            defaulted: false,
-        },
-        MoveDialectSetting::Aptos => ResolvedMoveDialect {
-            dialect: MoveDialect::Aptos,
-            source,
-            defaulted: false,
-        },
     }
 }
 
@@ -457,12 +383,12 @@ fn apply_file_config(cfg: &mut Config, file: &Config) {
     if let Some(file_languages) = &file.languages {
         let mut languages = cfg.languages.clone().unwrap_or_default();
 
-        if let Some(file_move_cfg) = &file_languages.move_language {
-            let mut move_cfg = languages.move_language.unwrap_or_default();
-            if file_move_cfg.dialect.is_some() {
-                move_cfg.dialect = file_move_cfg.dialect;
+        for (family, file_language_cfg) in file_languages.iter() {
+            let mut language_cfg = languages.get(family).cloned().unwrap_or_default();
+            if file_language_cfg.dialect.is_some() {
+                language_cfg.dialect = file_language_cfg.dialect.clone();
             }
-            languages.move_language = Some(move_cfg);
+            languages.insert(family, language_cfg);
         }
 
         cfg.languages = Some(languages);
@@ -610,52 +536,57 @@ fn glob_matches(pattern: &str, path: &Path) -> bool {
 mod tests {
     use super::*;
 
-    fn config_with_move_dialect(dialect: MoveDialectSetting) -> Config {
+    fn config_with_language_dialect(family: &str, dialect: &str) -> Config {
+        let mut languages = LanguagesConfig::default();
+        languages.insert(
+            family,
+            LanguageConfig {
+                dialect: Some(dialect.to_string()),
+            },
+        );
         Config {
-            languages: Some(LanguagesConfig {
-                move_language: Some(MoveLanguageConfig {
-                    dialect: Some(dialect),
-                }),
-            }),
+            languages: Some(languages),
             ..Config::default()
         }
     }
 
     #[test]
-    fn resolve_move_dialect_prefers_cli_over_config() {
-        let cfg = config_with_move_dialect(MoveDialectSetting::Iota);
+    fn resolve_language_defaults_prefers_cli_over_config_for_cli_family() {
+        let cfg = config_with_language_dialect("move", "iota");
         let resolved = cfg
-            .resolve_move_dialect(Some("sui"))
-            .expect("valid dialect");
+            .resolve_language_defaults(Some("move"), Some("sui"))
+            .expect("valid dialect defaults");
 
-        assert_eq!(resolved.dialect, MoveDialect::Sui);
-        assert_eq!(resolved.source, MoveDialectSource::Cli);
-        assert!(!resolved.defaulted);
+        let move_default = resolved.default_dialects.get("move").unwrap();
+        assert_eq!(move_default.dialect, "sui");
+        assert!(!move_default.defaulted);
     }
 
     #[test]
-    fn resolve_move_dialect_uses_config_when_cli_missing() {
-        let cfg = config_with_move_dialect(MoveDialectSetting::Iota);
-        let resolved = cfg.resolve_move_dialect(None).expect("valid dialect");
+    fn resolve_language_defaults_uses_generic_language_config() {
+        let cfg = config_with_language_dialect("move", "iota");
+        let resolved = cfg
+            .resolve_language_defaults(None, None)
+            .expect("valid dialect defaults");
 
-        assert_eq!(resolved.dialect, MoveDialect::Iota);
-        assert_eq!(resolved.source, MoveDialectSource::Config);
-        assert!(!resolved.defaulted);
+        let move_default = resolved.default_dialects.get("move").unwrap();
+        assert_eq!(move_default.dialect, "iota");
+        assert!(!move_default.defaulted);
     }
 
     #[test]
-    fn resolve_move_dialect_defaults_to_sui_when_missing() {
+    fn resolve_language_defaults_does_not_insert_language_specific_defaults() {
         let cfg = Config::default();
-        let resolved = cfg.resolve_move_dialect(None).expect("default dialect");
+        let resolved = cfg
+            .resolve_language_defaults(None, None)
+            .expect("valid dialect defaults");
 
-        assert_eq!(resolved.dialect, MoveDialect::Sui);
-        assert_eq!(resolved.source, MoveDialectSource::Default);
-        assert!(resolved.defaulted);
+        assert!(resolved.default_dialects.is_empty());
     }
 
     #[test]
-    fn resolve_move_dialect_rejects_invalid_cli_value() {
+    fn resolve_language_defaults_rejects_cli_dialect_without_accepting_family() {
         let cfg = Config::default();
-        assert!(cfg.resolve_move_dialect(Some("wat")).is_err());
+        assert!(cfg.resolve_language_defaults(None, Some("iota")).is_err());
     }
 }

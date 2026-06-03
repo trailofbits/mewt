@@ -119,8 +119,15 @@ pub async fn run_main(
     // Dispatch to appropriate command
     let exit_code = match args.command {
         Commands::Run(run_args) => {
-            let resolution_defaults =
-                config().resolve_language_defaults(run_args.dialect.as_deref())?;
+            let cli_dialect_family = if run_args.dialect.is_some() {
+                registry
+                    .cli_dialect_family()
+                    .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidInput, err))?
+            } else {
+                None
+            };
+            let resolution_defaults = config()
+                .resolve_language_defaults(cli_dialect_family, run_args.dialect.as_deref())?;
 
             // Resolve command-specific options
             let resolved_targets = if !run_args.targets.is_empty()
@@ -163,8 +170,15 @@ pub async fn run_main(
             }
         }
         Commands::Mutate(mutate_args) => {
-            let resolution_defaults =
-                config().resolve_language_defaults(mutate_args.dialect.as_deref())?;
+            let cli_dialect_family = if mutate_args.dialect.is_some() {
+                registry
+                    .cli_dialect_family()
+                    .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidInput, err))?
+            } else {
+                None
+            };
+            let resolution_defaults = config()
+                .resolve_language_defaults(cli_dialect_family, mutate_args.dialect.as_deref())?;
 
             // Resolve command-specific options
             let resolved_targets = config()

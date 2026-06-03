@@ -1,6 +1,5 @@
 use crate::conformance;
-use mewt::languages::r#move::dialect::config_for_dialect;
-use mewt::types::config::MoveDialect;
+use mewt::languages::r#move::dialect::{MoveDialect, config_for_dialect};
 
 use super::shared;
 

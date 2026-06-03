@@ -1,4 +1,4 @@
-use log::{info, warn};
+use log::info;
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -36,22 +36,20 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
         );
     }
 
-    let need_move_dialect = language.as_deref().is_some_and(|lang| {
+    let needs_cli_dialect_defaults = language.as_deref().is_some_and(|lang| {
         registry.language_supports_cli_dialect_flag(lang) && !language_label_includes_dialect(lang)
     });
-    let resolution_defaults = if need_move_dialect {
-        let defaults = config()
-            .resolve_language_defaults(filters.dialect.as_deref())
-            .map_err(|e| e.to_string())?;
-        if let Some(move_default) = defaults.default_dialects.get("move") {
-            if move_default.defaulted {
-                warn!(
-                    "Move dialect not explicitly set; defaulting to '{}'. Use --dialect or [languages.move].dialect to select sui|iota|aptos explicitly.",
-                    move_default.dialect
-                );
-            }
-        }
-        Some(defaults)
+    let resolution_defaults = if needs_cli_dialect_defaults {
+        let cli_dialect_family = if filters.dialect.is_some() {
+            registry.cli_dialect_family().map_err(|e| e.to_string())?
+        } else {
+            None
+        };
+        Some(
+            config()
+                .resolve_language_defaults(cli_dialect_family, filters.dialect.as_deref())
+                .map_err(|e| e.to_string())?,
+        )
     } else {
         None
     };

@@ -1,4 +1,4 @@
-use crate::types::config::MoveDialect;
+use super::dialect::MoveDialect;
 
 #[derive(Debug, Clone, Copy)]
 pub struct MoveSyntax {
@@ -56,8 +56,7 @@ pub fn syntax_for_dialect(dialect: MoveDialect) -> MoveSyntax {
 mod tests {
     use tree_sitter::Node;
 
-    use crate::languages::r#move::dialect::config_for_dialect;
-    use crate::types::config::MoveDialect;
+    use crate::languages::r#move::dialect::{MoveDialect, config_for_dialect};
     use crate::utils::parse_source;
 
     use super::syntax_for_dialect;

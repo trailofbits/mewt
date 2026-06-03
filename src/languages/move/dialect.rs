@@ -2,7 +2,22 @@ use std::sync::OnceLock;
 
 use tree_sitter::Language as TsLanguage;
 
-use crate::types::config::MoveDialect;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MoveDialect {
+    Sui,
+    Iota,
+    Aptos,
+}
+
+impl MoveDialect {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Sui => "sui",
+            Self::Iota => "iota",
+            Self::Aptos => "aptos",
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct MoveDialectConfig {
