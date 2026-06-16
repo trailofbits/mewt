@@ -3,7 +3,7 @@ use crate::types::{Mutation, MutationSeverity};
 pub const DAML_MUTATIONS: &[Mutation] = &[
     Mutation {
         slug: "CPS",
-        description: "Controller Party Swap: replace a choice's controller with another Party parameter of the same template",
+        description: "Controller Party Swap: replace a choice's controller with another Party parameter (from template or choice scope)",
         severity: MutationSeverity::High,
     },
     Mutation {
