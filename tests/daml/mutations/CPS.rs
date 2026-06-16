@@ -1,19 +1,7 @@
 use std::collections::HashSet;
 
-use crate::daml::integration_tests::{create_test_target, mutants_for_slug};
-use mewt::LanguageEngine;
-use mewt::languages::daml::engine::DamlLanguageEngine;
+use crate::daml::integration_tests::mutants_for_slug;
 use mewt::types::Mutant;
-
-/// Convenience: run the engine, return only CPS mutants for the input.
-fn cps_mutants(source: &str) -> Vec<Mutant> {
-    let (_tmp, target) = create_test_target(source);
-    DamlLanguageEngine::new()
-        .mutate(&target)
-        .into_iter()
-        .filter(|m| m.mutation_slug == "CPS")
-        .collect()
-}
 
 fn new_texts(mutants: &[Mutant]) -> HashSet<&str> {
     mutants.iter().map(|m| m.new_text.as_str()).collect()
@@ -36,7 +24,7 @@ template Vault
       do
         return ()
 "#;
-    let m = cps_mutants(source);
+    let m = mutants_for_slug(source, "CPS");
     assert_eq!(m.len(), 1, "expected one CPS mutant, got {m:?}");
     assert_eq!(m[0].old_text, "owner");
     assert_eq!(m[0].new_text, "custodian");
@@ -60,7 +48,7 @@ template T
       do
         return ()
 "#;
-    let m = cps_mutants(source);
+    let m = mutants_for_slug(source, "CPS");
     assert_eq!(m.len(), 2, "expected 2 CPS mutants, got {m:?}");
     assert_eq!(new_texts(&m), HashSet::from(["b", "c"]));
 }
@@ -86,7 +74,7 @@ template T
       do
         return ()
 "#;
-    let m = cps_mutants(source);
+    let m = mutants_for_slug(source, "CPS");
     assert_eq!(m.len(), 2, "expected 2 CPS mutants, got {m:?}");
     let pairs: HashSet<(&str, &str)> = m
         .iter()
@@ -116,7 +104,7 @@ template T
       do
         return ()
 "#;
-    let m = cps_mutants(source);
+    let m = mutants_for_slug(source, "CPS");
     assert_eq!(m.len(), 4, "expected 4 CPS mutants, got {m:?}");
     let pairs: HashSet<(&str, &str)> = m
         .iter()
@@ -145,7 +133,7 @@ template T
       do
         return ()
 "#;
-    let m = cps_mutants(source);
+    let m = mutants_for_slug(source, "CPS");
     assert!(
         m.is_empty(),
         "single-Party template should produce no CPS mutants; got {m:?}"
@@ -154,9 +142,7 @@ template T
 
 #[test]
 fn cps_handles_whitespace_variations_in_separator() {
-    // Three controller sites with three different separator styles. CPS
-    // must find all three lists and produce equivalent mutants regardless
-    // of whitespace.
+    // Whitespace around the comma between parties must not affect the mutants.
     let source = r#"
 module M where
 
@@ -177,6 +163,31 @@ template T
       controller a ,   b
       do
         return ()
+"#;
+    let m = mutants_for_slug(source, "CPS");
+    // Each of the two controllers gets two position-aware swaps to `c`.
+    assert_eq!(
+        m.len(),
+        4,
+        "whitespace variations should not change the mutant count; got {m:?}"
+    );
+    let news = new_texts(&m);
+    assert_eq!(news, HashSet::from(["c"]));
+}
+
+#[test]
+fn cps_multi_line_layout_controller_produces_both_parties() {
+    // Party list broken across lines with a leading comma on the continuation.
+    let source = r#"
+module M where
+
+template T
+  with
+    a : Party
+    b : Party
+    c : Party
+  where
+    signatory a
 
     choice Wrapped : ()
       controller
@@ -185,15 +196,16 @@ template T
       do
         return ()
 "#;
-    let m = cps_mutants(source);
-    // Each of the three controllers gets two position-aware swaps to `c`.
+    let m = mutants_for_slug(source, "CPS");
     assert_eq!(
         m.len(),
-        6,
-        "whitespace variations should not change the mutant count; got {m:?}"
+        2,
+        "multi-line layout site should produce 2 mutants once the grammar accepts the continuation; got {m:?}"
     );
     let news = new_texts(&m);
     assert_eq!(news, HashSet::from(["c"]));
+    let olds: HashSet<&str> = m.iter().map(|mu| mu.old_text.as_str()).collect();
+    assert_eq!(olds, HashSet::from(["a", "b"]));
 }
 
 #[test]
@@ -227,7 +239,7 @@ template B
       do
         return ()
 "#;
-    let m = cps_mutants(source);
+    let m = mutants_for_slug(source, "CPS");
     assert_eq!(m.len(), 2, "expected 2 CPS mutants, got {m:?}");
     let pairs: HashSet<(&str, &str)> = m
         .iter()
@@ -238,11 +250,7 @@ template B
 
 #[test]
 fn cps_targets_choice_local_party_parameters_within_their_own_choice() {
-    // A choice's own `with`-block Party params are swap targets for that
-    // choice's controller, scoped to that choice only. Reassign declares a
-    // choice-local `actor`; Cancel does not. So Reassign's `primary` controller
-    // can swap to `actor` while Cancel's cannot, giving exactly one CPS mutant
-    // overall. If `actor` leaked into Cancel's scope it would appear twice.
+    // `actor` is declared on Reassign only; it must not leak into Cancel's scope.
     let source = r#"
 module M where
 
@@ -264,7 +272,7 @@ template Escrow
       do
         return ()
 "#;
-    let m = cps_mutants(source);
+    let m = mutants_for_slug(source, "CPS");
 
     assert!(
         m.iter()
@@ -293,44 +301,9 @@ template Escrow
 }
 
 #[test]
-fn cps_offers_choice_local_party_in_single_choice_template() {
-    // Focused positive case: a single choice whose controller is the
-    // template-level `owner`, plus a choice-local `delegate : Party`. The
-    // choice-local param is in scope at this controller, so CPS must offer
-    // swapping `owner` -> `delegate`.
-    let source = r#"
-module M where
-
-template T
-  with
-    owner : Party
-  where
-    signatory owner
-
-    choice Use : ()
-      with
-        delegate : Party
-      controller owner
-      do
-        return ()
-"#;
-    let m = cps_mutants(source);
-    assert!(
-        m.iter()
-            .any(|mu| mu.old_text == "owner" && mu.new_text == "delegate"),
-        "choice-local `delegate` must be a swap target for the controller \
-        `owner`; got {m:?}"
-    );
-}
-
-#[test]
 fn cps_collects_party_param_after_a_field_named_choice() {
-    // `choice` is a soft keyword: a template `with`-block field literally
-    // named `choice : Int` is legal DAML and must not prematurely end the
-    // with-block. Here `custodian : Party` appears *after* the `choice` field,
-    // so it is only collected as a template Party param if the engine
-    // recognises `choice :` as a field (not the choice keyword). The presence
-    // of the `custodian` swap target for `owner` proves that guard works.
+    // `choice` is a soft keyword; a field literally named `choice : Int` must
+    // not end the with-block, so `custodian` is still collected after it.
     let source = r#"
 module M where
 
@@ -346,7 +319,7 @@ template T
       controller owner
       do create this
 "#;
-    let m = cps_mutants(source);
+    let m = mutants_for_slug(source, "CPS");
     assert!(
         m.iter()
             .any(|mu| mu.old_text == "owner" && mu.new_text == "custodian"),
@@ -390,12 +363,8 @@ template Asset
 
 #[test]
 fn cps_ignores_function_typed_binding_whose_type_starts_with_party() {
-    // A binding `notify : Party -> ()` sits inside the template `with` window
-    // (before the first `choice`) alongside a genuine `owner : Party` field.
-    // Its type only STARTS with `Party`; the real type is a function. CPS must
-    // not treat `notify` as a Party param, so the only swap target for the
-    // `owner` controller is the real Party `custodian`. Emitting a
-    // `controller notify` mutant would not compile (`notify` is a function).
+    // `notify : Party -> ()` is function-typed despite starting with `Party`;
+    // it must not be a swap target.
     let source = r#"
 module M where
 
@@ -412,7 +381,7 @@ template T
       do
         return ()
 "#;
-    let m = cps_mutants(source);
+    let m = mutants_for_slug(source, "CPS");
     let news = new_texts(&m);
     assert!(
         !news.contains("notify"),
@@ -444,7 +413,7 @@ template T
       do
         return ()
 "#;
-    let m = cps_mutants(source);
+    let m = mutants_for_slug(source, "CPS");
     assert!(
         m.is_empty(),
         "parenthesised controller should produce no CPS mutants; got {m:?}"
@@ -452,10 +421,8 @@ template T
 }
 
 #[test]
-fn cps_aborts_when_controller_line_has_a_trailing_comment() {
-    // The line comment after the party adds `--` to the gap that
-    // follows the variable, which is structural punctuation; we abort
-    // the site rather than emit a mutant that might not compile.
+fn cps_mutates_through_a_trailing_line_comment() {
+    // The trailing `--` comment is a sibling node, not part of the controller.
     let source = r#"
 module M where
 
@@ -471,11 +438,15 @@ template T
       do
         return ()
 "#;
-    let m = cps_mutants(source);
-    assert!(
-        m.is_empty(),
-        "controller followed by inline comment should produce no CPS mutants; got {m:?}"
+    let m = mutants_for_slug(source, "CPS");
+    assert_eq!(
+        m.len(),
+        1,
+        "controller followed by an inline comment is unambiguous in the typed AST; \
+         CPS should produce exactly the `a -> b` mutant. got {m:?}"
     );
+    assert_eq!(m[0].old_text, "a");
+    assert_eq!(m[0].new_text, "b");
 }
 
 #[test]
@@ -499,7 +470,7 @@ template T
       do
         return ()
 "#;
-    let m = cps_mutants(source);
+    let m = mutants_for_slug(source, "CPS");
     assert_eq!(m.len(), 2, "expected 2 CPS mutants, got {m:?}");
     for mutant in &m {
         assert!(
@@ -513,4 +484,124 @@ template T
             mutant.old_text
         );
     }
+}
+
+#[test]
+fn cps_accepts_module_qualified_party_field() {
+    let source = r#"
+module M where
+
+template Vault
+  with
+    owner : M.Party
+    custodian : M.Party
+  where
+    signatory owner
+
+    choice Use : ()
+      controller owner
+      do
+        return ()
+"#;
+    let m = mutants_for_slug(source, "CPS");
+    assert_eq!(m.len(), 1, "expected one CPS mutant, got {m:?}");
+    assert_eq!(m[0].old_text, "owner");
+    assert_eq!(m[0].new_text, "custodian");
+}
+
+#[test]
+fn cps_accepts_mixed_unqualified_and_qualified_party_fields() {
+    let source = r#"
+module M where
+
+template Vault
+  with
+    owner : Party
+    custodian : M.Party
+  where
+    signatory owner
+
+    choice Use : ()
+      controller owner
+      do
+        return ()
+"#;
+    let m = mutants_for_slug(source, "CPS");
+    assert_eq!(m.len(), 1, "expected one CPS mutant, got {m:?}");
+    assert_eq!(m[0].old_text, "owner");
+    assert_eq!(m[0].new_text, "custodian");
+}
+
+#[test]
+fn cps_swaps_qualified_party_controller_to_qualified_party_candidate() {
+    let source = r#"
+module M where
+
+template Vault
+  with
+    owner : M.Party
+    custodian : M.Party
+  where
+    signatory owner
+
+    choice Use : ()
+      controller owner
+      do
+        return ()
+"#;
+    let m = mutants_for_slug(source, "CPS");
+    assert_eq!(m.len(), 1, "expected one CPS mutant, got {m:?}");
+    assert_eq!(m[0].old_text, "owner");
+    assert_eq!(m[0].new_text, "custodian");
+}
+
+#[test]
+fn cps_collects_qualified_party_candidate_when_party_appears_in_signatory_list() {
+    let source = r#"
+module M where
+
+template Vault
+  with
+    owner : M.Party
+    custodian : M.Party
+  where
+    signatory owner, custodian
+
+    choice Use : ()
+      controller owner
+      do
+        return ()
+"#;
+    let m = mutants_for_slug(source, "CPS");
+    assert_eq!(m.len(), 1, "expected one CPS mutant, got {m:?}");
+    assert_eq!(m[0].old_text, "owner");
+    assert_eq!(m[0].new_text, "custodian");
+}
+
+#[test]
+fn cps_targets_qualified_party_choice_local_parameter() {
+    let source = r#"
+module M where
+
+template Escrow
+  with
+    primary : Party
+  where
+    signatory primary
+
+    choice Reassign : ()
+      with
+        actor : M.Party
+      controller primary
+      do
+        return ()
+"#;
+    let m = mutants_for_slug(source, "CPS");
+    assert_eq!(
+        m.len(),
+        1,
+        "expected one CPS mutant (primary -> actor), got {m:?}"
+    );
+    assert_eq!(m[0].old_text, "primary");
+    assert_eq!(m[0].new_text, "actor");
 }

@@ -1,18 +1,7 @@
 use std::collections::HashSet;
 
-use crate::daml::integration_tests::create_test_target;
-use mewt::LanguageEngine;
-use mewt::languages::daml::engine::DamlLanguageEngine;
+use crate::daml::integration_tests::mutants_for_slug;
 use mewt::types::Mutant;
-
-fn cpr_mutants(source: &str) -> Vec<Mutant> {
-    let (_tmp, target) = create_test_target(source);
-    DamlLanguageEngine::new()
-        .mutate(&target)
-        .into_iter()
-        .filter(|m| m.mutation_slug == "CPR")
-        .collect()
-}
 
 /// Apply a mutant to the source it came from and return the resulting
 /// program text. Useful for asserting the post-state of a removal.
@@ -43,7 +32,7 @@ template T
       do
         return ()
 "#;
-    let m = cpr_mutants(source);
+    let m = mutants_for_slug(source, "CPR");
     assert_eq!(m.len(), 2, "expected 2 CPR mutants, got {m:?}");
 
     let results: HashSet<String> = m
@@ -84,7 +73,7 @@ template T
       do
         return ()
 "#;
-    let m = cpr_mutants(source);
+    let m = mutants_for_slug(source, "CPR");
     assert_eq!(m.len(), 3, "expected 3 CPR mutants, got {m:?}");
 
     let results: HashSet<String> = m
@@ -127,7 +116,7 @@ template T
       do
         return ()
 "#;
-    let m = cpr_mutants(source);
+    let m = mutants_for_slug(source, "CPR");
     assert!(
         m.is_empty(),
         "single-party controllers must not produce CPR mutants \
@@ -160,7 +149,7 @@ template T
       do
         return ()
 "#;
-    let m = cpr_mutants(source);
+    let m = mutants_for_slug(source, "CPR");
     assert_eq!(
         m.len(),
         2,
@@ -193,7 +182,7 @@ template T
       do
         return ()
 "#;
-    let m = cpr_mutants(source);
+    let m = mutants_for_slug(source, "CPR");
     assert_eq!(m.len(), 4, "expected 4 CPR mutants (2 per site), got {m:?}");
 
     let results: HashSet<String> = m
@@ -233,7 +222,7 @@ template T
       do
         return ()
 "#;
-    let m = cpr_mutants(source);
+    let m = mutants_for_slug(source, "CPR");
     for mu in &m {
         let line = apply(source, mu)
             .lines()
@@ -274,7 +263,7 @@ template T
       do
         return ()
 "#;
-    let m = cpr_mutants(source);
+    let m = mutants_for_slug(source, "CPR");
     assert!(
         m.is_empty(),
         "parenthesised controller is not a plain party list; got {m:?}"

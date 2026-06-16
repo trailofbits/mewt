@@ -8,9 +8,7 @@ fn cos_shuffles_comparison_operators() {
 f : Int -> Bool
 f x = x == 0
 "#;
-    // `==` is replaced by each other comparison operator. Note DAML spells
-    // inequality `/=`, not `!=`. We assert the exact new_text set rather than
-    // substrings, so a `<=` cannot satisfy a `<` expectation.
+    // DAML spells inequality `/=`, not `!=`.
     let cos = mutants_for_slug(source, "COS");
     assert_eq!(
         cos.len(),
@@ -28,5 +26,46 @@ f x = x == 0
             .into_iter()
             .collect::<HashSet<_>>(),
         "== should be replaced with every other comparison operator"
+    );
+}
+
+#[test]
+fn cos_shuffles_comparison_operators_inequality_side() {
+    let source = r#"module M where
+
+f : Int -> Bool
+f x = x /= 0
+"#;
+    let cos = mutants_for_slug(source, "COS");
+    assert_eq!(cos.len(), 5, "expected 5 COS mutants, got {cos:?}");
+    assert!(
+        cos.iter().all(|m| m.old_text == "/="),
+        "all COS mutants should replace /=: {cos:?}"
+    );
+    let new_ops: HashSet<&str> = cos.iter().map(|m| m.new_text.as_str()).collect();
+    assert_eq!(
+        new_ops,
+        ["==", "<", "<=", ">", ">="]
+            .into_iter()
+            .collect::<HashSet<_>>(),
+    );
+}
+
+#[test]
+fn cos_shuffles_comparison_operators_relational_side() {
+    let source = r#"module M where
+
+f : Int -> Bool
+f x = x < 0
+"#;
+    let cos = mutants_for_slug(source, "COS");
+    assert_eq!(cos.len(), 5, "expected 5 COS mutants, got {cos:?}");
+    assert!(cos.iter().all(|m| m.old_text == "<"));
+    let new_ops: HashSet<&str> = cos.iter().map(|m| m.new_text.as_str()).collect();
+    assert_eq!(
+        new_ops,
+        ["==", "/=", "<=", ">", ">="]
+            .into_iter()
+            .collect::<HashSet<_>>(),
     );
 }
