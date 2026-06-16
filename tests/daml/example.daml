@@ -9,6 +9,11 @@ module Example where
 withinLimit : Int -> Int -> Bool
 withinLimit amount limit = amount > 0 && amount <= limit * 2
 
+-- Bare boolean literal: BL flips True / False, so this gives the smoke
+-- test a fixture for the BL operator alongside the controller mutations.
+isOpen : Bool
+isOpen = True
+
 template Account
   with
     owner : Party

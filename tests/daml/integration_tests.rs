@@ -1,6 +1,5 @@
 use crate::conformance;
 use crate::utils;
-use mewt::LanguageEngine;
 use mewt::languages::daml::engine::DamlLanguageEngine;
 use mewt::types::{Mutant, Target};
 use tempfile::TempDir;
@@ -88,21 +87,12 @@ g y = y * 2
 }
 
 #[test]
-fn example_file_smoke_test() {
-    let source = include_str!("example.daml");
-    let (_tmp, target) = create_test_target(source);
-    let mutants = DamlLanguageEngine::new().mutate(&target);
-    assert!(
-        !mutants.is_empty(),
-        "the canonical example.daml should produce at least one mutant"
-    );
-}
-
-#[test]
-fn example_file_exercises_controller_mutations() {
-    // The canonical multi-party file has a `controller owner, custodian` list,
-    // so both CPS (swap a party) and CPR (drop a party) must fire on it. This
-    // guards against the ERROR-recovery parsing silently breaking CPS/CPR.
+fn example_file_exercises_in_scope_mutations() {
+    // Asserts the three DAML-specific mutations (CPS swap a party from
+    // `controller owner, custodian`, CPR drop a party from the same list,
+    // BL flip `isOpen = True`) fire on the canonical corpus; other operators
+    // are covered by `daml_common_conformance_checks` and
+    // `infix_shufflers_do_not_cross_contaminate`.
     let source = include_str!("example.daml");
     assert!(
         !mutants_for_slug(source, "CPS").is_empty(),
@@ -111,6 +101,10 @@ fn example_file_exercises_controller_mutations() {
     assert!(
         !mutants_for_slug(source, "CPR").is_empty(),
         "example.daml should produce at least one CPR mutant"
+    );
+    assert!(
+        !mutants_for_slug(source, "BL").is_empty(),
+        "example.daml should produce at least one BL mutant"
     );
 }
 
