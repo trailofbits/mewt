@@ -45,11 +45,17 @@ level = "info"                # trace, debug, info, warn, error
 # cmd = "cargo test"           # default test command
 # timeout = 30                 # seconds; defaults to 2x baseline runtime
 
-## Per-target test overrides (first matching glob wins)
-# [[test.per_target]]
-# glob = "src/auth/*.rs"
-# cmd = "cargo test --release -- --test-threads=1"
-# timeout = 120
+## Per-target overrides (first matching override for each section wins)
+# [[per_target]]
+# glob = "src/auth/login.rs"
+# test.cmd = "cargo test auth_login"
+# test.timeout = 60
+
+# [[per_target]]
+# glob = "sources/aptos/**/*.move"
+# test.cmd = "aptos move test"
+# languages.move.dialect = "aptos"
+# run.mutations = ["ER", "CR"]
 ```
 
 ## CLI flags
@@ -75,8 +81,9 @@ Move currently accepts configured dialects because `.move` files do not identify
 
 For `.move` targets, the Move resolver resolves dialect in this order:
 1. CLI `--dialect`
-2. Config `[languages.move].dialect`
-3. Default `sui`
+2. Top-level `[[per_target]]` `languages.move.dialect` for the target path
+3. Config `[languages.move].dialect`
+4. Default `sui`
 
 If no explicit dialect is selected, mewt defaults to `sui` and emits a warning when `.move` targets are processed.
 

@@ -9,8 +9,11 @@ use crate::SqlStore;
 use crate::core::cli::RunArgs;
 use crate::core::resolver::ResolutionDefaults;
 use crate::core::runner::TestRunner;
+use crate::core::utils::parse_csv;
 use crate::types::config::{ResolvedTargets, config, resolve_test_for_path};
 use crate::types::{AppResult, CampaignSummary, Target};
+
+type RunGroupKey = (String, Option<u32>, Option<Vec<String>>, bool);
 
 #[allow(clippy::too_many_arguments)]
 pub async fn execute_run(
@@ -19,12 +22,15 @@ pub async fn execute_run(
     running: Arc<AtomicBool>,
     registry: Arc<LanguageRegistry>,
     resolved_targets: Option<ResolvedTargets>,
-    mutations: Option<Vec<String>>,
+    _mutations: Option<Vec<String>>,
     test_cmd: Option<String>,
     test_timeout: Option<u32>,
     resolution_defaults: ResolutionDefaults,
+    cli_dialect_family: Option<String>,
 ) -> AppResult<Option<CampaignSummary>> {
-    let mutations_slice = mutations.as_deref();
+    let cli_mutations = parse_csv::<String>(args.mutations.as_deref());
+    let cli_mutations_slice = cli_mutations.as_deref();
+    let cli_dialect_family = cli_dialect_family.as_deref();
 
     let targets = if let Some(resolved) = resolved_targets {
         // Generate new mutants for the specified targets
@@ -32,12 +38,18 @@ pub async fn execute_run(
             &resolved,
             &store,
             &registry,
-            mutations_slice,
+            None,
             &resolution_defaults,
+            cli_dialect_family,
         )
         .await?;
         for target in targets.iter() {
-            let mutants_res = target.generate_mutants(&registry, mutations_slice);
+            let (target_mutations, _) = config().resolve_run_for_path(
+                &target.path,
+                cli_mutations_slice,
+                args.comprehensive,
+            );
+            let mutants_res = target.generate_mutants(&registry, target_mutations.as_deref());
             if let Ok(mutants) = mutants_res {
                 for mut mutant in mutants {
                     let new_id = store
@@ -72,20 +84,25 @@ pub async fn execute_run(
         targets
     };
 
-    // Group targets by resolved (test_cmd, timeout)
-    let mut groups: HashMap<(String, Option<u32>), Vec<Target>> = HashMap::new();
+    // Group targets by resolved (test_cmd, timeout, mutations, comprehensive)
+    let mut groups: HashMap<RunGroupKey, Vec<Target>> = HashMap::new();
     for target in targets.into_iter() {
         let (maybe_cmd, timeout) =
             resolve_test_for_path(&target.path, test_cmd.as_deref(), test_timeout);
+        let (target_mutations, comprehensive) =
+            config().resolve_run_for_path(&target.path, cli_mutations_slice, args.comprehensive);
         if let Some(cmd) = maybe_cmd {
-            groups.entry((cmd, timeout)).or_default().push(target);
+            groups
+                .entry((cmd, timeout, target_mutations, comprehensive))
+                .or_default()
+                .push(target);
         } else {
             warn!("No test command provided for target {}", target.display());
         }
     }
 
     // For each group, create a runner (baseline once per unique cmd) and run campaign
-    for ((cmd, timeout), group_targets) in groups.into_iter() {
+    for ((cmd, timeout, group_mutations, comprehensive), group_targets) in groups.into_iter() {
         // Targets are already sorted by path from load_targets()
         if !running.load(Ordering::SeqCst) {
             warn!("Mutation campaign cancelled before execution");
@@ -97,7 +114,7 @@ pub async fn execute_run(
             timeout.or(config().test().timeout()),
             Arc::clone(&running),
             store.clone(),
-            args.comprehensive,
+            comprehensive,
             args.verbose,
             Arc::clone(&registry),
         )
@@ -108,7 +125,7 @@ pub async fn execute_run(
         };
 
         runner
-            .run_mutation_campaign(group_targets, mutations_slice.map(|v| v.join(",")))
+            .run_mutation_campaign(group_targets, group_mutations.as_ref().map(|v| v.join(",")))
             .await?;
     }
 

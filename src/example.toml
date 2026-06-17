@@ -58,26 +58,28 @@ level = "info"
 # If omitted, defaults to 2x the baseline test runtime
 # timeout = 30
 
-# Per-target test rules (optional)
-# Ordered array where first matching glob wins
-# Each entry can override cmd and/or timeout for specific file patterns
-# More specific patterns should come BEFORE general patterns
-# Note: No CLI equivalent - use config file for complex per-target rules
+# Per-target rules (optional)
+# Ordered array where the first matching override for a section wins.
+# Use TOML dotted keys for compact one-file-to-one-test mappings.
+# More specific patterns should come BEFORE general patterns.
+# Note: No CLI equivalent - use config file for complex per-target rules.
 
-# Example 1: Critical files get extra scrutiny with slower, thorough tests
-# [[test.per_target]]
+# Example 1: One file maps to one specific test command
+# [[per_target]]
+# glob = "src/auth/login.rs"
+# test.cmd = "cargo test auth_login"
+# test.timeout = 60
+
+# Example 2: Critical files get extra scrutiny with slower, thorough tests
+# [[per_target]]
 # glob = "src/auth/*.rs"
-# cmd = "cargo test --release -- --test-threads=1"
-# timeout = 120
+# test.cmd = "cargo test --release -- --test-threads=1"
+# test.timeout = 120
+# run.comprehensive = true
 
-# Example 2: Standard Rust files use default fast tests
-# [[test.per_target]]
-# glob = "*.rs"
-# cmd = "cargo test"
-# timeout = 60
-
-# Example 3: Different language needs different test command
-# [[test.per_target]]
-# glob = "*.go"
-# cmd = "go test ./..."
-# timeout = 30
+# Example 3: Different language/dialect needs different test command
+# [[per_target]]
+# glob = "sources/aptos/**/*.move"
+# test.cmd = "aptos move test"
+# test.timeout = 30
+# languages.move.dialect = "aptos"

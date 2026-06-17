@@ -154,6 +154,7 @@ pub async fn run_main(
                 test_cmd,
                 test_timeout,
                 resolution_defaults,
+                cli_dialect_family.map(str::to_string),
             )
             .await?;
 
@@ -192,6 +193,7 @@ pub async fn run_main(
                 resolved_targets,
                 mutations,
                 resolution_defaults,
+                cli_dialect_family.map(str::to_string),
             )
             .await?;
             0

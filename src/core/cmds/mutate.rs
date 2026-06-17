@@ -5,7 +5,7 @@ use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::core::cli::MutateArgs;
 use crate::core::resolver::ResolutionDefaults;
-use crate::types::config::ResolvedTargets;
+use crate::types::config::{ResolvedTargets, config};
 use crate::types::{AppResult, MutationSeverity, Target};
 
 pub async fn execute_mutate(
@@ -13,23 +13,25 @@ pub async fn execute_mutate(
     store: SqlStore,
     registry: Arc<LanguageRegistry>,
     resolved_targets: ResolvedTargets,
-    mutations: Option<Vec<String>>,
+    _mutations: Option<Vec<String>>,
     resolution_defaults: ResolutionDefaults,
+    cli_dialect_family: Option<String>,
 ) -> AppResult<()> {
     info!(
         "Generating mutants for targets: {:?}",
         resolved_targets.include
     );
 
-    let mutations_slice = mutations.as_deref();
+    let cli_dialect_family = cli_dialect_family.as_deref();
 
     // Load targets from the resolved configuration
     let targets = Target::load_targets(
         &resolved_targets,
         &store,
         &registry,
-        mutations_slice,
+        None,
         &resolution_defaults,
+        cli_dialect_family,
     )
     .await?;
 
@@ -38,7 +40,8 @@ pub async fn execute_mutate(
 
     // Generate and save mutants for each target
     for target in targets.iter() {
-        let mutants_res = target.generate_mutants(&registry, mutations_slice);
+        let (target_mutations, _) = config().resolve_run_for_path(&target.path, None, false);
+        let mutants_res = target.generate_mutants(&registry, target_mutations.as_deref());
         if let Ok(mutants) = mutants_res {
             let mutant_count = mutants.len();
             total_mutants += mutant_count;
