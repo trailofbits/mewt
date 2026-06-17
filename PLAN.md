@@ -10,6 +10,25 @@ The new direction is:
 
 This keeps core language-agnostic, removes Move-specific config semantics from core, keeps JavaScript extension-driven, and gives us a clean place for dialect-specific mutation catalogs such as Sui-only or TSX-only mutations.
 
+## Status as of 2026-05-28
+
+Substantial implementation is complete:
+
+- The resolver trait now represents language families and returns concrete engines.
+- The registry now stores/routes by concrete engine canonical labels.
+- Move has concrete Sui, IOTA, and Aptos engines.
+- JavaScript has concrete JS, JSX, TS, and TSX engines.
+- Engines no longer infer dialects from `Target.language` in their mutation paths.
+- Effective mutation catalogs now live on concrete engines; Move filters unsupported inherited mutations at engine construction time.
+- Core config now uses generic `[languages.<family>].dialect` storage.
+- Move dialect parsing, aliases, defaults, grammar selection, and config validation live under `src/languages/move`.
+- JavaScript remains extension-driven and does not accept CLI/config dialect overrides.
+- CLI `--dialect` routing is generic through `LanguageRegistry::cli_dialect_family()`.
+- Core print/config/target plumbing has been generalized.
+- Store-side Move/JavaScript label normalization imports were removed; store filtering now uses registry expansion and includes the raw query to keep legacy stored labels filterable.
+
+The plan below retains the original design rationale, but the priority has shifted from architecture refactor to cleanup, documentation, and regression tests.
+
 The most important invariant is the one-to-one relationship:
 
 ```text
@@ -1358,13 +1377,14 @@ This grammar asymmetry is external and should not drive core design.
 
 ## Store and filtering notes
 
-Current store normalizes stored labels for Move and JavaScript manually.
+The store no longer imports Move or JavaScript dialect helpers to normalize labels on read.
 
-Desired:
+Current desired behavior:
 
-- stored labels are concrete engine canonical names
+- newly stored labels are concrete engine canonical names
 - exact stored labels should already be normalized
-- legacy labels can be normalized through registry/resolver compatibility paths
+- filtering uses registry/resolver expansion
+- raw filter queries are included alongside expanded labels so legacy rows such as `move` remain filterable without core knowing Move semantics
 
 Filtering should remain family-aware:
 
@@ -1439,13 +1459,13 @@ Do not retain warning source metadata after resolution. Log during resolution.
 
 Move:
 
-- `.move` + CLI `iota` -> `Move/iota`
-- `.move` + config `aptos` -> `Move/aptos`
-- `.move` + no dialect -> `Move/sui` and warning path exercised
-- `--language move/iota` -> IOTA engine
-- `--language move` + config `aptos` -> Aptos engine
-- `--language move/iota --dialect sui` errors
-- invalid dialect errors list `sui`, `iota`, `aptos`
+- [x] `.move` + CLI `iota` -> `Move/iota`
+- [x] `.move` + config `aptos` -> `Move/aptos`
+- [ ] `.move` + no dialect -> `Move/sui` and warning path exercised
+- [ ] `--language move/iota` -> IOTA engine
+- [x] `--language move` + config `iota` -> IOTA engine
+- [x] `--language move/iota --dialect sui` errors
+- [x] invalid dialect errors list `sui`, `iota`, `aptos`
 
 JavaScript:
 
@@ -1505,44 +1525,51 @@ JavaScript:
 
 ## Migration strategy
 
-### Phase 1: Generic config shape
+### Phase 1: Generic config shape — done
 
-- Introduce generic `[languages.<family>].dialect` storage.
-- Move Move dialect enum/settings into `src/languages/move`.
-- Keep TOML compatibility.
-- Update docs minimally.
+- [x] Introduce generic `[languages.<family>].dialect` storage.
+- [x] Move Move dialect enum/settings into `src/languages/move`.
+- [x] Keep TOML compatibility for `[languages.move].dialect`.
+- [x] Update user docs to describe generic family config and Move-owned dialect policy.
 
-### Phase 2: Concrete dialect engines
+### Phase 2: Concrete dialect engines — done
 
-- Refactor Move into three concrete engines sharing implementation.
-- Refactor JavaScript into four concrete engines sharing implementation.
-- Give each concrete engine fixed construction-time dialect config, parser/syntax, canonical name, and effective mutation catalog.
-- Remove dialect lookup from `mutate()` implementations.
-- Strengthen `canonical_name()` usage.
+- [x] Refactor Move into three concrete engines sharing implementation.
+- [x] Refactor JavaScript into four concrete engines sharing implementation.
+- [x] Give each concrete engine fixed construction-time dialect config, parser/syntax, canonical name, and effective mutation catalog.
+- [x] Remove dialect lookup from `mutate()` implementations.
+- [x] Strengthen `canonical_name()` usage and trait docs.
 
-### Phase 3: Resolver trait refactor
+### Phase 3: Resolver trait refactor — done
 
-- Introduce new trait shape.
-- Update family resolvers so they select concrete engines directly.
-- Update registry routing.
-- Update target loading to store `engine.canonical_name()`.
-- Remove old split resolver methods.
-- Remove resolver-to-label-to-family-engine routing.
+- [x] Introduce new trait shape with `family()`, `engines()`, `accepts_cli_dialect()`, `resolve(...)`, and `filter_labels(...)`.
+- [x] Update family resolvers so they select concrete engines directly.
+- [x] Update registry routing.
+- [x] Update target loading to store `engine.canonical_name()`.
+- [x] Remove old split resolver methods.
+- [x] Remove resolver-to-label-to-family-engine routing.
 
-Order note: Phase 2 and 3 may be easier to do together because resolver return type changes to engine references. The key acceptance criterion is that dialect resolution ends in the resolver, not in the engine.
+### Phase 4: Mutation catalog tiers — mostly done
 
-### Phase 4: Mutation catalog tiers
+- [x] Build effective per-dialect Move catalogs at engine construction time.
+- [x] Remove dialect filtering from Move `mutate()`.
+- [x] Make `print mutations` rely on `engine.get_mutations()`.
+- [ ] Add shared catalog-builder helpers if more dialect-specific mutation tiers appear.
+- [ ] Add future TSX-/JSX-specific catalog tests when JavaScript gains dialect-specific mutations.
 
-- Add helper/builder for mutation catalogs.
-- Move disabled inherited mutations into catalog construction.
-- Remove dialect filtering from Move `mutate()` and `print mutations`.
+### Phase 5: Cleanup, docs, and tests — current priority
 
-### Phase 5: Cleanup and tests
-
-- Remove Move imports from core print/store/target/config paths.
-- Remove `ResolutionDefaults` if obsolete.
-- Add resolver/engine/store/CLI tests.
-- Run `just pre-commit`.
+- [x] Remove Move imports from core print/store/target/config implementation paths.
+- [x] Genericize CLI/help/error text where possible.
+- [x] Keep legacy stored labels filterable through generic registry expansion plus raw query matching.
+- [x] Move remaining Move-specific config/default tests out of core where they are testing Move policy rather than generic config mechanics.
+- [x] Update `docs/configuration.md` for generic language config and Move resolver-owned dialect validation.
+- [x] Update `docs/language-resolution-contract.md` from the old Phase 1 normalized-selection model to the concrete-engine resolver model.
+- [x] Update `docs/move-unification-baseline.md` to describe the current concrete Move engines.
+- [x] Add focused resolver tests for Move, JavaScript, and simple languages.
+- [x] Add CLI/registry error regression tests for unsupported/ambiguous `--dialect` use.
+- [ ] Revisit whether `ResolutionDefaults` should be renamed or simplified after docs/tests settle.
+- [ ] Run `just pre-commit` after each batch.
 
 ## Open design questions
 

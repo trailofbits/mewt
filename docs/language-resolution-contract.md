@@ -1,74 +1,120 @@
-# Language/Dialect Resolution Contract (Phase 1)
+# Language/Dialect Resolution Contract
 
 [Back to README](../README.md)
 
 ## Scope
 
-This contract defines how mewt resolves an effective language selection for a target path, including dialect-aware languages like Move.
+This contract defines how mewt resolves a target path, explicit language label, optional dialect override, and config defaults into one concrete language engine.
+
+Core owns routing. Language modules own dialect semantics.
+
+## Key terms
+
+- **Family**: a resolver-owned language family key, such as `move`, `javascript`, or `rust`.
+- **Concrete engine**: the exact engine selected for mutation. Dialect-aware families expose one engine per dialect.
+- **Canonical label**: `LanguageEngine::canonical_name()`. This is the storage, logging, and filtering currency. Examples: `Rust`, `Move/sui`, `JavaScript/tsx`.
+- **Dialect**: a language-owned variant string. Core may carry this string through config/CLI plumbing, but only the language resolver interprets it.
 
 ## Resolver inputs
 
-Required inputs:
-- Target path (or extension candidate set)
-- Explicit language override (optional)
-- Explicit dialect override (optional)
-- Loaded config defaults
-- Registry language metadata (canonical keys, supported extensions, dialect support)
+A `ResolutionRequest` contains:
 
-## Normalized selection type
+- target path
+- explicit language label, if supplied
+- explicit dialect string, if supplied
+- optional `ResolutionDefaults` from config/CLI merging
 
-Resolver output should be one normalized value used everywhere:
+Core does not parse family-specific dialect values such as `sui`, `iota`, `aptos`, `jsx`, or `tsx`.
 
-- `language_key`: canonical base language key (example: `Move`)
-- `dialect`: optional dialect (example: `sui`, `iota`, `aptos`; `None` for non-dialect languages)
-- `canonical_label`: storage/log label (examples: `Rust`, `Move/sui`, `Move/iota`, `Move/aptos`)
-- `source`: where resolution came from (CLI, config, extension/fallback)
-- `defaulted`: whether fallback/default behavior was used
+## Resolver output
+
+`LanguageResolver::resolve(...)` returns one concrete `&dyn LanguageEngine` or an error.
+
+The returned engine must already represent the selected dialect. After resolution, callers should use `engine.canonical_name()` as the target language label. Engines must not infer dialects from `Target.language` during mutation.
+
+## Required resolver behavior
+
+A resolver must provide:
+
+- `family()`: stable config/diagnostic key
+- `engines()`: all concrete engines owned by the family
+- `accepts_cli_dialect()`: whether global `--dialect` may be routed to this resolver
+- `resolve(...)`: target/label/default resolution to a concrete engine
+- `filter_labels(...)`: expansion/canonicalization for filter contexts
+
+Filtering is separate from target resolution. A selector such as `move` may expand to all concrete Move labels for database filtering, while target resolution may choose one concrete default dialect.
 
 ## Precedence policy
 
-Resolution precedence (highest to lowest):
-1. Explicit CLI language override
-2. Explicit CLI dialect override
-3. Config language default
-4. Config dialect default
-5. Extension-derived candidate(s)
-6. Deterministic fallback rule for unresolved ambiguity
+Generic core precedence:
 
-Move-specific policy (current behavior baseline):
-- Dialect precedence: `--dialect` > `[languages.move].dialect` > default `sui`
-- if omitted, dialect defaults to `sui` and is marked `defaulted=true`
+1. Explicit CLI language label
+2. Explicit CLI dialect, routed only to a resolver that accepts CLI dialects
+3. Generic config defaults under `[languages.<family>]`
+4. Extension-derived resolver selection
+5. Resolver-owned deterministic fallback, if any
 
-## Ambiguity policy
+Language-specific interpretation happens inside the resolver.
 
-- If an extension maps to one language, select it directly.
-- If an extension maps to multiple languages, resolver must either:
-  - disambiguate with explicit override/config, or
-  - apply deterministic fallback and mark `defaulted=true`, or
-  - fail with a clear actionable error if no safe fallback exists.
-- Canonical labels must be stable and deterministic for persistence and filtering.
+Move currently resolves `.move` dialects as:
 
-## Current call-site inventory to migrate
+1. `--dialect`
+2. `[languages.move].dialect`
+3. default `sui`
 
-1. `src/core/main_shared.rs`
-   - Resolves Move dialect per command before dispatch (`config().resolve_move_dialect(...)`).
-2. `src/core/types/target.rs`
-   - `resolve_language_for_path(...)` special-cases `.move` and uses `language_name_for_dialect(...)`.
-3. `src/core/registry.rs`
-   - `get_engine(...)` resolves through registered language resolvers and canonical labels.
-   - `language_from_path(...)` resolves through the registry resolution contract.
-4. `src/core/cmds/run.rs`
-   - Move-specific post-resolution warnings and checks via `is_move_language_name(...)`.
-5. `src/core/cmds/mutate.rs`
-   - Same Move-specific checks/warnings as run.
-6. `src/core/cmds/print/mutations.rs`
-   - Uses registry resolution for canonical language labels and filters dialect-specific mutation listings.
-7. `src/core/store.rs`
-   - Read/filter normalization helpers (`normalize_stored_target_language`, `language_filter_variants`) carry alias logic.
-8. `src/languages/move/dialect.rs`
-   - Canonicalization utilities currently consumed from multiple layers.
+JavaScript does not accept CLI/config dialect selection. The `.js`, `.jsx`, `.ts`, and `.tsx` extensions, or explicit labels such as `javascript/tsx`, select concrete JavaScript engines.
 
-## Migration target for Phase 2+
+## CLI dialect routing
 
-- Move all normalization and ambiguity decisions into a resolver API owned by registry/resolver layer.
-- Make commands/store/target loading consume the normalized selection instead of re-implementing alias/dialect logic.
+The global `--dialect` flag is generic plumbing, not a universal feature.
+
+- If no registered resolver accepts CLI dialects, core rejects `--dialect`.
+- If exactly one resolver accepts CLI dialects, core routes the CLI dialect into that resolver family’s defaults.
+- If multiple resolvers accept CLI dialects, core rejects the request as ambiguous unless the call site provides a family-specific language label.
+
+Today, Move accepts CLI dialects; JavaScript does not.
+
+## Canonical labels and persistence
+
+New targets should be stored using resolver-produced canonical labels, such as:
+
+- `Rust`
+- `Move/sui`
+- `Move/iota`
+- `Move/aptos`
+- `JavaScript/js`
+- `JavaScript/jsx`
+- `JavaScript/ts`
+- `JavaScript/tsx`
+
+The store does not own language-specific normalization. Filtering uses registry/resolver expansion and includes the raw query so legacy labels remain matchable where possible.
+
+## Compatibility expectations
+
+Move compatibility:
+
+- `move` remains a family selector.
+- `move/sui`, `move/iota`, and `move/aptos` remain concrete selectors.
+- Historical stored `move` rows can still be matched by raw filter query inclusion.
+
+JavaScript compatibility:
+
+- `javascript` and `js` filter selectors expand to all concrete JavaScript labels.
+- Explicit concrete selectors such as `javascript/ts` filter to one label.
+- Project-wide JavaScript dialect config is intentionally unsupported.
+
+## Core boundaries
+
+Core may:
+
+- carry generic dialect strings through `ResolutionDefaults`
+- decide which resolver receives a CLI dialect
+- store `engine.canonical_name()`
+- ask the registry for filter label expansion
+
+Core must not:
+
+- validate Move dialect names
+- infer JavaScript dialects beyond asking the JavaScript resolver
+- normalize stored labels with language-specific helper imports
+- choose parser/syntax/mutation catalogs for a dialect-aware language
