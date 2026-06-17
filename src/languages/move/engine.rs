@@ -11,7 +11,6 @@ use super::mutations::MOVE_MUTATIONS;
 use super::syntax::{MoveSyntax, syntax_for_dialect};
 
 pub struct MoveDialectEngine {
-    dialect: MoveDialect,
     language: Language,
     config: MoveDialectConfig,
     syntax: MoveSyntax,
@@ -35,7 +34,6 @@ impl MoveDialectEngine {
         );
 
         Self {
-            dialect,
             language: language_name_for_dialect(dialect)
                 .parse()
                 .expect("hardcoded language identifier should be valid"),
@@ -46,7 +44,7 @@ impl MoveDialectEngine {
     }
 
     pub fn dialect(&self) -> MoveDialect {
-        self.dialect
+        self.config.dialect
     }
 }
 

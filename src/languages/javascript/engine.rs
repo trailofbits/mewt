@@ -11,7 +11,6 @@ use super::mutations::JAVASCRIPT_MUTATIONS;
 use super::syntax::{fields, nodes};
 
 pub struct JavaScriptDialectEngine {
-    dialect: JavaScriptDialect,
     language: Language,
     config: JavaScriptDialectConfig,
     mutations: Vec<Mutation>,
@@ -24,7 +23,6 @@ impl JavaScriptDialectEngine {
         mutations.extend_from_slice(JAVASCRIPT_MUTATIONS);
 
         Self {
-            dialect,
             language: language_name_for_dialect(dialect)
                 .parse()
                 .expect("hardcoded language identifier should be valid"),
@@ -34,7 +32,7 @@ impl JavaScriptDialectEngine {
     }
 
     pub fn dialect(&self) -> JavaScriptDialect {
-        self.dialect
+        self.config.dialect
     }
 }
 
