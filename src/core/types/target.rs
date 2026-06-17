@@ -17,9 +17,9 @@ pub struct Target {
     pub id: i64,
     pub path: PathBuf,
     pub file_hash: Hash,
+    pub language: String,
     #[serde(skip)]
     pub text: String,
-    pub language: String,
 }
 
 impl Target {

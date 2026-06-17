@@ -158,12 +158,12 @@ impl Config {
     /// Resolve target configuration with CLI overrides (complete replacement)
     pub fn resolve_targets(
         &self,
-        cli_targets: &[String],
+        cli_include: &[String],
         cli_ignore: Option<&str>,
     ) -> std::io::Result<ResolvedTargets> {
         // CLI completely replaces config
-        let include = if !cli_targets.is_empty() {
-            cli_targets.to_vec()
+        let include = if !cli_include.is_empty() {
+            cli_include.to_vec()
         } else if let Some(config_include) = self.targets().and_then(|t| t.include.as_ref()) {
             config_include.clone()
         } else {
@@ -246,8 +246,8 @@ impl Config {
         Self {
             db: Some(self.db().to_string()),
             log: Some(self.log().to_effective()),
-            test: Some(self.test().to_effective()),
             targets: self.targets.clone(),
+            test: Some(self.test().to_effective()),
             run: self.run.clone(),
             languages: self.languages.clone(),
         }

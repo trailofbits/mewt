@@ -124,7 +124,7 @@ pub async fn execute(
         return Ok(());
     }
 
-    // Legacy path: no filters, use old logic with target filtering or config
+    // Simple path: no filters, use target filtering or config
     let filtered_targets = Target::filter_by_path_or_config(&store, filters.target.clone()).await?;
 
     if filtered_targets.is_empty() {
