@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::core::cli::StatusArgs;
-use crate::types::{AppResult, MutationSeverity};
+use crate::types::{AppResult, Language, MutationSeverity};
 
 #[derive(Debug, Serialize)]
 struct TargetStats {
@@ -112,11 +112,8 @@ async fn generate_status_report(
         let stats = store.get_target_stats(target.id).await?;
 
         // Compute severity-based catch rates from slug-based stats
-        let (high_rate, medium_rate, low_rate) = compute_severity_catch_rates(
-            &stats.severity_stats,
-            registry,
-            &target.language.to_string(),
-        );
+        let (high_rate, medium_rate, low_rate) =
+            compute_severity_catch_rates(&stats.severity_stats, registry, &target.language);
 
         campaign_totals.total_mutants += stats.total_mutants;
         campaign_totals.tested += stats.tested;
@@ -148,7 +145,7 @@ async fn generate_status_report(
     let all_languages = registry.all_languages();
     let mut all_engines = Vec::new();
     for lang in &all_languages {
-        if let Some(engine) = registry.get_engine(lang) {
+        if let Some(engine) = registry.get_engine_for_language(lang) {
             all_engines.push(engine);
         }
     }
@@ -203,7 +200,7 @@ async fn generate_status_report(
 fn compute_severity_catch_rates(
     slug_stats: &HashMap<String, (usize, usize)>,
     registry: &LanguageRegistry,
-    language: &str,
+    language: &Language,
 ) -> (Option<f64>, Option<f64>, Option<f64>) {
     // Aggregate slug-level stats into severity-level stats
     let mut severity_stats: HashMap<MutationSeverity, (usize, usize)> = HashMap::new();

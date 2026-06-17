@@ -330,17 +330,15 @@ impl TestRunner {
             }
         };
 
-        let language = target.language.to_string();
-
         // Sort mutants by severity (High, Medium, Low)
         mutants.sort_by(|a, b| {
             let a_sev = self
                 .registry
-                .get_severity(&language, &a.mutation_slug)
+                .get_severity(&target.language, &a.mutation_slug)
                 .to_numeric();
             let b_sev = self
                 .registry
-                .get_severity(&language, &b.mutation_slug)
+                .get_severity(&target.language, &b.mutation_slug)
                 .to_numeric();
             a_sev.cmp(&b_sev)
         });
@@ -424,7 +422,7 @@ impl TestRunner {
             if !self.comprehensive {
                 let severity = self
                     .registry
-                    .get_severity(&language, &mutant.mutation_slug)
+                    .get_severity(&target.language, &mutant.mutation_slug)
                     .to_numeric();
                 let (line_start, line_end) = mutant.get_lines();
 
@@ -490,7 +488,7 @@ impl TestRunner {
                         // For invalid slugs, we'll warn the user but only once per slug
                         if self
                             .registry
-                            .get_mutation(&language, &mutant.mutation_slug)
+                            .get_mutation(&target.language, &mutant.mutation_slug)
                             .is_none()
                         {
                             warn!("Unknown mutation slug: {}", mutant.mutation_slug);
@@ -566,10 +564,9 @@ impl TestRunner {
         // If this was uncaught and it's a high or medium severity mutant,
         // track the affected lines so we can skip lower severity mutants on those lines
         if status == Status::Uncaught {
-            let language = target.language.to_string();
             let severity = self
                 .registry
-                .get_severity(&language, &mutant.mutation_slug)
+                .get_severity(&target.language, &mutant.mutation_slug)
                 .to_numeric();
             // Only track High (0) and Medium (1) severity uncaught mutants
             if severity == 0 || severity == 1 {

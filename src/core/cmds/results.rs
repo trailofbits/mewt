@@ -324,9 +324,7 @@ async fn get_results_data(
     // Apply severity filter if provided (application-layer filtering)
     if let Some(severities) = parse_csv::<MutationSeverity>(filters.severity.as_deref()) {
         results.retain(|(mutant, target, _outcome)| {
-            if let Some(mutation) =
-                registry.get_mutation(&target.language.to_string(), &mutant.mutation_slug)
-            {
+            if let Some(mutation) = registry.get_mutation(&target.language, &mutant.mutation_slug) {
                 severities.contains(&mutation.severity)
             } else {
                 false // Filter out unknown mutations
@@ -430,7 +428,7 @@ async fn print_table_format(
 
             // Get severity using registry
             let severity = if let Some(mutation) =
-                registry.get_mutation(&target.language.to_string(), &mutant.mutation_slug)
+                registry.get_mutation(&target.language, &mutant.mutation_slug)
             {
                 mutation.severity.clone()
             } else {

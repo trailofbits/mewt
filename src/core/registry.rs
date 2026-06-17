@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::LanguageEngine;
+use crate::types::Language;
 
 use super::resolver::{LanguageResolver, ResolutionRequest};
 
@@ -24,12 +25,7 @@ impl LanguageRegistry {
         self.resolvers
             .iter()
             .flat_map(|resolver| resolver.engines())
-            .find(|engine| {
-                engine
-                    .language()
-                    .to_string()
-                    .eq_ignore_ascii_case(language_name)
-            })
+            .find(|engine| engine.language().eq_ignore_ascii_case(language_name))
             .or_else(|| {
                 let request = ResolutionRequest {
                     path: Path::new("__virtual__.txt"),
@@ -39,6 +35,13 @@ impl LanguageRegistry {
                 };
                 self.resolve_engine(request).ok()
             })
+    }
+
+    pub fn get_engine_for_language(&self, language: &Language) -> Option<&dyn LanguageEngine> {
+        self.resolvers
+            .iter()
+            .flat_map(|resolver| resolver.engines())
+            .find(|engine| engine.language() == language)
     }
 
     pub fn language_from_path(&self, path: &Path) -> Option<&dyn LanguageEngine> {
@@ -94,9 +97,9 @@ impl LanguageRegistry {
     pub fn resolve_canonical_language(
         &self,
         request: ResolutionRequest<'_>,
-    ) -> Result<String, String> {
+    ) -> Result<Language, String> {
         self.resolve_engine(request)
-            .map(|engine| engine.language().to_string())
+            .map(|engine| engine.language().clone())
     }
 
     pub fn canonicalize_label(&self, raw: &str) -> Option<String> {
@@ -135,7 +138,7 @@ impl LanguageRegistry {
         raw_language: &str,
         explicit_dialect: Option<&str>,
         defaults: Option<&super::resolver::ResolutionDefaults>,
-    ) -> Result<String, String> {
+    ) -> Result<Language, String> {
         self.resolve_canonical_language(ResolutionRequest {
             path: Path::new("__virtual__.txt"),
             explicit_language: Some(raw_language),
@@ -154,21 +157,21 @@ impl LanguageRegistry {
         vec![query.to_string()]
     }
 
-    pub fn all_languages(&self) -> Vec<String> {
+    pub fn all_languages(&self) -> Vec<Language> {
         self.resolvers
             .iter()
             .flat_map(|resolver| resolver.engines())
-            .map(|engine| engine.language().to_string())
+            .map(|engine| engine.language().clone())
             .collect()
     }
 
-    pub fn get_mutation(&self, language_name: &str, slug: &str) -> Option<&crate::types::Mutation> {
-        let engine = self.get_engine(language_name)?;
+    pub fn get_mutation(&self, language: &Language, slug: &str) -> Option<&crate::types::Mutation> {
+        let engine = self.get_engine_for_language(language)?;
         engine.get_mutations().iter().find(|m| m.slug == slug)
     }
 
-    pub fn get_severity(&self, language_name: &str, slug: &str) -> crate::types::MutationSeverity {
-        self.get_mutation(language_name, slug)
+    pub fn get_severity(&self, language: &Language, slug: &str) -> crate::types::MutationSeverity {
+        self.get_mutation(language, slug)
             .map(|m| m.severity.clone())
             .unwrap_or(crate::types::MutationSeverity::Low)
     }

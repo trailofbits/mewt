@@ -31,6 +31,17 @@ impl Language {
         self.dialect.as_deref()
     }
 
+    pub fn eq_ignore_ascii_case(&self, other: &str) -> bool {
+        match (self.dialect(), other.split_once('/')) {
+            (Some(dialect), Some((family, other_dialect))) => {
+                self.family().eq_ignore_ascii_case(family)
+                    && dialect.eq_ignore_ascii_case(other_dialect)
+            }
+            (None, None) => self.family().eq_ignore_ascii_case(other),
+            _ => false,
+        }
+    }
+
     fn validate_part(label: &str, part: &str) -> Result<(), String> {
         if part.is_empty() {
             return Err(format!("{label} cannot be empty"));

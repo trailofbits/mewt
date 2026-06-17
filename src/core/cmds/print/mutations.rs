@@ -6,7 +6,7 @@ use crate::LanguageRegistry;
 use crate::core::cmds::print::MutationsFilters;
 use crate::core::resolver::ResolutionDefaults;
 use crate::types::config::config;
-use crate::types::{Mutation, MutationSeverity};
+use crate::types::{Language, Mutation, MutationSeverity};
 
 #[derive(Serialize)]
 struct JsonMutations {
@@ -60,14 +60,14 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
         let mut all_mutations = Vec::new();
         match &language {
             Some(lang_str) => {
-                let (engine_name, _display_name) = resolve_language_for_print(
+                let (engine_language, _display_name) = resolve_language_for_print(
                     registry,
                     lang_str,
                     filters.dialect.as_deref(),
                     resolution_defaults.as_ref(),
                 )?;
                 let mutation_engine = registry
-                    .get_engine(&engine_name)
+                    .get_engine_for_language(&engine_language)
                     .ok_or_else(|| format!("No engine found for language: {}", lang_str))?;
                 all_mutations.extend(mutation_engine.get_mutations().iter().map(|m| Mutation {
                     slug: m.slug,
@@ -76,10 +76,10 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
                 }));
             }
             None => {
-                for lang_name in registry.all_languages() {
+                for language in registry.all_languages() {
                     let mutation_engine = registry
-                        .get_engine(&lang_name)
-                        .ok_or_else(|| format!("No engine found for language: {}", lang_name))?;
+                        .get_engine_for_language(&language)
+                        .ok_or_else(|| format!("No engine found for language: {}", language))?;
                     all_mutations.extend(mutation_engine.get_mutations().iter().map(|m| {
                         Mutation {
                             slug: m.slug,
@@ -109,16 +109,9 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
                 print_mutations_for_language(&engine_name, &display_name, registry)?;
             }
             None => {
-                for lang_name in registry.all_languages() {
-                    let display_name = resolve_language_for_print(
-                        registry,
-                        &lang_name,
-                        filters.dialect.as_deref(),
-                        resolution_defaults.as_ref(),
-                    )
-                    .map(|(_, display)| display)
-                    .unwrap_or_else(|_| lang_name.to_string());
-                    print_mutations_for_language(&lang_name, &display_name, registry)?;
+                for language in registry.all_languages() {
+                    let display_name = language.to_string();
+                    print_mutations_for_language(&language, &display_name, registry)?;
                 }
             }
         };
@@ -132,10 +125,11 @@ fn resolve_language_for_print(
     raw_language: &str,
     explicit_dialect: Option<&str>,
     defaults: Option<&ResolutionDefaults>,
-) -> Result<(String, String), String> {
+) -> Result<(Language, String), String> {
     let canonical =
         registry.resolve_canonical_for_language_label(raw_language, explicit_dialect, defaults)?;
-    Ok((canonical.clone(), canonical))
+    let display_name = canonical.to_string();
+    Ok((canonical, display_name))
 }
 
 fn language_label_includes_dialect(raw_language: &str) -> bool {
@@ -143,13 +137,13 @@ fn language_label_includes_dialect(raw_language: &str) -> bool {
 }
 
 fn print_mutations_for_language(
-    engine_lookup_name: &str,
+    engine_language: &Language,
     display_name: &str,
     registry: &LanguageRegistry,
 ) -> Result<(), String> {
     let mutation_engine = registry
-        .get_engine(engine_lookup_name)
-        .ok_or_else(|| format!("No engine found for language: {}", engine_lookup_name))?;
+        .get_engine_for_language(engine_language)
+        .ok_or_else(|| format!("No engine found for language: {}", engine_language))?;
     let mutations = mutation_engine.get_mutations();
 
     // Group mutations by slug

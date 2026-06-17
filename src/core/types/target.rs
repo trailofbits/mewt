@@ -345,7 +345,7 @@ impl Target {
         let mut mutants: Vec<Mutant> = Vec::new();
 
         // Get mutations for this language
-        let engine = match registry.get_engine(&self.language.to_string()) {
+        let engine = match registry.get_engine_for_language(&self.language) {
             Some(engine) => engine,
             None => return Err(format!("No engine found for language: {}", self.language)),
         };
@@ -399,7 +399,6 @@ fn resolve_language_for_path(
             defaults: Some(resolution_defaults),
         })
         .ok()
-        .and_then(|language| language.parse().ok())
 }
 
 fn log_language_dialect_defaults(resolution_defaults: &ResolutionDefaults, context: &str) {

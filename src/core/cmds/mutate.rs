@@ -50,8 +50,7 @@ pub async fn execute_mutate(
 
             for mutant in mutants {
                 // Count by severity for summary (regardless of whether it's new)
-                let severity =
-                    registry.get_severity(&target.language.to_string(), &mutant.mutation_slug);
+                let severity = registry.get_severity(&target.language, &mutant.mutation_slug);
                 match severity {
                     MutationSeverity::High => high_count += 1,
                     MutationSeverity::Medium => medium_count += 1,
