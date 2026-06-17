@@ -87,7 +87,7 @@ async fn gather_all_target_rows(
                 on_disk,
                 included,
                 hash: target.file_hash.to_hex()[..8].to_string(),
-                path: target.display(),
+                path: target.display_path(),
                 mutants: Some(mutant_count),
             },
         );

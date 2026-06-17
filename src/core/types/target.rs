@@ -23,8 +23,14 @@ pub struct Target {
 }
 
 impl Target {
-    /// Returns a cwd-relative path string suitable for logging
+    /// Returns a cwd-relative path plus resolved language label suitable for logging.
     pub fn display(&self) -> String {
+        let path = self.display_path();
+        format!("{} ({})", path, self.language)
+    }
+
+    /// Returns a cwd-relative path string.
+    pub fn display_path(&self) -> String {
         // Try to make the path relative to the current working directory for concise logs
         if let Ok(cwd) = std::env::current_dir() {
             // Ensure we compare absolute paths
@@ -151,8 +157,6 @@ impl Target {
         // traversal of directories, but we sort again to ensure consistent ordering
         // regardless of filesystem traversal order
         all_targets.sort_by(|a, b| a.path.cmp(&b.path));
-
-        log_language_dialect_defaults(resolution_defaults, "loaded targets");
 
         Ok(all_targets)
     }
@@ -415,22 +419,6 @@ fn resolve_language_for_path(
         .ok()
 }
 
-fn log_language_dialect_defaults(resolution_defaults: &ResolutionDefaults, context: &str) {
-    for (family, dialect_default) in &resolution_defaults.default_dialects {
-        if dialect_default.defaulted {
-            info!(
-                "Using default {} dialect '{}' for {}",
-                family, dialect_default.dialect, context
-            );
-        } else {
-            info!(
-                "Using configured {} dialect '{}' for {}",
-                family, dialect_default.dialect, context
-            );
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -450,7 +438,6 @@ mod tests {
             "move".to_string(),
             DialectDefault {
                 dialect: dialect.to_string(),
-                defaulted: false,
             },
         );
         defaults

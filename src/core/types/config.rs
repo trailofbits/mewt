@@ -265,7 +265,6 @@ impl Config {
                         family.to_ascii_lowercase(),
                         DialectDefault {
                             dialect: dialect.to_string(),
-                            defaulted: false,
                         },
                     );
                 }
@@ -277,7 +276,6 @@ impl Config {
                 family.to_ascii_lowercase(),
                 DialectDefault {
                     dialect: dialect.to_string(),
-                    defaulted: false,
                 },
             );
         }
@@ -311,7 +309,6 @@ impl Config {
                         family.to_ascii_lowercase(),
                         DialectDefault {
                             dialect: dialect.to_string(),
-                            defaulted: false,
                         },
                     );
                 }
@@ -664,7 +661,6 @@ mod tests {
 
         let language_default = resolved.default_dialects.get("example").unwrap();
         assert_eq!(language_default.dialect, "cli");
-        assert!(!language_default.defaulted);
     }
 
     #[test]
@@ -676,7 +672,6 @@ mod tests {
 
         let language_default = resolved.default_dialects.get("example").unwrap();
         assert_eq!(language_default.dialect, "configured");
-        assert!(!language_default.defaulted);
     }
 
     #[test]

@@ -6,9 +6,7 @@
 - looks like we can rm config_for_target_path from js dialect?
 - revisit `pub fn` deltas between js & move dialect mods, they should prob mirror each other more closely
 - should engine_for_dialect be on the LanguageResolver trait? What about other stuff on MoveLanguageResolver or JavascriptLanguageResolver? Or are those just internal impl details & nbd?
-- rm lang name from stuff exported by dialect mods, eg s/is_<lang>_language_name/is_language_name/ , i think scoping will let us do this & keep things unambiguous
 - why no accepts_cli_dialect on js resolver?
-- rm `dialect_default.defaulted` and just always log the lang/dialect as part of pretty target printing
 
 
 ## Languages

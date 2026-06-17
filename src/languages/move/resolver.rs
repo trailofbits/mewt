@@ -194,7 +194,6 @@ mod tests {
             "move".to_string(),
             DialectDefault {
                 dialect: dialect.to_string(),
-                defaulted: false,
             },
         );
         defaults

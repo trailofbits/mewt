@@ -12,7 +12,6 @@ pub struct ResolutionDefaults {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DialectDefault {
     pub dialect: String,
-    pub defaulted: bool,
 }
 
 pub struct ResolutionRequest<'a> {
