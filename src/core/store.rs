@@ -658,7 +658,7 @@ impl SqlStore {
 
         // Add language filter
         if let Some(lang) = language {
-            let language_variants = registry.filter_labels(&lang);
+            let language_variants = language_filter_variants(registry, &lang);
             add_separator(&mut query_builder, &mut has_where);
             if let Some(single_variant) = (language_variants.len() == 1)
                 .then(|| language_variants.first())
@@ -852,6 +852,17 @@ impl SqlStore {
     }
 }
 
+fn language_filter_variants(registry: &LanguageRegistry, raw: &str) -> Vec<String> {
+    let mut variants = registry.filter_labels(raw);
+    if !variants
+        .iter()
+        .any(|variant| variant.eq_ignore_ascii_case(raw))
+    {
+        variants.push(raw.to_string());
+    }
+    variants
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -860,6 +871,18 @@ mod tests {
 
     use super::*;
     use crate::LanguageRegistry;
+
+    #[test]
+    fn language_filter_variants_include_raw_query_for_legacy_rows() {
+        let mut registry = LanguageRegistry::new();
+        registry.register_resolver(crate::languages::r#move::resolver::MoveLanguageResolver::new());
+
+        let variants = language_filter_variants(&registry, "move");
+        assert!(variants.contains(&"Move/sui".to_string()));
+        assert!(variants.contains(&"Move/iota".to_string()));
+        assert!(variants.contains(&"Move/aptos".to_string()));
+        assert!(variants.contains(&"move".to_string()));
+    }
 
     #[tokio::test]
     async fn canonical_move_targets_are_filterable_by_move_and_dialect() {
