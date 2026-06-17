@@ -71,7 +71,7 @@ impl LanguageResolver for JavaScriptLanguageResolver {
             .path
             .extension()
             .and_then(|ext| ext.to_str())
-            .and_then(JavaScriptDialect::from_extension)?;
+            .and_then(JavaScriptDialect::from_key)?;
         Some(Ok(self.engine_for_dialect(dialect)))
     }
 
@@ -95,7 +95,7 @@ impl LanguageResolver for JavaScriptLanguageResolver {
             .map(|(_, d)| d)
             .unwrap_or_default();
 
-        if let Some(dialect) = JavaScriptDialect::from_extension(dialect) {
+        if let Some(dialect) = JavaScriptDialect::from_key(dialect) {
             return Some(vec![language_name_for_dialect(dialect)]);
         }
 

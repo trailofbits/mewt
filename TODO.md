@@ -3,9 +3,6 @@
 
 - do we not need per-dialect syntax for js? It'd mirror move more closely if we did
 - config_for_dialect is inconsistent between JS & Move
-- looks like we can rm config_for_target_path from js dialect?
-- revisit `pub fn` deltas between js & move dialect mods, they should prob mirror each other more closely
-- should engine_for_dialect be on the LanguageResolver trait? What about other stuff on MoveLanguageResolver or JavascriptLanguageResolver? Or are those just internal impl details & nbd?
 - why no accepts_cli_dialect on js resolver?
 
 

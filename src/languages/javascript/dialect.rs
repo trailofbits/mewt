@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::sync::OnceLock;
 
 use tree_sitter::Language as TsLanguage;
@@ -23,14 +22,11 @@ impl JavaScriptDialect {
         }
     }
 
-    pub fn from_extension(extension: &str) -> Option<Self> {
-        match extension.to_ascii_lowercase().as_str() {
-            "js" => Some(Self::JavaScript),
-            "jsx" => Some(Self::Jsx),
-            "ts" => Some(Self::TypeScript),
-            "tsx" => Some(Self::Tsx),
-            _ => None,
-        }
+    pub fn from_key(raw: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|dialect| dialect.as_str().eq_ignore_ascii_case(raw.trim()))
     }
 }
 
@@ -70,25 +66,11 @@ pub fn dialect_from_language_name(raw: &str) -> Option<JavaScriptDialect> {
         (family == "javascript" || family == "js").then_some(dialect)
     })?;
 
-    JavaScriptDialect::from_extension(dialect)
+    JavaScriptDialect::from_key(dialect)
 }
 
 pub fn config_for_dialect(dialect: JavaScriptDialect) -> JavaScriptDialectConfig {
     JavaScriptDialectConfig { dialect }
-}
-
-pub fn config_for_target_path(path: &Path) -> JavaScriptDialectConfig {
-    let dialect = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .and_then(JavaScriptDialect::from_extension)
-        .unwrap_or(JavaScriptDialect::JavaScript);
-
-    config_for_dialect(dialect)
-}
-
-pub fn config_for_language_name(language_name: &str) -> Option<JavaScriptDialectConfig> {
-    dialect_from_language_name(language_name).map(config_for_dialect)
 }
 
 static JS_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();

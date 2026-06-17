@@ -52,11 +52,6 @@ impl MoveDialectConfig {
     }
 }
 
-pub fn config_for_target_language(language_name: &str) -> MoveDialectConfig {
-    let dialect = dialect_from_language_name(language_name).unwrap_or(MoveDialect::Sui);
-    config_for_dialect(dialect)
-}
-
 pub fn config_for_dialect(dialect: MoveDialect) -> MoveDialectConfig {
     match dialect {
         MoveDialect::Sui => MoveDialectConfig {
