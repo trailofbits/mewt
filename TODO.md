@@ -1,9 +1,6 @@
 
 ## Related to addition of Dialects
 
-- add one custom mutation per dialect for js/jsx/ts/tsx as a demo
-  - ditto for Move & each of it's dialects
-- js resolver L88: we have a dialect enum in a neighboring file, do we really need this vec of strings?
 - do we not need per-dialect syntax for js? It'd mirror move more closely if we did
 - config_for_dialect is inconsistent between JS & Move
 - looks like we can rm config_for_target_path from js dialect?

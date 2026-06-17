@@ -1,8 +1,7 @@
 use crate::LanguageEngine;
 use crate::core::resolver::{LanguageResolver, ResolutionRequest};
 use crate::languages::javascript::dialect::{
-    JavaScriptDialect, dialect_from_language_name, is_javascript_language_name,
-    language_name_for_dialect,
+    JavaScriptDialect, dialect_from_language_name, is_language_name, language_name_for_dialect,
 };
 
 use super::engine::JavaScriptDialectEngine;
@@ -54,10 +53,7 @@ impl LanguageResolver for JavaScriptLanguageResolver {
         request: &ResolutionRequest<'_>,
     ) -> Option<Result<&'a dyn LanguageEngine, String>> {
         if request.explicit_dialect.is_some() {
-            if request
-                .explicit_language
-                .is_some_and(is_javascript_language_name)
-            {
+            if request.explicit_language.is_some_and(is_language_name) {
                 return Some(Err(
                     "javascript does not support --dialect; use .js/.jsx/.ts/.tsx extensions or an explicit javascript/<dialect> label"
                         .to_string(),
@@ -81,7 +77,7 @@ impl LanguageResolver for JavaScriptLanguageResolver {
 
     fn filter_labels(&self, query: &str) -> Option<Vec<String>> {
         let normalized = query.trim().to_ascii_lowercase();
-        if !is_javascript_language_name(&normalized) {
+        if !is_language_name(&normalized) {
             return None;
         }
 

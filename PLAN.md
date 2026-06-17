@@ -207,7 +207,7 @@ Today Move has one engine catalog and dialect-specific filtering. This creates s
 
 ```rust
 fn mutation_is_available_for_label(language_label: &str, slug: &str) -> bool {
-    if is_move_language_name(language_label) {
+    if is_language_name(language_label) {
         return config_for_target_language(language_label).supports_mutation_slug(slug);
     }
 
@@ -1106,7 +1106,7 @@ After refactor:
 
 - Pass config or raw config dialect access to registry resolution.
 - Store `engine.canonical_name().to_string()` in `Target.language`.
-- Avoid Move-specific imports such as `is_move_language_name` in core target loading.
+- Avoid Move-specific imports such as `dialect::is_language_name` in core target loading.
 
 ### `src/core/cmds/run.rs` / `mutate.rs` / `main_shared.rs`
 
@@ -1122,7 +1122,7 @@ Goal: remove Move-specific filtering.
 Current bad pattern:
 
 ```rust
-use crate::languages::r#move::dialect::{config_for_target_language, is_move_language_name};
+use crate::languages::r#move::dialect::{config_for_target_language, is_language_name};
 ```
 
 After per-dialect engines:

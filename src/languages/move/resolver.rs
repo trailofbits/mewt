@@ -2,7 +2,7 @@ use crate::LanguageEngine;
 use crate::core::resolver::{LanguageResolver, ResolutionRequest};
 
 use crate::languages::r#move::dialect::{
-    MoveDialect, dialect_from_language_name, is_move_language_name, language_name_for_dialect,
+    MoveDialect, dialect_from_language_name, is_language_name, language_name_for_dialect,
 };
 
 use super::engine::MoveDialectEngine;
@@ -107,7 +107,7 @@ impl LanguageResolver for MoveLanguageResolver {
         request: &ResolutionRequest<'_>,
     ) -> Option<Result<&'a dyn LanguageEngine, String>> {
         if let Some(explicit_language) = request.explicit_language {
-            if !is_move_language_name(explicit_language) {
+            if !is_language_name(explicit_language) {
                 return None;
             }
             return Some(
@@ -140,7 +140,7 @@ impl LanguageResolver for MoveLanguageResolver {
 
     fn filter_labels(&self, query: &str) -> Option<Vec<String>> {
         let normalized = query.trim().to_ascii_lowercase();
-        if !is_move_language_name(&normalized) {
+        if !is_language_name(&normalized) {
             return None;
         }
 

@@ -80,7 +80,7 @@ pub fn config_for_dialect(dialect: MoveDialect) -> MoveDialectConfig {
     }
 }
 
-pub fn is_move_language_name(language_name: &str) -> bool {
+pub fn is_language_name(language_name: &str) -> bool {
     dialect_from_language_name(language_name).is_some()
 }
 
