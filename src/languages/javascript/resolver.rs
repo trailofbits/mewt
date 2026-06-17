@@ -110,3 +110,103 @@ impl LanguageResolver for JavaScriptLanguageResolver {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use crate::core::resolver::ResolutionRequest;
+
+    use super::*;
+
+    fn request<'a>(
+        path: &'a Path,
+        explicit_language: Option<&'a str>,
+        explicit_dialect: Option<&'a str>,
+    ) -> ResolutionRequest<'a> {
+        ResolutionRequest {
+            path,
+            explicit_language,
+            explicit_dialect,
+            defaults: None,
+        }
+    }
+
+    #[test]
+    fn javascript_extensions_select_concrete_dialect_engines() {
+        let resolver = JavaScriptLanguageResolver::new();
+        let cases = [
+            ("sample.js", "JavaScript/js"),
+            ("sample.jsx", "JavaScript/jsx"),
+            ("sample.ts", "JavaScript/ts"),
+            ("sample.tsx", "JavaScript/tsx"),
+        ];
+
+        for (path, expected) in cases {
+            let engine = resolver
+                .resolve(&request(Path::new(path), None, None))
+                .unwrap_or_else(|| panic!("JavaScript resolver should claim {path}"))
+                .expect("extension should resolve");
+            assert_eq!(engine.canonical_name(), expected);
+        }
+    }
+
+    #[test]
+    fn javascript_explicit_labels_select_concrete_dialect_engines() {
+        let resolver = JavaScriptLanguageResolver::new();
+        let cases = [
+            ("javascript/js", "JavaScript/js"),
+            ("javascript/jsx", "JavaScript/jsx"),
+            ("javascript/ts", "JavaScript/ts"),
+            ("javascript/tsx", "JavaScript/tsx"),
+        ];
+
+        for (label, expected) in cases {
+            let engine = resolver
+                .resolve(&request(Path::new("__virtual__.txt"), Some(label), None))
+                .unwrap_or_else(|| panic!("JavaScript resolver should claim {label}"))
+                .expect("label should resolve");
+            assert_eq!(engine.canonical_name(), expected);
+        }
+    }
+
+    #[test]
+    fn javascript_rejects_cli_dialect_for_javascript_labels() {
+        let resolver = JavaScriptLanguageResolver::new();
+        let result = resolver
+            .resolve(&request(
+                Path::new("__virtual__.txt"),
+                Some("javascript/ts"),
+                Some("tsx"),
+            ))
+            .expect("JavaScript resolver should claim JavaScript label");
+        let error = match result {
+            Ok(engine) => panic!(
+                "expected JavaScript --dialect rejection, got {}",
+                engine.canonical_name()
+            ),
+            Err(error) => error,
+        };
+
+        assert!(error.contains("JavaScript does not support --dialect"));
+    }
+
+    #[test]
+    fn javascript_filter_labels_expand_family_and_concrete_selectors() {
+        let resolver = JavaScriptLanguageResolver::new();
+
+        assert_eq!(
+            resolver.filter_labels("javascript").unwrap(),
+            vec![
+                "JavaScript/js".to_string(),
+                "JavaScript/jsx".to_string(),
+                "JavaScript/ts".to_string(),
+                "JavaScript/tsx".to_string(),
+            ]
+        );
+        assert_eq!(
+            resolver.filter_labels("javascript/tsx").unwrap(),
+            vec!["JavaScript/tsx".to_string()]
+        );
+    }
+}

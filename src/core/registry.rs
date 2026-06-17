@@ -181,7 +181,35 @@ impl Default for LanguageRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::resolver::LanguageResolver;
     use crate::languages;
+
+    struct FakeCliDialectResolver;
+
+    impl LanguageResolver for FakeCliDialectResolver {
+        fn family(&self) -> &'static str {
+            "fake"
+        }
+
+        fn engines(&self) -> Vec<&dyn LanguageEngine> {
+            Vec::new()
+        }
+
+        fn accepts_cli_dialect(&self) -> bool {
+            true
+        }
+
+        fn resolve<'a>(
+            &'a self,
+            _request: &crate::core::resolver::ResolutionRequest<'_>,
+        ) -> Option<Result<&'a dyn LanguageEngine, String>> {
+            None
+        }
+
+        fn filter_labels(&self, _query: &str) -> Option<Vec<String>> {
+            None
+        }
+    }
 
     #[test]
     fn cli_dialect_flag_is_move_only_even_when_other_languages_have_dialects() {
@@ -201,5 +229,25 @@ mod tests {
         assert!(!registry.language_supports_cli_dialect_flag("javascript"));
         assert!(!registry.language_supports_cli_dialect_flag("javascript/ts"));
         assert!(!registry.language_supports_cli_dialect_flag("js"));
+    }
+
+    #[test]
+    fn cli_dialect_family_reports_none_one_or_ambiguous() {
+        let empty = LanguageRegistry::new();
+        assert_eq!(empty.cli_dialect_family().unwrap(), None);
+
+        let mut move_only = LanguageRegistry::new();
+        move_only.register_resolver(languages::r#move::resolver::MoveLanguageResolver::new());
+        assert_eq!(move_only.cli_dialect_family().unwrap(), Some("move"));
+
+        let mut ambiguous = LanguageRegistry::new();
+        ambiguous.register_resolver(languages::r#move::resolver::MoveLanguageResolver::new());
+        ambiguous.register_resolver(FakeCliDialectResolver);
+        let error = ambiguous
+            .cli_dialect_family()
+            .expect_err("multiple CLI dialect families should be ambiguous");
+        assert!(error.contains("--dialect is ambiguous"));
+        assert!(error.contains("move"));
+        assert!(error.contains("fake"));
     }
 }

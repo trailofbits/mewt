@@ -164,3 +164,134 @@ impl LanguageResolver for MoveLanguageResolver {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use crate::core::resolver::{DialectDefault, ResolutionDefaults, ResolutionRequest};
+
+    use super::*;
+
+    fn request<'a>(
+        path: &'a Path,
+        explicit_language: Option<&'a str>,
+        explicit_dialect: Option<&'a str>,
+        defaults: Option<&'a ResolutionDefaults>,
+    ) -> ResolutionRequest<'a> {
+        ResolutionRequest {
+            path,
+            explicit_language,
+            explicit_dialect,
+            defaults,
+        }
+    }
+
+    fn defaults_for_move(dialect: &str) -> ResolutionDefaults {
+        let mut defaults = ResolutionDefaults::default();
+        defaults.default_dialects.insert(
+            "move".to_string(),
+            DialectDefault {
+                dialect: dialect.to_string(),
+                defaulted: false,
+            },
+        );
+        defaults
+    }
+
+    #[test]
+    fn move_extension_uses_configured_dialect_default() {
+        let resolver = MoveLanguageResolver::new();
+        let defaults = defaults_for_move("aptos");
+        let engine = resolver
+            .resolve(&request(
+                Path::new("module.move"),
+                None,
+                None,
+                Some(&defaults),
+            ))
+            .expect("move resolver should claim .move")
+            .expect("valid configured dialect");
+
+        assert_eq!(engine.canonical_name(), "Move/aptos");
+    }
+
+    #[test]
+    fn cli_dialect_overrides_configured_move_default() {
+        let resolver = MoveLanguageResolver::new();
+        let defaults = defaults_for_move("aptos");
+        let engine = resolver
+            .resolve(&request(
+                Path::new("module.move"),
+                None,
+                Some("iota"),
+                Some(&defaults),
+            ))
+            .expect("move resolver should claim CLI dialect")
+            .expect("valid CLI dialect");
+
+        assert_eq!(engine.canonical_name(), "Move/iota");
+    }
+
+    #[test]
+    fn bare_move_language_uses_configured_dialect_default() {
+        let resolver = MoveLanguageResolver::new();
+        let defaults = defaults_for_move("iota");
+        let engine = resolver
+            .resolve(&request(
+                Path::new("__virtual__.txt"),
+                Some("move"),
+                None,
+                Some(&defaults),
+            ))
+            .expect("move resolver should claim bare move label")
+            .expect("valid configured dialect");
+
+        assert_eq!(engine.canonical_name(), "Move/iota");
+    }
+
+    #[test]
+    fn invalid_configured_move_dialect_errors_in_move_resolver() {
+        let resolver = MoveLanguageResolver::new();
+        let defaults = defaults_for_move("unknown");
+        let result = resolver
+            .resolve(&request(
+                Path::new("module.move"),
+                None,
+                None,
+                Some(&defaults),
+            ))
+            .expect("move resolver should claim .move");
+        let error = match result {
+            Ok(engine) => panic!(
+                "expected invalid configured dialect to fail, got {}",
+                engine.canonical_name()
+            ),
+            Err(error) => error,
+        };
+
+        assert!(error.contains("Invalid Move dialect 'unknown'"));
+    }
+
+    #[test]
+    fn concrete_move_label_conflicts_with_cli_dialect() {
+        let resolver = MoveLanguageResolver::new();
+        let result = resolver
+            .resolve(&request(
+                Path::new("__virtual__.txt"),
+                Some("move/iota"),
+                Some("sui"),
+                None,
+            ))
+            .expect("move resolver should claim concrete move label");
+        let error = match result {
+            Ok(engine) => panic!(
+                "expected concrete label plus CLI dialect to fail, got {}",
+                engine.canonical_name()
+            ),
+            Err(error) => error,
+        };
+
+        assert!(error.contains("Use either --language move/<dialect>"));
+    }
+}

@@ -62,3 +62,63 @@ impl LanguageResolver for RustLanguageResolver {
         Self::is_language_name(query).then(|| vec![self.engine.canonical_name().to_string()])
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use crate::core::resolver::ResolutionRequest;
+
+    use super::*;
+
+    fn request<'a>(
+        path: &'a Path,
+        explicit_language: Option<&'a str>,
+        explicit_dialect: Option<&'a str>,
+    ) -> ResolutionRequest<'a> {
+        ResolutionRequest {
+            path,
+            explicit_language,
+            explicit_dialect,
+            defaults: None,
+        }
+    }
+
+    #[test]
+    fn rust_extension_and_label_resolve_to_single_engine() {
+        let resolver = RustLanguageResolver::new();
+
+        let by_extension = resolver
+            .resolve(&request(Path::new("src/lib.rs"), None, None))
+            .expect("rust resolver should claim .rs")
+            .expect(".rs should resolve");
+        assert_eq!(by_extension.canonical_name(), "Rust");
+
+        let by_label = resolver
+            .resolve(&request(Path::new("__virtual__.txt"), Some("rust"), None))
+            .expect("rust resolver should claim rust label")
+            .expect("rust label should resolve");
+        assert_eq!(by_label.canonical_name(), "Rust");
+    }
+
+    #[test]
+    fn rust_rejects_explicit_dialect() {
+        let resolver = RustLanguageResolver::new();
+        let result = resolver
+            .resolve(&request(
+                Path::new("__virtual__.txt"),
+                Some("rust"),
+                Some("nightly"),
+            ))
+            .expect("rust resolver should claim rust label");
+        let error = match result {
+            Ok(engine) => panic!(
+                "expected Rust dialect rejection, got {}",
+                engine.canonical_name()
+            ),
+            Err(error) => error,
+        };
+
+        assert_eq!(error, "Dialect selection is not supported for Rust");
+    }
+}

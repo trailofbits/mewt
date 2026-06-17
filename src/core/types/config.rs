@@ -552,26 +552,26 @@ mod tests {
 
     #[test]
     fn resolve_language_defaults_prefers_cli_over_config_for_cli_family() {
-        let cfg = config_with_language_dialect("move", "iota");
+        let cfg = config_with_language_dialect("example", "configured");
         let resolved = cfg
-            .resolve_language_defaults(Some("move"), Some("sui"))
+            .resolve_language_defaults(Some("example"), Some("cli"))
             .expect("valid dialect defaults");
 
-        let move_default = resolved.default_dialects.get("move").unwrap();
-        assert_eq!(move_default.dialect, "sui");
-        assert!(!move_default.defaulted);
+        let language_default = resolved.default_dialects.get("example").unwrap();
+        assert_eq!(language_default.dialect, "cli");
+        assert!(!language_default.defaulted);
     }
 
     #[test]
     fn resolve_language_defaults_uses_generic_language_config() {
-        let cfg = config_with_language_dialect("move", "iota");
+        let cfg = config_with_language_dialect("example", "configured");
         let resolved = cfg
             .resolve_language_defaults(None, None)
             .expect("valid dialect defaults");
 
-        let move_default = resolved.default_dialects.get("move").unwrap();
-        assert_eq!(move_default.dialect, "iota");
-        assert!(!move_default.defaulted);
+        let language_default = resolved.default_dialects.get("example").unwrap();
+        assert_eq!(language_default.dialect, "configured");
+        assert!(!language_default.defaulted);
     }
 
     #[test]
@@ -587,6 +587,9 @@ mod tests {
     #[test]
     fn resolve_language_defaults_rejects_cli_dialect_without_accepting_family() {
         let cfg = Config::default();
-        assert!(cfg.resolve_language_defaults(None, Some("iota")).is_err());
+        assert!(
+            cfg.resolve_language_defaults(None, Some("dialect"))
+                .is_err()
+        );
     }
 }
