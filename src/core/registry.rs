@@ -21,23 +21,7 @@ impl LanguageRegistry {
         self.resolvers.push(Box::new(resolver));
     }
 
-    pub fn get_engine(&self, language_name: &str) -> Option<&dyn LanguageEngine> {
-        self.resolvers
-            .iter()
-            .flat_map(|resolver| resolver.engines())
-            .find(|engine| engine.language().eq_ignore_ascii_case(language_name))
-            .or_else(|| {
-                let request = ResolutionRequest {
-                    path: Path::new("__virtual__.txt"),
-                    explicit_language: Some(language_name),
-                    explicit_dialect: None,
-                    defaults: None,
-                };
-                self.resolve_engine(request).ok()
-            })
-    }
-
-    pub fn get_engine_for_language(&self, language: &Language) -> Option<&dyn LanguageEngine> {
+    pub fn get_engine(&self, language: &Language) -> Option<&dyn LanguageEngine> {
         self.resolvers
             .iter()
             .flat_map(|resolver| resolver.engines())
@@ -166,7 +150,7 @@ impl LanguageRegistry {
     }
 
     pub fn get_mutation(&self, language: &Language, slug: &str) -> Option<&crate::types::Mutation> {
-        let engine = self.get_engine_for_language(language)?;
+        let engine = self.get_engine(language)?;
         engine.get_mutations().iter().find(|m| m.slug == slug)
     }
 

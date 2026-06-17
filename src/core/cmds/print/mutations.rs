@@ -67,7 +67,7 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
                     resolution_defaults.as_ref(),
                 )?;
                 let mutation_engine = registry
-                    .get_engine_for_language(&engine_language)
+                    .get_engine(&engine_language)
                     .ok_or_else(|| format!("No engine found for language: {}", lang_str))?;
                 all_mutations.extend(mutation_engine.get_mutations().iter().map(|m| Mutation {
                     slug: m.slug,
@@ -78,7 +78,7 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
             None => {
                 for language in registry.all_languages() {
                     let mutation_engine = registry
-                        .get_engine_for_language(&language)
+                        .get_engine(&language)
                         .ok_or_else(|| format!("No engine found for language: {}", language))?;
                     all_mutations.extend(mutation_engine.get_mutations().iter().map(|m| {
                         Mutation {
@@ -142,7 +142,7 @@ fn print_mutations_for_language(
     registry: &LanguageRegistry,
 ) -> Result<(), String> {
     let mutation_engine = registry
-        .get_engine_for_language(engine_language)
+        .get_engine(engine_language)
         .ok_or_else(|| format!("No engine found for language: {}", engine_language))?;
     let mutations = mutation_engine.get_mutations();
 

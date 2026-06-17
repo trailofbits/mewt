@@ -345,7 +345,7 @@ impl Target {
         let mut mutants: Vec<Mutant> = Vec::new();
 
         // Get mutations for this language
-        let engine = match registry.get_engine_for_language(&self.language) {
+        let engine = match registry.get_engine(&self.language) {
             Some(engine) => engine,
             None => return Err(format!("No engine found for language: {}", self.language)),
         };

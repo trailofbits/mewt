@@ -145,7 +145,7 @@ async fn generate_status_report(
     let all_languages = registry.all_languages();
     let mut all_engines = Vec::new();
     for lang in &all_languages {
-        if let Some(engine) = registry.get_engine_for_language(lang) {
+        if let Some(engine) = registry.get_engine(lang) {
             all_engines.push(engine);
         }
     }
