@@ -1,6 +1,5 @@
 
 ## Related to addition of Dialects
-- [done] swap config `test.per_target` -> top-level `[[per_target]]` with dotted `test.*`, `run.*`, and `languages.*` overrides; legacy `[[test.per_target]]` still parses for compatibility.
 
 - is resolver.family() supposed to return a static str instead of an enum variant? How's it used? Or maybe a custom wrapped string type? Ditto for some str values in dialect config
 - add one custom mutation per dialect for js/jsx/ts/tsx as a demo

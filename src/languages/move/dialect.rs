@@ -10,12 +10,21 @@ pub enum MoveDialect {
 }
 
 impl MoveDialect {
+    pub const ALL: [Self; 3] = [Self::Sui, Self::Iota, Self::Aptos];
+
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Sui => "sui",
             Self::Iota => "iota",
             Self::Aptos => "aptos",
         }
+    }
+
+    pub fn from_key(raw: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|dialect| dialect.as_str().eq_ignore_ascii_case(raw.trim()))
     }
 }
 
@@ -81,12 +90,12 @@ pub fn language_name_for_dialect(dialect: MoveDialect) -> String {
 
 pub fn dialect_from_language_name(language_name: &str) -> Option<MoveDialect> {
     let normalized = language_name.trim().to_ascii_lowercase();
-    match normalized.as_str() {
-        "move" | "move/sui" => Some(MoveDialect::Sui),
-        "move/iota" => Some(MoveDialect::Iota),
-        "move/aptos" => Some(MoveDialect::Aptos),
-        _ => None,
+    if normalized == "move" {
+        return Some(MoveDialect::Sui);
     }
+
+    let dialect = normalized.strip_prefix("move/")?;
+    MoveDialect::from_key(dialect)
 }
 
 static SUI_MOVE_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();

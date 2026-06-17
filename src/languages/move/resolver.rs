@@ -31,8 +31,13 @@ impl MoveLanguageResolver {
     }
 
     fn dialect_from_raw(raw: &str) -> Result<MoveDialect, String> {
-        dialect_from_language_name(&format!("move/{raw}")).ok_or_else(|| {
-            format!("Invalid Move dialect '{raw}'. Expected one of: sui, iota, aptos")
+        MoveDialect::from_key(raw).ok_or_else(|| {
+            let expected = MoveDialect::ALL
+                .iter()
+                .map(MoveDialect::as_str)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("Invalid Move dialect '{raw}'. Expected one of: {expected}")
         })
     }
 
@@ -139,13 +144,11 @@ impl LanguageResolver for MoveLanguageResolver {
             return None;
         }
 
-        let move_dialects = ["sui", "iota", "aptos"];
-
         if normalized == "move" {
             return Some(
-                move_dialects
+                MoveDialect::ALL
                     .iter()
-                    .map(|dialect| format!("Move/{dialect}"))
+                    .map(|dialect| language_name_for_dialect(*dialect))
                     .collect(),
             );
         }
@@ -155,10 +158,8 @@ impl LanguageResolver for MoveLanguageResolver {
             .map(|(_, d)| d)
             .unwrap_or_default();
 
-        if move_dialects.contains(&dialect) {
-            return Some(vec![language_name_for_dialect(dialect_from_language_name(
-                &format!("move/{dialect}"),
-            )?)]);
+        if let Some(dialect) = MoveDialect::from_key(dialect) {
+            return Some(vec![language_name_for_dialect(dialect)]);
         }
 
         None

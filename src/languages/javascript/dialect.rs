@@ -12,6 +12,8 @@ pub enum JavaScriptDialect {
 }
 
 impl JavaScriptDialect {
+    pub const ALL: [Self; 4] = [Self::JavaScript, Self::Jsx, Self::TypeScript, Self::Tsx];
+
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::JavaScript => "js",

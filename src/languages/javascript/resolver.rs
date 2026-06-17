@@ -85,13 +85,11 @@ impl LanguageResolver for JavaScriptLanguageResolver {
             return None;
         }
 
-        let js_dialects = ["js", "jsx", "ts", "tsx"];
-
         if normalized == "javascript" || normalized == "js" {
             return Some(
-                js_dialects
+                JavaScriptDialect::ALL
                     .iter()
-                    .map(|dialect| format!("JavaScript/{dialect}"))
+                    .map(|dialect| language_name_for_dialect(*dialect))
                     .collect(),
             );
         }
@@ -101,10 +99,8 @@ impl LanguageResolver for JavaScriptLanguageResolver {
             .map(|(_, d)| d)
             .unwrap_or_default();
 
-        if js_dialects.contains(&dialect) {
-            return Some(vec![language_name_for_dialect(
-                JavaScriptDialect::from_extension(dialect)?,
-            )]);
+        if let Some(dialect) = JavaScriptDialect::from_extension(dialect) {
+            return Some(vec![language_name_for_dialect(dialect)]);
         }
 
         None
