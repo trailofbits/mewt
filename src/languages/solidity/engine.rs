@@ -4,7 +4,7 @@ use tree_sitter::{Language as TsLanguage, Node};
 use crate::LanguageEngine;
 use crate::mutations::COMMON_MUTATIONS;
 use crate::patterns;
-use crate::types::{Mutant, Mutation, PartialMutant, Target};
+use crate::types::{Language, Mutant, Mutation, PartialMutant, Target};
 use crate::utils::{
     calculate_line_offset, is_in_comment, node_text, parse_source, visit_nodes_with_cursor,
 };
@@ -19,6 +19,7 @@ unsafe extern "C" {
 }
 
 pub struct SolidityLanguageEngine {
+    language: Language,
     mutations: Vec<Mutation>,
 }
 
@@ -33,13 +34,16 @@ impl SolidityLanguageEngine {
         let mut mutations: Vec<Mutation> = Vec::new();
         mutations.extend_from_slice(COMMON_MUTATIONS);
         mutations.extend_from_slice(SOLIDITY_MUTATIONS);
-        Self { mutations }
+        Self {
+            language: "Solidity".parse().expect("built-in language is valid"),
+            mutations,
+        }
     }
 }
 
 impl LanguageEngine for SolidityLanguageEngine {
-    fn name(&self) -> &'static str {
-        "Solidity"
+    fn language(&self) -> &Language {
+        &self.language
     }
 
     fn get_mutations(&self) -> &[Mutation] {
@@ -607,7 +611,7 @@ mod tests {
             path: PathBuf::from("tests/solidity/example.sol"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "Solidity".to_string(),
+            language: "Solidity".parse().unwrap(),
         };
         let engine = SolidityLanguageEngine::new();
         let _ = engine.mutate(&target);

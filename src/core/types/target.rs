@@ -10,14 +10,14 @@ use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::core::resolver::{ResolutionDefaults, ResolutionRequest};
 use crate::types::config::{ResolvedTargets, config, is_path_excluded, is_slug_enabled};
-use crate::types::{Hash, Mutant};
+use crate::types::{Hash, Language, Mutant};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Target {
     pub id: i64,
     pub path: PathBuf,
     pub file_hash: Hash,
-    pub language: String,
+    pub language: Language,
     #[serde(skip)]
     pub text: String,
 }
@@ -345,7 +345,7 @@ impl Target {
         let mut mutants: Vec<Mutant> = Vec::new();
 
         // Get mutations for this language
-        let engine = match registry.get_engine(&self.language) {
+        let engine = match registry.get_engine(&self.language.to_string()) {
             Some(engine) => engine,
             None => return Err(format!("No engine found for language: {}", self.language)),
         };
@@ -390,7 +390,7 @@ fn resolve_language_for_path(
     target_path: &Path,
     registry: &LanguageRegistry,
     resolution_defaults: &ResolutionDefaults,
-) -> Option<String> {
+) -> Option<Language> {
     registry
         .resolve_canonical_language(ResolutionRequest {
             path: target_path,
@@ -399,6 +399,7 @@ fn resolve_language_for_path(
             defaults: Some(resolution_defaults),
         })
         .ok()
+        .and_then(|language| language.parse().ok())
 }
 
 fn log_language_dialect_defaults(resolution_defaults: &ResolutionDefaults, context: &str) {

@@ -4,7 +4,7 @@ use tree_sitter::Language as TsLanguage;
 use crate::LanguageEngine;
 use crate::mutations::COMMON_MUTATIONS;
 use crate::patterns;
-use crate::types::{Mutant, Mutation, Target};
+use crate::types::{Language, Mutant, Mutation, Target};
 use crate::utils::{node_text, parse_source};
 
 use super::mutations::RUST_MUTATIONS;
@@ -17,6 +17,7 @@ unsafe extern "C" {
 }
 
 pub struct RustLanguageEngine {
+    language: Language,
     mutations: Vec<Mutation>,
 }
 
@@ -31,13 +32,16 @@ impl RustLanguageEngine {
         let mut mutations: Vec<Mutation> = Vec::new();
         mutations.extend_from_slice(COMMON_MUTATIONS);
         mutations.extend_from_slice(RUST_MUTATIONS);
-        Self { mutations }
+        Self {
+            language: "Rust".parse().expect("built-in language is valid"),
+            mutations,
+        }
     }
 }
 
 impl LanguageEngine for RustLanguageEngine {
-    fn name(&self) -> &'static str {
-        "Rust"
+    fn language(&self) -> &Language {
+        &self.language
     }
 
     fn get_mutations(&self) -> &[Mutation] {
@@ -314,7 +318,7 @@ mod tests {
             path: PathBuf::from("test.rs"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "Rust".to_string(),
+            language: "Rust".parse().unwrap(),
         };
         let engine = RustLanguageEngine::new();
         let _ = engine.mutate(&target);

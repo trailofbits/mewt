@@ -61,6 +61,6 @@ impl LanguageResolver for CppLanguageResolver {
     }
 
     fn filter_labels(&self, query: &str) -> Option<Vec<String>> {
-        Self::is_language_name(query).then(|| vec![self.engine.canonical_name().to_string()])
+        Self::is_language_name(query).then(|| vec![self.engine.language().to_string()])
     }
 }

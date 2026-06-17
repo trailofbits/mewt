@@ -213,7 +213,7 @@ mod tests {
             .expect("move resolver should claim .move")
             .expect("valid configured dialect");
 
-        assert_eq!(engine.canonical_name(), "Move/aptos");
+        assert_eq!(engine.language().to_string(), "Move/aptos");
     }
 
     #[test]
@@ -230,7 +230,7 @@ mod tests {
             .expect("move resolver should claim CLI dialect")
             .expect("valid CLI dialect");
 
-        assert_eq!(engine.canonical_name(), "Move/iota");
+        assert_eq!(engine.language().to_string(), "Move/iota");
     }
 
     #[test]
@@ -247,7 +247,7 @@ mod tests {
             .expect("move resolver should claim bare move label")
             .expect("valid configured dialect");
 
-        assert_eq!(engine.canonical_name(), "Move/iota");
+        assert_eq!(engine.language().to_string(), "Move/iota");
     }
 
     #[test]
@@ -265,7 +265,7 @@ mod tests {
         let error = match result {
             Ok(engine) => panic!(
                 "expected invalid configured dialect to fail, got {}",
-                engine.canonical_name()
+                engine.language()
             ),
             Err(error) => error,
         };
@@ -287,7 +287,7 @@ mod tests {
         let error = match result {
             Ok(engine) => panic!(
                 "expected concrete label plus CLI dialect to fail, got {}",
-                engine.canonical_name()
+                engine.language()
             ),
             Err(error) => error,
         };

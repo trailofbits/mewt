@@ -25,8 +25,10 @@ impl LanguageRegistry {
             .iter()
             .flat_map(|resolver| resolver.engines())
             .find(|engine| {
-                engine.canonical_name().eq_ignore_ascii_case(language_name)
-                    || engine.name().eq_ignore_ascii_case(language_name)
+                engine
+                    .language()
+                    .to_string()
+                    .eq_ignore_ascii_case(language_name)
             })
             .or_else(|| {
                 let request = ResolutionRequest {
@@ -94,7 +96,7 @@ impl LanguageRegistry {
         request: ResolutionRequest<'_>,
     ) -> Result<String, String> {
         self.resolve_engine(request)
-            .map(|engine| engine.canonical_name().to_string())
+            .map(|engine| engine.language().to_string())
     }
 
     pub fn canonicalize_label(&self, raw: &str) -> Option<String> {
@@ -152,11 +154,11 @@ impl LanguageRegistry {
         vec![query.to_string()]
     }
 
-    pub fn all_languages(&self) -> Vec<&str> {
+    pub fn all_languages(&self) -> Vec<String> {
         self.resolvers
             .iter()
             .flat_map(|resolver| resolver.engines())
-            .map(|engine| engine.canonical_name())
+            .map(|engine| engine.language().to_string())
             .collect()
     }
 

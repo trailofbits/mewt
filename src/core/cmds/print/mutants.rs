@@ -55,7 +55,7 @@ pub async fn execute(
         if let Some(severities) = parse_csv::<MutationSeverity>(filters.severity.as_deref()) {
             results.retain(|(mutant, target)| {
                 if let Some(mutation) =
-                    registry.get_mutation(&target.language, &mutant.mutation_slug)
+                    registry.get_mutation(&target.language.to_string(), &mutant.mutation_slug)
                 {
                     severities.contains(&mutation.severity)
                 } else {
@@ -151,7 +151,7 @@ pub async fn execute(
                 // Apply severity filter if provided
                 let include = if let Some(ref severities) = severity_filter {
                     if let Some(mutation) =
-                        registry.get_mutation(&target.language, &mutant.mutation_slug)
+                        registry.get_mutation(&target.language.to_string(), &mutant.mutation_slug)
                     {
                         severities.contains(&mutation.severity)
                     } else {
@@ -197,7 +197,7 @@ pub async fn execute(
             // Apply severity filter if provided
             let include = if let Some(ref severities) = severity_filter {
                 if let Some(mutation) =
-                    registry.get_mutation(&target.language, &mutant.mutation_slug)
+                    registry.get_mutation(&target.language.to_string(), &mutant.mutation_slug)
                 {
                     severities.contains(&mutation.severity)
                 } else {

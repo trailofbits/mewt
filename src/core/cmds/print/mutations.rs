@@ -78,7 +78,7 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
             None => {
                 for lang_name in registry.all_languages() {
                     let mutation_engine = registry
-                        .get_engine(lang_name)
+                        .get_engine(&lang_name)
                         .ok_or_else(|| format!("No engine found for language: {}", lang_name))?;
                     all_mutations.extend(mutation_engine.get_mutations().iter().map(|m| {
                         Mutation {
@@ -112,13 +112,13 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
                 for lang_name in registry.all_languages() {
                     let display_name = resolve_language_for_print(
                         registry,
-                        lang_name,
+                        &lang_name,
                         filters.dialect.as_deref(),
                         resolution_defaults.as_ref(),
                     )
                     .map(|(_, display)| display)
                     .unwrap_or_else(|_| lang_name.to_string());
-                    print_mutations_for_language(lang_name, &display_name, registry)?;
+                    print_mutations_for_language(&lang_name, &display_name, registry)?;
                 }
             }
         };

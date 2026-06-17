@@ -6,8 +6,8 @@ use std::path::PathBuf;
 
 use crate::LanguageRegistry;
 use crate::types::{
-    CampaignSeverityStats, CampaignSummary, Hash, Mutant, Outcome, Status, StoreError, StoreResult,
-    Target, TargetStats,
+    CampaignSeverityStats, CampaignSummary, Hash, Language, Mutant, Outcome, Status, StoreError,
+    StoreResult, Target, TargetStats,
 };
 
 #[derive(Clone, Debug)]
@@ -24,7 +24,7 @@ impl SqlStore {
 
     pub async fn add_target(&self, target: Target) -> StoreResult<i64> {
         // Get language string
-        let language_str = &target.language;
+        let language_str = target.language.to_string();
 
         let file_hash_hex = target.file_hash.to_hex();
         let path_str = target.path.to_string_lossy().into_owned();
@@ -186,7 +186,7 @@ impl SqlStore {
             path: PathBuf::from(record.path),
             file_hash: Hash::try_from(record.file_hash)?,
             text: record.text,
-            language: record.language,
+            language: parse_language(record.language)?,
         })
     }
 
@@ -208,7 +208,7 @@ impl SqlStore {
                 path: PathBuf::from(record.path),
                 file_hash: Hash::try_from(record.file_hash)?,
                 text: record.text,
-                language: record.language,
+                language: parse_language(record.language)?,
             });
         }
 
@@ -597,7 +597,7 @@ impl SqlStore {
                 path: PathBuf::from(row.try_get::<String, _>("path")?),
                 file_hash: Hash::try_from(row.try_get::<String, _>("file_hash")?)?,
                 text: row.try_get("text")?,
-                language: row.try_get::<String, _>("language")?,
+                language: parse_language(row.try_get::<String, _>("language")?)?,
             };
             results.push((mutant, target));
         }
@@ -728,7 +728,7 @@ impl SqlStore {
                 path: PathBuf::from(row.try_get::<String, _>("path")?),
                 file_hash: Hash::try_from(row.try_get::<String, _>("file_hash")?)?,
                 text: row.try_get("text")?,
-                language: row.try_get::<String, _>("language")?,
+                language: parse_language(row.try_get::<String, _>("language")?)?,
             };
             let outcome = Outcome {
                 mutant_id: row.try_get("mutant_id")?,
@@ -863,6 +863,10 @@ fn language_filter_variants(registry: &LanguageRegistry, raw: &str) -> Vec<Strin
     variants
 }
 
+fn parse_language(raw: String) -> StoreResult<Language> {
+    raw.parse().map_err(StoreError::InvalidTarget)
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -906,7 +910,7 @@ module test::canonical {
             path: PathBuf::from("canonical.move"),
             file_hash: Hash::digest(source.to_string()),
             text: source.to_string(),
-            language: "Move/sui".to_string(),
+            language: "Move/sui".parse().unwrap(),
         };
 
         let target_id = store.add_target(target).await.expect("store target");

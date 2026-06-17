@@ -147,7 +147,7 @@ mod tests {
                 .resolve(&request(Path::new(path), None, None))
                 .unwrap_or_else(|| panic!("JavaScript resolver should claim {path}"))
                 .expect("extension should resolve");
-            assert_eq!(engine.canonical_name(), expected);
+            assert_eq!(engine.language().to_string(), expected);
         }
     }
 
@@ -166,7 +166,7 @@ mod tests {
                 .resolve(&request(Path::new("__virtual__.txt"), Some(label), None))
                 .unwrap_or_else(|| panic!("JavaScript resolver should claim {label}"))
                 .expect("label should resolve");
-            assert_eq!(engine.canonical_name(), expected);
+            assert_eq!(engine.language().to_string(), expected);
         }
     }
 
@@ -183,7 +183,7 @@ mod tests {
         let error = match result {
             Ok(engine) => panic!(
                 "expected JavaScript --dialect rejection, got {}",
-                engine.canonical_name()
+                engine.language()
             ),
             Err(error) => error,
         };

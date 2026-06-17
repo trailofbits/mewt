@@ -112,8 +112,11 @@ async fn generate_status_report(
         let stats = store.get_target_stats(target.id).await?;
 
         // Compute severity-based catch rates from slug-based stats
-        let (high_rate, medium_rate, low_rate) =
-            compute_severity_catch_rates(&stats.severity_stats, registry, &target.language);
+        let (high_rate, medium_rate, low_rate) = compute_severity_catch_rates(
+            &stats.severity_stats,
+            registry,
+            &target.language.to_string(),
+        );
 
         campaign_totals.total_mutants += stats.total_mutants;
         campaign_totals.tested += stats.tested;

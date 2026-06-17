@@ -1,17 +1,18 @@
 use crate::LanguageEngine;
 use crate::mutations::COMMON_MUTATIONS;
 use crate::patterns;
-use crate::types::{Mutant, Mutation, Target};
+use crate::types::{Language, Mutant, Mutation, Target};
 use crate::utils::{node_text, parse_source};
 
-use super::dialect::{JavaScriptDialect, JavaScriptDialectConfig, config_for_dialect};
+use super::dialect::{
+    JavaScriptDialect, JavaScriptDialectConfig, config_for_dialect, language_name_for_dialect,
+};
 use super::mutations::JAVASCRIPT_MUTATIONS;
 use super::syntax::{fields, nodes};
 
 pub struct JavaScriptDialectEngine {
     dialect: JavaScriptDialect,
-    canonical_name: &'static str,
-    display_name: &'static str,
+    language: Language,
     config: JavaScriptDialectConfig,
     mutations: Vec<Mutation>,
 }
@@ -22,17 +23,11 @@ impl JavaScriptDialectEngine {
         mutations.extend_from_slice(COMMON_MUTATIONS);
         mutations.extend_from_slice(JAVASCRIPT_MUTATIONS);
 
-        let (canonical_name, display_name) = match dialect {
-            JavaScriptDialect::JavaScript => ("JavaScript/js", "JavaScript"),
-            JavaScriptDialect::Jsx => ("JavaScript/jsx", "JavaScript JSX"),
-            JavaScriptDialect::TypeScript => ("JavaScript/ts", "TypeScript"),
-            JavaScriptDialect::Tsx => ("JavaScript/tsx", "TypeScript JSX"),
-        };
-
         Self {
             dialect,
-            canonical_name,
-            display_name,
+            language: language_name_for_dialect(dialect)
+                .parse()
+                .expect("built-in language is valid"),
             config: config_for_dialect(dialect),
             mutations,
         }
@@ -44,12 +39,8 @@ impl JavaScriptDialectEngine {
 }
 
 impl LanguageEngine for JavaScriptDialectEngine {
-    fn name(&self) -> &'static str {
-        self.display_name
-    }
-
-    fn canonical_name(&self) -> &'static str {
-        self.canonical_name
+    fn language(&self) -> &Language {
+        &self.language
     }
 
     fn get_mutations(&self) -> &[Mutation] {
@@ -291,12 +282,8 @@ impl JavaScriptLanguageEngine {
 }
 
 impl LanguageEngine for JavaScriptLanguageEngine {
-    fn name(&self) -> &'static str {
-        self.inner.name()
-    }
-
-    fn canonical_name(&self) -> &'static str {
-        self.inner.canonical_name()
+    fn language(&self) -> &Language {
+        self.inner.language()
     }
 
     fn get_mutations(&self) -> &[Mutation] {
@@ -335,7 +322,7 @@ mod tests {
             path: PathBuf::from("test.js"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "JavaScript".to_string(),
+            language: "JavaScript".parse().unwrap(),
         };
         let engine = JavaScriptLanguageEngine::new();
         let _ = engine.mutate(&target);

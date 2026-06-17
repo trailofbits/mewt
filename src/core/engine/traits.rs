@@ -1,18 +1,9 @@
-use crate::types::{Mutant, Mutation, Target};
+use crate::types::{Language, Mutant, Mutation, Target};
 
 /// Core trait that language implementations must provide
 pub trait LanguageEngine: Send + Sync {
-    /// User-facing language name (e.g., "Rust", "Iota Move")
-    fn name(&self) -> &'static str;
-
-    /// Stable canonical language key used for storage and lookups.
-    ///
-    /// This is a compatibility contract once persisted in the DB. Dialect-aware
-    /// engines must return a concrete dialect label such as `Move/iota` or
-    /// `JavaScript/tsx`; one concrete engine should map to one canonical label.
-    fn canonical_name(&self) -> &'static str {
-        self.name()
-    }
+    /// Concrete language family/dialect handled by this engine.
+    fn language(&self) -> &Language;
 
     /// Get the effective mutation catalog for this concrete engine.
     fn get_mutations(&self) -> &[Mutation];

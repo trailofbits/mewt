@@ -64,11 +64,9 @@ pub fn dialect_from_language_name(raw: &str) -> Option<JavaScriptDialect> {
         return Some(JavaScriptDialect::JavaScript);
     }
 
-    let dialect = normalized
-        .split_once(['/', ':'])
-        .and_then(|(family, dialect)| {
-            (family == "javascript" || family == "js").then_some(dialect)
-        })?;
+    let dialect = normalized.split_once('/').and_then(|(family, dialect)| {
+        (family == "javascript" || family == "js").then_some(dialect)
+    })?;
 
     JavaScriptDialect::from_extension(dialect)
 }

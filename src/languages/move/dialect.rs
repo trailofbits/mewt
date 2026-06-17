@@ -82,9 +82,9 @@ pub fn language_name_for_dialect(dialect: MoveDialect) -> String {
 pub fn dialect_from_language_name(language_name: &str) -> Option<MoveDialect> {
     let normalized = language_name.trim().to_ascii_lowercase();
     match normalized.as_str() {
-        "move" | "move/sui" | "move:sui" => Some(MoveDialect::Sui),
-        "move/iota" | "move:iota" => Some(MoveDialect::Iota),
-        "move/aptos" | "move:aptos" => Some(MoveDialect::Aptos),
+        "move" | "move/sui" => Some(MoveDialect::Sui),
+        "move/iota" => Some(MoveDialect::Iota),
+        "move/aptos" => Some(MoveDialect::Aptos),
         _ => None,
     }
 }
@@ -115,6 +115,7 @@ mod tests {
             Some(MoveDialect::Aptos)
         );
         assert_eq!(dialect_from_language_name("suimove"), None);
+        assert_eq!(dialect_from_language_name("move:iota"), None);
         assert_eq!(dialect_from_language_name("move: iota"), None);
     }
 

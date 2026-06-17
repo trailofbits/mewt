@@ -59,7 +59,7 @@ impl LanguageResolver for RustLanguageResolver {
     }
 
     fn filter_labels(&self, query: &str) -> Option<Vec<String>> {
-        Self::is_language_name(query).then(|| vec![self.engine.canonical_name().to_string()])
+        Self::is_language_name(query).then(|| vec![self.engine.language().to_string()])
     }
 }
 
@@ -92,13 +92,13 @@ mod tests {
             .resolve(&request(Path::new("src/lib.rs"), None, None))
             .expect("rust resolver should claim .rs")
             .expect(".rs should resolve");
-        assert_eq!(by_extension.canonical_name(), "Rust");
+        assert_eq!(by_extension.language().to_string(), "Rust");
 
         let by_label = resolver
             .resolve(&request(Path::new("__virtual__.txt"), Some("rust"), None))
             .expect("rust resolver should claim rust label")
             .expect("rust label should resolve");
-        assert_eq!(by_label.canonical_name(), "Rust");
+        assert_eq!(by_label.language().to_string(), "Rust");
     }
 
     #[test]
@@ -112,10 +112,7 @@ mod tests {
             ))
             .expect("rust resolver should claim rust label");
         let error = match result {
-            Ok(engine) => panic!(
-                "expected Rust dialect rejection, got {}",
-                engine.canonical_name()
-            ),
+            Ok(engine) => panic!("expected Rust dialect rejection, got {}", engine.language()),
             Err(error) => error,
         };
 

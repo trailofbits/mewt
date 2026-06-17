@@ -1,17 +1,18 @@
 use crate::LanguageEngine;
 use crate::mutations::COMMON_MUTATIONS;
 use crate::patterns;
-use crate::types::{Mutant, Mutation, Target};
+use crate::types::{Language, Mutant, Mutation, Target};
 use crate::utils::{node_text, parse_source};
 
-use super::dialect::{MoveDialect, MoveDialectConfig, config_for_dialect};
+use super::dialect::{
+    MoveDialect, MoveDialectConfig, config_for_dialect, language_name_for_dialect,
+};
 use super::mutations::MOVE_MUTATIONS;
 use super::syntax::{MoveSyntax, syntax_for_dialect};
 
 pub struct MoveDialectEngine {
     dialect: MoveDialect,
-    canonical_name: &'static str,
-    display_name: &'static str,
+    language: Language,
     config: MoveDialectConfig,
     syntax: MoveSyntax,
     mutations: Vec<Mutation>,
@@ -33,16 +34,11 @@ impl MoveDialectEngine {
                 }),
         );
 
-        let (canonical_name, display_name) = match dialect {
-            MoveDialect::Sui => ("Move/sui", "Sui Move"),
-            MoveDialect::Iota => ("Move/iota", "IOTA Move"),
-            MoveDialect::Aptos => ("Move/aptos", "Aptos Move"),
-        };
-
         Self {
             dialect,
-            canonical_name,
-            display_name,
+            language: language_name_for_dialect(dialect)
+                .parse()
+                .expect("built-in language is valid"),
             config,
             syntax: syntax_for_dialect(dialect),
             mutations,
@@ -55,12 +51,8 @@ impl MoveDialectEngine {
 }
 
 impl LanguageEngine for MoveDialectEngine {
-    fn name(&self) -> &'static str {
-        self.display_name
-    }
-
-    fn canonical_name(&self) -> &'static str {
-        self.canonical_name
+    fn language(&self) -> &Language {
+        &self.language
     }
 
     fn get_mutations(&self) -> &[Mutation] {
@@ -91,12 +83,8 @@ impl MoveLanguageEngine {
 }
 
 impl LanguageEngine for MoveLanguageEngine {
-    fn name(&self) -> &'static str {
-        self.inner.name()
-    }
-
-    fn canonical_name(&self) -> &'static str {
-        self.inner.canonical_name()
+    fn language(&self) -> &Language {
+        self.inner.language()
     }
 
     fn get_mutations(&self) -> &[Mutation] {
@@ -319,7 +307,7 @@ mod tests {
             path: PathBuf::from("test.move"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "Move/sui".to_string(),
+            language: "Move/sui".parse().unwrap(),
         };
         let engine = MoveDialectEngine::new(MoveDialect::Sui);
         let _ = engine.mutate(&target);

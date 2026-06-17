@@ -322,7 +322,7 @@ fn test_different_extensions() {
             .resolve(&request)
             .expect("extension should be recognized")
             .expect("resolution should succeed");
-        assert_eq!(engine.canonical_name(), "C++");
+        assert_eq!(engine.language().to_string(), "C++");
     }
 }
 

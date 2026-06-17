@@ -4,7 +4,7 @@ use tree_sitter::Language as TsLanguage;
 use crate::LanguageEngine;
 use crate::mutations::COMMON_MUTATIONS;
 use crate::patterns;
-use crate::types::{Mutant, Mutation, Target};
+use crate::types::{Language, Mutant, Mutation, Target};
 use crate::utils::{node_text, parse_source};
 
 use super::mutations::GO_MUTATIONS;
@@ -17,6 +17,7 @@ unsafe extern "C" {
 }
 
 pub struct GoLanguageEngine {
+    language: Language,
     mutations: Vec<Mutation>,
 }
 
@@ -31,13 +32,16 @@ impl GoLanguageEngine {
         let mut mutations: Vec<Mutation> = Vec::new();
         mutations.extend_from_slice(COMMON_MUTATIONS);
         mutations.extend_from_slice(GO_MUTATIONS);
-        Self { mutations }
+        Self {
+            language: "Go".parse().expect("built-in language is valid"),
+            mutations,
+        }
     }
 }
 
 impl LanguageEngine for GoLanguageEngine {
-    fn name(&self) -> &'static str {
-        "Go"
+    fn language(&self) -> &Language {
+        &self.language
     }
 
     fn get_mutations(&self) -> &[Mutation] {
@@ -294,7 +298,7 @@ func main() {
             path: PathBuf::from("test.go"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "Go".to_string(),
+            language: "Go".parse().unwrap(),
         };
         let engine = GoLanguageEngine::new();
         let _ = engine.mutate(&target);
