@@ -27,7 +27,7 @@ impl JavaScriptDialectEngine {
             dialect,
             language: language_name_for_dialect(dialect)
                 .parse()
-                .expect("built-in language is valid"),
+                .expect("hardcoded language identifier should be valid"),
             config: config_for_dialect(dialect),
             mutations,
         }

@@ -133,14 +133,7 @@ mod tests {
 
     #[test]
     fn rejects_ambiguous_or_empty_language_strings() {
-        for raw in [
-            "",
-            " Move",
-            "Move ",
-            "Move/",
-            "/sui",
-            "Move/sui/extra",
-        ] {
+        for raw in ["", " Move", "Move ", "Move/", "/sui", "Move/sui/extra"] {
             assert!(raw.parse::<Language>().is_err(), "{raw:?} should fail");
         }
     }

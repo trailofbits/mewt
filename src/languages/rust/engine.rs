@@ -33,7 +33,9 @@ impl RustLanguageEngine {
         mutations.extend_from_slice(COMMON_MUTATIONS);
         mutations.extend_from_slice(RUST_MUTATIONS);
         Self {
-            language: "Rust".parse().expect("built-in language is valid"),
+            language: "Rust"
+                .parse()
+                .expect("hardcoded language identifier should be valid"),
             mutations,
         }
     }

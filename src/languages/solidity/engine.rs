@@ -35,7 +35,9 @@ impl SolidityLanguageEngine {
         mutations.extend_from_slice(COMMON_MUTATIONS);
         mutations.extend_from_slice(SOLIDITY_MUTATIONS);
         Self {
-            language: "Solidity".parse().expect("built-in language is valid"),
+            language: "Solidity"
+                .parse()
+                .expect("hardcoded language identifier should be valid"),
             mutations,
         }
     }

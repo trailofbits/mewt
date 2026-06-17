@@ -59,3 +59,10 @@
 - match_target_ids should get moved out of the store, it's not a sql-driven fn
   - get_mutant_test_counts too
   - get_target_stats could prob move out & replaced with a get_severity thing for just that sql stuff
+
+---
+
+## New
+
+- review all language.to_string() & consider which fns should just accept a full Language instead of the string version
+- engines now have both a dialect and language, we should prob remove the former
