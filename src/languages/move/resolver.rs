@@ -214,7 +214,7 @@ mod tests {
             .expect("move resolver should claim .move")
             .expect("valid configured dialect");
 
-        assert_eq!(engine.language().to_string(), "Move/aptos");
+        assert_eq!(engine.language().to_string(), "move/aptos");
     }
 
     #[test]
@@ -231,7 +231,7 @@ mod tests {
             .expect("move resolver should claim CLI dialect")
             .expect("valid CLI dialect");
 
-        assert_eq!(engine.language().to_string(), "Move/iota");
+        assert_eq!(engine.language().to_string(), "move/iota");
     }
 
     #[test]
@@ -248,7 +248,7 @@ mod tests {
             .expect("move resolver should claim bare move label")
             .expect("valid configured dialect");
 
-        assert_eq!(engine.language().to_string(), "Move/iota");
+        assert_eq!(engine.language().to_string(), "move/iota");
     }
 
     #[test]

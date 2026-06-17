@@ -33,7 +33,7 @@ impl RustLanguageEngine {
         mutations.extend_from_slice(COMMON_MUTATIONS);
         mutations.extend_from_slice(RUST_MUTATIONS);
         Self {
-            language: "Rust"
+            language: "rust"
                 .parse()
                 .expect("hardcoded language identifier should be valid"),
             mutations,
@@ -320,7 +320,7 @@ mod tests {
             path: PathBuf::from("test.rs"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "Rust".parse().unwrap(),
+            language: "rust".parse().unwrap(),
         };
         let engine = RustLanguageEngine::new();
         let _ = engine.mutate(&target);

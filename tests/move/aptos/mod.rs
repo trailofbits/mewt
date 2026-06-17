@@ -6,17 +6,17 @@ use super::shared;
 
 #[test]
 fn move_aptos_common_conformance_checks() {
-    shared::run_common_conformance_checks("Move/aptos", "Move/aptos");
+    shared::run_common_conformance_checks("move/aptos", "move/aptos");
 }
 
 #[test]
 fn move_aptos_example_file_generates_mutants() {
     let source = conformance::read_example_source("tests/move/example.move");
-    let mutants = shared::mutate_source(&source, "Move/aptos");
+    let mutants = shared::mutate_source(&source, "move/aptos");
 
     assert!(
         !mutants.is_empty(),
-        "Move/aptos example file should generate mutants"
+        "move/aptos example file should generate mutants"
     );
 }
 
@@ -35,21 +35,21 @@ fn move_aptos_baseline_slug_set_is_nonempty_and_overlaps_sui() {
     }
 }"#;
 
-    let sui_slugs: BTreeSet<String> = shared::mutate_source(source, "Move/sui")
+    let sui_slugs: BTreeSet<String> = shared::mutate_source(source, "move/sui")
         .into_iter()
         .map(|m| m.mutation_slug)
         .collect();
-    let aptos_slugs: BTreeSet<String> = shared::mutate_source(source, "Move/aptos")
+    let aptos_slugs: BTreeSet<String> = shared::mutate_source(source, "move/aptos")
         .into_iter()
         .map(|m| m.mutation_slug)
         .collect();
 
     assert!(
         !aptos_slugs.is_empty(),
-        "Move/aptos should expose at least one mutation slug"
+        "move/aptos should expose at least one mutation slug"
     );
     assert!(
         aptos_slugs.intersection(&sui_slugs).next().is_some(),
-        "Move/aptos and Move/sui should share at least some mutation slugs"
+        "move/aptos and move/sui should share at least some mutation slugs"
     );
 }

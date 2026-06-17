@@ -59,7 +59,7 @@ impl LanguageResolver for JavaScriptLanguageResolver {
                 .is_some_and(is_javascript_language_name)
             {
                 return Some(Err(
-                    "JavaScript does not support --dialect; use .js/.jsx/.ts/.tsx extensions or an explicit JavaScript/<dialect> label"
+                    "javascript does not support --dialect; use .js/.jsx/.ts/.tsx extensions or an explicit javascript/<dialect> label"
                         .to_string(),
                 ));
             }
@@ -132,10 +132,10 @@ mod tests {
     fn javascript_extensions_select_concrete_dialect_engines() {
         let resolver = JavaScriptLanguageResolver::new();
         let cases = [
-            ("sample.js", "JavaScript/js"),
-            ("sample.jsx", "JavaScript/jsx"),
-            ("sample.ts", "JavaScript/ts"),
-            ("sample.tsx", "JavaScript/tsx"),
+            ("sample.js", "javascript/js"),
+            ("sample.jsx", "javascript/jsx"),
+            ("sample.ts", "javascript/ts"),
+            ("sample.tsx", "javascript/tsx"),
         ];
 
         for (path, expected) in cases {
@@ -151,10 +151,10 @@ mod tests {
     fn javascript_explicit_labels_select_concrete_dialect_engines() {
         let resolver = JavaScriptLanguageResolver::new();
         let cases = [
-            ("javascript/js", "JavaScript/js"),
-            ("javascript/jsx", "JavaScript/jsx"),
-            ("javascript/ts", "JavaScript/ts"),
-            ("javascript/tsx", "JavaScript/tsx"),
+            ("javascript/js", "javascript/js"),
+            ("javascript/jsx", "javascript/jsx"),
+            ("javascript/ts", "javascript/ts"),
+            ("javascript/tsx", "javascript/tsx"),
         ];
 
         for (label, expected) in cases {
@@ -184,7 +184,7 @@ mod tests {
             Err(error) => error,
         };
 
-        assert!(error.contains("JavaScript does not support --dialect"));
+        assert!(error.contains("javascript does not support --dialect"));
     }
 
     #[test]
@@ -194,15 +194,15 @@ mod tests {
         assert_eq!(
             resolver.filter_labels("javascript").unwrap(),
             vec![
-                "JavaScript/js".to_string(),
-                "JavaScript/jsx".to_string(),
-                "JavaScript/ts".to_string(),
-                "JavaScript/tsx".to_string(),
+                "javascript/js".to_string(),
+                "javascript/jsx".to_string(),
+                "javascript/ts".to_string(),
+                "javascript/tsx".to_string(),
             ]
         );
         assert_eq!(
             resolver.filter_labels("javascript/tsx").unwrap(),
-            vec!["JavaScript/tsx".to_string()]
+            vec!["javascript/tsx".to_string()]
         );
     }
 }

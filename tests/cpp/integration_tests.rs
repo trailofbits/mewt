@@ -8,7 +8,7 @@ use mewt::types::{Mutant, Target};
 use std::collections::HashSet;
 
 pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
-    utils::target_fixture_for_extension("C++", "cpp", content).into_parts()
+    utils::target_fixture_for_extension("cpp", "cpp", content).into_parts()
 }
 
 pub(crate) fn mutants_for_slug(source: &str, slug: &str) -> Vec<Mutant> {
@@ -84,7 +84,7 @@ int compute(int x) {
     };
 
     let expectations = conformance::CommonConformanceExpectations {
-        language_name: "C++",
+        language_name: "cpp",
         min_complex_mutants: 6,
     };
 
@@ -322,7 +322,7 @@ fn test_different_extensions() {
             .resolve(&request)
             .expect("extension should be recognized")
             .expect("resolution should succeed");
-        assert_eq!(engine.language().to_string(), "C++");
+        assert_eq!(engine.language().to_string(), "cpp");
     }
 }
 

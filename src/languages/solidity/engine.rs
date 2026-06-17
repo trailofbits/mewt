@@ -35,7 +35,7 @@ impl SolidityLanguageEngine {
         mutations.extend_from_slice(COMMON_MUTATIONS);
         mutations.extend_from_slice(SOLIDITY_MUTATIONS);
         Self {
-            language: "Solidity"
+            language: "solidity"
                 .parse()
                 .expect("hardcoded language identifier should be valid"),
             mutations,
@@ -613,7 +613,7 @@ mod tests {
             path: PathBuf::from("tests/solidity/example.sol"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "Solidity".parse().unwrap(),
+            language: "solidity".parse().unwrap(),
         };
         let engine = SolidityLanguageEngine::new();
         let _ = engine.mutate(&target);

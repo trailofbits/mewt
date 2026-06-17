@@ -53,7 +53,7 @@ impl JavaScriptDialectConfig {
 }
 
 pub fn language_name_for_dialect(dialect: JavaScriptDialect) -> String {
-    format!("JavaScript/{}", dialect.as_str())
+    format!("javascript/{}", dialect.as_str())
 }
 
 pub fn is_javascript_language_name(raw: &str) -> bool {

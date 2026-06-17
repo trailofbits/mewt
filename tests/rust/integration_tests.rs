@@ -6,7 +6,7 @@ use mewt::types::Target;
 
 /// Helper to create test target.
 pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
-    utils::target_fixture_for_extension("Rust", "rs", content).into_parts()
+    utils::target_fixture_for_extension("rust", "rs", content).into_parts()
 }
 
 #[test]
@@ -81,7 +81,7 @@ fn test_func() -> i32 {
     };
 
     let expectations = conformance::CommonConformanceExpectations {
-        language_name: "Rust",
+        language_name: "rust",
         min_complex_mutants: 6,
     };
 
@@ -116,7 +116,7 @@ pub(crate) fn assert_only_slug_and_expected_new_texts(
 }
 
 fn rust_target_from_source(source: &str) -> Target {
-    utils::target_fixture_for_extension("Rust", "rs", source).into_target()
+    utils::target_fixture_for_extension("rust", "rs", source).into_target()
 }
 
 #[test]

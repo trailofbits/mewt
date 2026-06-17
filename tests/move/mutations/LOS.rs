@@ -8,5 +8,5 @@ fn los_mutates_logical_operators() {
     }
 }"#;
 
-    assert_only_slug_and_expected_new_texts(source, "Move/sui", "LOS", &["||"]);
+    assert_only_slug_and_expected_new_texts(source, "move/sui", "LOS", &["||"]);
 }

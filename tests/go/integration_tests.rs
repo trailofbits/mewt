@@ -6,7 +6,7 @@ use mewt::types::Target;
 
 /// Helper to create test target.
 pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
-    utils::target_fixture_for_extension("Go", "go", content).into_parts()
+    utils::target_fixture_for_extension("go", "go", content).into_parts()
 }
 
 #[test]
@@ -82,7 +82,7 @@ func testFunc() int {
     };
 
     let expectations = conformance::CommonConformanceExpectations {
-        language_name: "Go",
+        language_name: "go",
         min_complex_mutants: 6,
     };
 

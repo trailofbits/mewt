@@ -882,9 +882,9 @@ mod tests {
         registry.register_resolver(crate::languages::r#move::resolver::MoveLanguageResolver::new());
 
         let variants = language_filter_variants(&registry, "move");
-        assert!(variants.contains(&"Move/sui".to_string()));
-        assert!(variants.contains(&"Move/iota".to_string()));
-        assert!(variants.contains(&"Move/aptos".to_string()));
+        assert!(variants.contains(&"move/sui".to_string()));
+        assert!(variants.contains(&"move/iota".to_string()));
+        assert!(variants.contains(&"move/aptos".to_string()));
         assert!(variants.contains(&"move".to_string()));
     }
 
@@ -910,12 +910,12 @@ module test::canonical {
             path: PathBuf::from("canonical.move"),
             file_hash: Hash::digest(source.to_string()),
             text: source.to_string(),
-            language: "Move/sui".parse().unwrap(),
+            language: "move/sui".parse().unwrap(),
         };
 
         let target_id = store.add_target(target).await.expect("store target");
         let reloaded = store.get_target(target_id).await.expect("read target");
-        assert_eq!(reloaded.language, "Move/sui");
+        assert_eq!(reloaded.language, "move/sui");
 
         let mut registry = LanguageRegistry::new();
         registry.register_resolver(crate::languages::r#move::resolver::MoveLanguageResolver::new());
@@ -949,7 +949,7 @@ module test::canonical {
             .await
             .expect("filter outcomes by move");
         assert_eq!(move_results.len(), 1);
-        assert_eq!(move_results[0].1.language, "Move/sui");
+        assert_eq!(move_results[0].1.language, "move/sui");
 
         let sui_results = store
             .get_outcomes_filtered(

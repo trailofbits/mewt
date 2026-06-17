@@ -211,7 +211,7 @@ mod tests {
             registry
                 .resolve_canonical_for_language_label("javascript/ts", None, None)
                 .expect("javascript dialect"),
-            "JavaScript/ts"
+            "javascript/ts"
         );
         assert!(registry.language_supports_cli_dialect_flag("move"));
         assert!(registry.language_supports_cli_dialect_flag("move/iota"));

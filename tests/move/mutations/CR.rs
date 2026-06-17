@@ -9,5 +9,5 @@ fn cr_wraps_statements_in_comments() {
     }
 }"#;
 
-    assert_only_slug_and_expected_new_texts(source, "Move/sui", "CR", &["/* ", " */"]);
+    assert_only_slug_and_expected_new_texts(source, "move/sui", "CR", &["/* ", " */"]);
 }

@@ -8,5 +8,5 @@ fn bl_flips_boolean_literals() {
     }
 }"#;
 
-    assert_only_slug_and_expected_new_texts(source, "Move/sui", "BL", &["false"]);
+    assert_only_slug_and_expected_new_texts(source, "move/sui", "BL", &["false"]);
 }

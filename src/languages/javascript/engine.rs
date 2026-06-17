@@ -320,7 +320,7 @@ mod tests {
             path: PathBuf::from("test.js"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "JavaScript".parse().unwrap(),
+            language: "javascript".parse().unwrap(),
         };
         let engine = JavaScriptLanguageEngine::new();
         let _ = engine.mutate(&target);

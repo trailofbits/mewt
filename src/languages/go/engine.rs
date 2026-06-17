@@ -33,7 +33,7 @@ impl GoLanguageEngine {
         mutations.extend_from_slice(COMMON_MUTATIONS);
         mutations.extend_from_slice(GO_MUTATIONS);
         Self {
-            language: "Go"
+            language: "go"
                 .parse()
                 .expect("hardcoded language identifier should be valid"),
             mutations,
@@ -300,7 +300,7 @@ func main() {
             path: PathBuf::from("test.go"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "Go".parse().unwrap(),
+            language: "go".parse().unwrap(),
         };
         let engine = GoLanguageEngine::new();
         let _ = engine.mutate(&target);

@@ -20,7 +20,10 @@ impl Language {
         if let Some(dialect) = &dialect {
             Self::validate_part("language dialect", dialect)?;
         }
-        Ok(Self { family, dialect })
+        Ok(Self {
+            family: family.to_ascii_lowercase(),
+            dialect: dialect.map(|dialect| dialect.to_ascii_lowercase()),
+        })
     }
 
     pub fn family(&self) -> &str {
@@ -129,22 +132,22 @@ mod tests {
     #[test]
     fn parses_family_only_language() {
         let language: Language = "Rust".parse().unwrap();
-        assert_eq!(language.family(), "Rust");
+        assert_eq!(language.family(), "rust");
         assert_eq!(language.dialect(), None);
-        assert_eq!(language.to_string(), "Rust");
+        assert_eq!(language.to_string(), "rust");
     }
 
     #[test]
     fn parses_family_and_dialect_language() {
         let language: Language = "Move/sui".parse().unwrap();
-        assert_eq!(language.family(), "Move");
+        assert_eq!(language.family(), "move");
         assert_eq!(language.dialect(), Some("sui"));
-        assert_eq!(language.to_string(), "Move/sui");
+        assert_eq!(language.to_string(), "move/sui");
     }
 
     #[test]
     fn rejects_ambiguous_or_empty_language_strings() {
-        for raw in ["", " Move", "Move ", "Move/", "/sui", "Move/sui/extra"] {
+        for raw in ["", " Move", "Move ", "Move/", "/sui", "move/sui/extra"] {
             assert!(raw.parse::<Language>().is_err(), "{raw:?} should fail");
         }
     }

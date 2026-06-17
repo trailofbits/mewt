@@ -6,17 +6,17 @@ use super::shared;
 
 #[test]
 fn move_iota_common_conformance_checks() {
-    shared::run_common_conformance_checks("Move/iota", "Move/iota");
+    shared::run_common_conformance_checks("move/iota", "move/iota");
 }
 
 #[test]
 fn move_iota_example_file_generates_mutants() {
     let source = conformance::read_example_source("tests/move/example.move");
-    let mutants = shared::mutate_source(&source, "Move/iota");
+    let mutants = shared::mutate_source(&source, "move/iota");
 
     assert!(
         !mutants.is_empty(),
-        "Move/iota example file should generate mutants"
+        "move/iota example file should generate mutants"
     );
 }
 
@@ -35,11 +35,11 @@ fn move_iota_baseline_slug_set_matches_sui_currently() {
     }
 }"#;
 
-    let sui_slugs: BTreeSet<String> = shared::mutate_source(source, "Move/sui")
+    let sui_slugs: BTreeSet<String> = shared::mutate_source(source, "move/sui")
         .into_iter()
         .map(|m| m.mutation_slug)
         .collect();
-    let iota_slugs: BTreeSet<String> = shared::mutate_source(source, "Move/iota")
+    let iota_slugs: BTreeSet<String> = shared::mutate_source(source, "move/iota")
         .into_iter()
         .map(|m| m.mutation_slug)
         .collect();

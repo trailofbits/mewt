@@ -8,5 +8,5 @@ fn aos_mutates_arithmetic_operators() {
     }
 }"#;
 
-    assert_only_slug_and_expected_new_texts(source, "Move/sui", "AOS", &["-", "*", "/", "%"]);
+    assert_only_slug_and_expected_new_texts(source, "move/sui", "AOS", &["-", "*", "/", "%"]);
 }

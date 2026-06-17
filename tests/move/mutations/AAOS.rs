@@ -8,7 +8,7 @@ fn aaos_mutation_is_not_generated_in_sui_move() {
     }
 }"#;
 
-    let mutants = mutants_for_slug(source, "Move/sui", "AAOS");
+    let mutants = mutants_for_slug(source, "move/sui", "AAOS");
     assert!(
         mutants.is_empty(),
         "Sui Move should not produce AAOS mutants, found: {mutants:?}"

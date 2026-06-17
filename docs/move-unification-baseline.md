@@ -15,9 +15,9 @@ Canonical selectors for Move are:
 
 Canonical persisted target labels are concrete dialect labels:
 
-- `Move/sui`
-- `Move/iota`
-- `Move/aptos`
+- `move/sui`
+- `move/iota`
+- `move/aptos`
 
 `move` remains useful for filtering and for explicit language selection, but target resolution stores the selected concrete engine label.
 
@@ -25,9 +25,9 @@ Canonical persisted target labels are concrete dialect labels:
 
 Move now has one concrete engine per dialect:
 
-- `MoveDialectEngine::new(MoveDialect::Sui)` -> `Move/sui`
-- `MoveDialectEngine::new(MoveDialect::Iota)` -> `Move/iota`
-- `MoveDialectEngine::new(MoveDialect::Aptos)` -> `Move/aptos`
+- `MoveDialectEngine::new(MoveDialect::Sui)` -> `move/sui`
+- `MoveDialectEngine::new(MoveDialect::Iota)` -> `move/iota`
+- `MoveDialectEngine::new(MoveDialect::Aptos)` -> `move/aptos`
 
 The shared implementation receives already-selected dialect config, parser/syntax support, and mutation catalog data. Engines do not infer dialects from `Target.language` while mutating.
 
@@ -58,7 +58,7 @@ Unsupported inherited mutations are filtered when constructing dialect engines. 
 ## Persistence compatibility baseline
 
 - No schema changes are required.
-- New targets should store `Move/sui`, `Move/iota`, or `Move/aptos`.
+- New targets should store `move/sui`, `move/iota`, or `move/aptos`.
 - The store no longer imports Move-specific normalization helpers.
 - Database filters use registry expansion. A raw filter query is also included so historical rows such as `move` can still be matched.
 - Legacy `SuiMove`-style labels are not migrated automatically; purge or regenerate old databases if needed.
@@ -69,7 +69,7 @@ Unsupported inherited mutations are filtered when constructing dialect engines. 
 - Target loading tests prove `.move` files receive deterministic concrete labels.
 - Registry tests prove canonical Move label resolution and filter expansion.
 - Store tests prove canonical Move labels are queryable by family and dialect selectors, while raw legacy filter queries remain possible.
-- Dialect-aware Move test suites cover `Move/sui`, `Move/iota`, and `Move/aptos`.
+- Dialect-aware Move test suites cover `move/sui`, `move/iota`, and `move/aptos`.
 - Move grammar drift guard tests cover critical node/field contracts used by mutation operators.
 
 ## Command-level validation baseline

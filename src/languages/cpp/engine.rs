@@ -35,7 +35,7 @@ impl CppLanguageEngine {
         mutations.extend_from_slice(COMMON_MUTATIONS);
         mutations.extend_from_slice(CPP_MUTATIONS);
         Self {
-            language: "C++"
+            language: "cpp"
                 .parse()
                 .expect("hardcoded language identifier should be valid"),
             mutations,
@@ -601,7 +601,7 @@ mod tests {
             path: PathBuf::from("test.cpp"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "C++".parse().unwrap(),
+            language: "cpp".parse().unwrap(),
         };
         let engine = CppLanguageEngine::new();
         let _ = engine.mutate(&target);

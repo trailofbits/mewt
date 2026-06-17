@@ -12,5 +12,5 @@ fn as_swaps_adjacent_arguments() {
     }
 }"#;
 
-    assert_only_slug_and_expected_new_texts(source, "Move/sui", "AS", &["2, 1", "3, 2"]);
+    assert_only_slug_and_expected_new_texts(source, "move/sui", "AS", &["2, 1", "3, 2"]);
 }

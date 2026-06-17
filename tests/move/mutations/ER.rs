@@ -9,7 +9,7 @@ fn er_replaces_statements_with_abort() {
     }
 }"#;
 
-    let mutants = mutants_for_slug(source, "Move/sui", "ER");
+    let mutants = mutants_for_slug(source, "move/sui", "ER");
     assert!(
         !mutants.is_empty(),
         "expected ER mutants to replace statements"
@@ -30,7 +30,7 @@ fn er_does_not_replace_existing_abort_statements() {
     }
 }"#;
 
-    let mutants = mutants_for_slug(source, "Move/sui", "ER");
+    let mutants = mutants_for_slug(source, "move/sui", "ER");
     assert!(
         mutants.iter().all(|m| !m.old_text.contains("abort ")),
         "ER should not replace existing abort statements: {mutants:?}"

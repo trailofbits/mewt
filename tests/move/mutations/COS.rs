@@ -10,7 +10,7 @@ fn cos_mutates_comparison_operators() {
 
     assert_only_slug_and_expected_new_texts(
         source,
-        "Move/sui",
+        "move/sui",
         "COS",
         &["==", "!=", "<", "<=", ">="],
     );

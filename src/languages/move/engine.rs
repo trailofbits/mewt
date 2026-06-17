@@ -305,7 +305,7 @@ mod tests {
             path: PathBuf::from("test.move"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "Move/sui".parse().unwrap(),
+            language: "move/sui".parse().unwrap(),
         };
         let engine = MoveDialectEngine::new(MoveDialect::Sui);
         let _ = engine.mutate(&target);

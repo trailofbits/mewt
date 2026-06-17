@@ -8,5 +8,5 @@ fn sos_mutates_shift_operators() {
     }
 }"#;
 
-    assert_only_slug_and_expected_new_texts(source, "Move/sui", "SOS", &[">>"]);
+    assert_only_slug_and_expected_new_texts(source, "move/sui", "SOS", &[">>"]);
 }

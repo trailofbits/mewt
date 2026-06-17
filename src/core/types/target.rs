@@ -466,7 +466,7 @@ mod tests {
         )
         .expect("move language");
 
-        assert_eq!(language, "Move/iota");
+        assert_eq!(language, "move/iota");
     }
 
     #[test]
@@ -476,6 +476,6 @@ mod tests {
             resolve_language_for_path(&PathBuf::from("lib.rs"), &registry, &move_defaults("iota"))
                 .expect("rust language");
 
-        assert_eq!(language, "Rust");
+        assert_eq!(language, "rust");
     }
 }

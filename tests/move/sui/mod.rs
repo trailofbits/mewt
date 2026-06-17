@@ -5,17 +5,17 @@ use super::shared;
 
 #[test]
 fn move_sui_common_conformance_checks() {
-    shared::run_common_conformance_checks("Move/sui", "Move/sui");
+    shared::run_common_conformance_checks("move/sui", "move/sui");
 }
 
 #[test]
 fn move_sui_example_file_generates_mutants() {
     let source = conformance::read_example_source("tests/move/example.move");
-    let mutants = shared::mutate_source(&source, "Move/sui");
+    let mutants = shared::mutate_source(&source, "move/sui");
 
     assert!(
         !mutants.is_empty(),
-        "Move/sui example file should generate mutants"
+        "move/sui example file should generate mutants"
     );
 }
 

@@ -27,22 +27,22 @@ fn every_mutation_slug_has_a_per_language_test_module() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
 
     let cpp = CppLanguageEngine::new();
-    check_language(manifest_dir, "C++", "cpp", &cpp);
+    check_language(manifest_dir, "cpp", "cpp", &cpp);
 
     let rust = RustLanguageEngine::new();
-    check_language(manifest_dir, "Rust", "rust", &rust);
+    check_language(manifest_dir, "rust", "rust", &rust);
 
     let go = GoLanguageEngine::new();
-    check_language(manifest_dir, "Go", "go", &go);
+    check_language(manifest_dir, "go", "go", &go);
 
     let javascript = JavaScriptLanguageEngine::new();
-    check_language(manifest_dir, "JavaScript", "javascript", &javascript);
+    check_language(manifest_dir, "javascript", "javascript", &javascript);
 
     let solidity = SolidityLanguageEngine::new();
-    check_language(manifest_dir, "Solidity", "solidity", &solidity);
+    check_language(manifest_dir, "solidity", "solidity", &solidity);
 
     let move_language = MoveLanguageEngine::new();
-    check_language_allowing_extra_test_modules(manifest_dir, "Move", "move", &move_language);
+    check_language_allowing_extra_test_modules(manifest_dir, "move", "move", &move_language);
 }
 
 fn check_language(

@@ -1,7 +1,6 @@
 
 ## Related to addition of Dialects
 
-- is resolver.family() supposed to return a static str instead of an enum variant? How's it used? Or maybe a custom wrapped string type? Ditto for some str values in dialect config
 - add one custom mutation per dialect for js/jsx/ts/tsx as a demo
   - ditto for Move & each of it's dialects
 - js resolver L88: we have a dialect enum in a neighboring file, do we really need this vec of strings?

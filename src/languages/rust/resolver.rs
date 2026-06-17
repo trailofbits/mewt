@@ -92,13 +92,13 @@ mod tests {
             .resolve(&request(Path::new("src/lib.rs"), None, None))
             .expect("rust resolver should claim .rs")
             .expect(".rs should resolve");
-        assert_eq!(by_extension.language().to_string(), "Rust");
+        assert_eq!(by_extension.language().to_string(), "rust");
 
         let by_label = resolver
             .resolve(&request(Path::new("__virtual__.txt"), Some("rust"), None))
             .expect("rust resolver should claim rust label")
             .expect("rust label should resolve");
-        assert_eq!(by_label.language().to_string(), "Rust");
+        assert_eq!(by_label.language().to_string(), "rust");
     }
 
     #[test]

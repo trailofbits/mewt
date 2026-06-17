@@ -8,5 +8,5 @@ fn bos_mutates_bitwise_operators() {
     }
 }"#;
 
-    assert_only_slug_and_expected_new_texts(source, "Move/sui", "BOS", &["|", "^"]);
+    assert_only_slug_and_expected_new_texts(source, "move/sui", "BOS", &["|", "^"]);
 }

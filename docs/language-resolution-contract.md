@@ -12,7 +12,7 @@ Core owns routing. Language modules own dialect semantics.
 
 - **Family**: a resolver-owned language family key, such as `move`, `javascript`, or `rust`.
 - **Concrete engine**: the exact engine selected for mutation. Dialect-aware families expose one engine per dialect.
-- **Canonical label**: `LanguageEngine::canonical_name()`. This is the storage, logging, and filtering currency. Examples: `Rust`, `Move/sui`, `JavaScript/tsx`.
+- **Canonical label**: `LanguageEngine::canonical_name()`. This is the storage, logging, and filtering currency. Examples: `Rust`, `move/sui`, `javascript/tsx`.
 - **Dialect**: a language-owned variant string. Core may carry this string through config/CLI plumbing, but only the language resolver interprets it.
 
 ## Resolver inputs
@@ -79,13 +79,13 @@ Today, Move accepts CLI dialects; JavaScript does not.
 New targets should be stored using resolver-produced canonical labels, such as:
 
 - `Rust`
-- `Move/sui`
-- `Move/iota`
-- `Move/aptos`
-- `JavaScript/js`
-- `JavaScript/jsx`
-- `JavaScript/ts`
-- `JavaScript/tsx`
+- `move/sui`
+- `move/iota`
+- `move/aptos`
+- `javascript/js`
+- `javascript/jsx`
+- `javascript/ts`
+- `javascript/tsx`
 
 The store does not own language-specific normalization. Filtering uses registry/resolver expansion and includes the raw query so legacy labels remain matchable where possible.
 

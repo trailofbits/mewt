@@ -12,5 +12,5 @@ fn wf_hardcodes_while_conditions_to_false() {
     }
 }"#;
 
-    assert_only_slug_and_expected_new_texts(source, "Move/sui", "WF", &["false"]);
+    assert_only_slug_and_expected_new_texts(source, "move/sui", "WF", &["false"]);
 }

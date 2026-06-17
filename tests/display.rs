@@ -32,7 +32,7 @@ fn test_display_single_line_replacement() {
         path,
         file_hash: Hash::digest(source.clone()),
         text: source.clone(),
-        language: "Rust".parse().unwrap(), // Could be any language - display is language-agnostic
+        language: "rust".parse().unwrap(), // Could be any language - display is language-agnostic
     };
 
     let old = "1 + 2".to_string();
@@ -75,7 +75,7 @@ fn test_display_multi_line_replacement() {
         path,
         file_hash: Hash::digest(source.clone()),
         text: source.clone(),
-        language: "Rust".parse().unwrap(), // Could be any language
+        language: "rust".parse().unwrap(), // Could be any language
     };
 
     let old = "1;\n    let b = 2;".to_string();
@@ -114,7 +114,7 @@ fn test_display_when_line_offset_zero() {
         path,
         file_hash: Hash::digest(source.clone()),
         text: source.clone(),
-        language: "Rust".parse().unwrap(), // Could be any language
+        language: "rust".parse().unwrap(), // Could be any language
     };
 
     let old = "abc".to_string();

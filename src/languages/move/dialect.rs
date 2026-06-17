@@ -85,7 +85,7 @@ pub fn is_move_language_name(language_name: &str) -> bool {
 }
 
 pub fn language_name_for_dialect(dialect: MoveDialect) -> String {
-    format!("Move/{}", dialect.as_str())
+    format!("move/{}", dialect.as_str())
 }
 
 pub fn dialect_from_language_name(language_name: &str) -> Option<MoveDialect> {
@@ -130,8 +130,8 @@ mod tests {
 
     #[test]
     fn emits_dialect_language_names() {
-        assert_eq!(language_name_for_dialect(MoveDialect::Sui), "Move/sui");
-        assert_eq!(language_name_for_dialect(MoveDialect::Iota), "Move/iota");
-        assert_eq!(language_name_for_dialect(MoveDialect::Aptos), "Move/aptos");
+        assert_eq!(language_name_for_dialect(MoveDialect::Sui), "move/sui");
+        assert_eq!(language_name_for_dialect(MoveDialect::Iota), "move/iota");
+        assert_eq!(language_name_for_dialect(MoveDialect::Aptos), "move/aptos");
     }
 }

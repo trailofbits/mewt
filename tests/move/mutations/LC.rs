@@ -12,5 +12,5 @@ fn lc_swaps_break_and_continue() {
     }
 }"#;
 
-    assert_only_slug_and_expected_new_texts(source, "Move/sui", "LC", &["continue", "break"]);
+    assert_only_slug_and_expected_new_texts(source, "move/sui", "LC", &["continue", "break"]);
 }

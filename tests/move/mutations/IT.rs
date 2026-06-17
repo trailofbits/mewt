@@ -8,5 +8,5 @@ fn it_hardcodes_if_conditions_to_true() {
     }
 }"#;
 
-    assert_only_slug_and_expected_new_texts(source, "Move/sui", "IT", &["true"]);
+    assert_only_slug_and_expected_new_texts(source, "move/sui", "IT", &["true"]);
 }
