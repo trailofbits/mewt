@@ -48,6 +48,10 @@ impl LanguageResolver for JavaScriptLanguageResolver {
         vec![&self.js, &self.jsx, &self.ts, &self.tsx]
     }
 
+    fn accepts_cli_dialect(&self) -> bool {
+        false
+    }
+
     fn resolve<'a>(
         &'a self,
         request: &ResolutionRequest<'_>,

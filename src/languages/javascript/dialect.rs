@@ -30,6 +30,7 @@ impl JavaScriptDialect {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct JavaScriptDialectConfig {
     pub dialect: JavaScriptDialect,
 }

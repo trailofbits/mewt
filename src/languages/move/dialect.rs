@@ -31,8 +31,6 @@ impl MoveDialect {
 #[derive(Debug, Clone, Copy)]
 pub struct MoveDialectConfig {
     pub dialect: MoveDialect,
-    pub abort_statement: &'static str,
-    unsupported_mutation_slugs: &'static [&'static str],
 }
 
 impl MoveDialectConfig {
@@ -47,32 +45,28 @@ impl MoveDialectConfig {
         }
     }
 
+    pub fn abort_statement(&self) -> &'static str {
+        match self.dialect {
+            MoveDialect::Sui | MoveDialect::Iota | MoveDialect::Aptos => "abort 0;",
+        }
+    }
+
     pub fn supports_mutation_slug(&self, slug: &str) -> bool {
-        !self.unsupported_mutation_slugs.contains(&slug)
+        !self.unsupported_mutation_slugs().contains(&slug)
+    }
+
+    fn unsupported_mutation_slugs(&self) -> &'static [&'static str] {
+        match self.dialect {
+            // Move has no compound assignment operators in this parser dialect.
+            MoveDialect::Sui => &["AAOS", "BAOS", "SAOS"],
+            // Start with same capabilities as Sui until grammar-specific deltas are added.
+            MoveDialect::Iota | MoveDialect::Aptos => &["AAOS", "BAOS", "SAOS"],
+        }
     }
 }
 
 pub fn config_for_dialect(dialect: MoveDialect) -> MoveDialectConfig {
-    match dialect {
-        MoveDialect::Sui => MoveDialectConfig {
-            dialect,
-            abort_statement: "abort 0;",
-            // Move has no compound assignment operators in this parser dialect.
-            unsupported_mutation_slugs: &["AAOS", "BAOS", "SAOS"],
-        },
-        MoveDialect::Iota => MoveDialectConfig {
-            dialect,
-            abort_statement: "abort 0;",
-            // Start with same capabilities as Sui until grammar-specific deltas are added.
-            unsupported_mutation_slugs: &["AAOS", "BAOS", "SAOS"],
-        },
-        MoveDialect::Aptos => MoveDialectConfig {
-            dialect,
-            abort_statement: "abort 0;",
-            // Start with same capabilities as Sui until grammar-specific deltas are added.
-            unsupported_mutation_slugs: &["AAOS", "BAOS", "SAOS"],
-        },
-    }
+    MoveDialectConfig { dialect }
 }
 
 pub fn is_language_name(language_name: &str) -> bool {

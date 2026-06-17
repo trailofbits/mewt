@@ -121,7 +121,7 @@ fn mutate_move_with_config(
                         root,
                         source,
                         &statement_kinds,
-                        dialect_config.abort_statement,
+                        dialect_config.abort_statement(),
                         &|node, src| !node_text(node, src).contains("abort "),
                     )
                     .into_iter()

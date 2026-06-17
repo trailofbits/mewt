@@ -2,8 +2,6 @@
 ## Related to addition of Dialects
 
 - do we not need per-dialect syntax for js? It'd mirror move more closely if we did
-- config_for_dialect is inconsistent between JS & Move
-- why no accepts_cli_dialect on js resolver?
 
 
 ## Languages
