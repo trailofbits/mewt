@@ -35,19 +35,19 @@ The shared implementation receives already-selected dialect config, parser/synta
 
 ## Resolver-owned dialect policy
 
-`src/languages/move/resolver.rs` owns Move dialect policy:
+`src/languages/move/resolver.rs` owns Move dialect resolution:
 
-1. CLI `--dialect`
-2. Config `[languages.move].dialect`
-3. Default `sui`
+1. explicit concrete label, e.g. `move/iota`
+2. per-target `languages.move.dialect`
+3. project `[languages.move].dialect`
+4. default `sui`
 
-The resolver validates configured and CLI dialect strings. Core config stores generic dialect strings and does not know the valid Move values.
+Core validates configured dialect strings against the resolver's `DialectPolicy`. The Move resolver owns final interpretation.
 
 For explicit labels:
 
-- `--language move` uses CLI/config/default dialect selection.
+- `--language move` uses config/default dialect selection.
 - `--language move/sui`, `--language move/iota`, and `--language move/aptos` select concrete engines directly.
-- Combining a concrete Move label with `--dialect` is rejected.
 
 ## Mutation catalog behavior
 

@@ -62,7 +62,7 @@ mewt print mutations --language rust
 - List Move mutation slugs for a specific dialect:
 
 ```bash
-mewt print mutations --language move --dialect iota
+mewt print mutations --language move/iota
 ```
 
 - Print all mutants for a target path:
@@ -94,18 +94,16 @@ See [Configuration](docs/configuration.md) for the full reference and [`src/exam
 ## Choosing a Move dialect
 
 For `.move` files, mewt resolves dialect in this order:
-1. `--dialect`
-2. `[languages.move].dialect` in `mewt.toml`
-3. default `sui`
+1. explicit language label, e.g. `--language move/iota`
+2. per-target `languages.move.dialect` in `mewt.toml`
+3. project-wide `[languages.move].dialect` in `mewt.toml`
+4. default `sui`
 
 Examples:
 
 ```bash
 # Explicit dialect from CLI
-mewt run path/to/package --dialect iota
-
-# Print mutations for Move with explicit dialect
-mewt print mutations --language move --dialect sui
+mewt print mutations --language move/sui
 ```
 
 Compatibility note:

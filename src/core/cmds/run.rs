@@ -26,23 +26,14 @@ pub async fn execute_run(
     test_cmd: Option<String>,
     test_timeout: Option<u32>,
     resolution_defaults: ResolutionDefaults,
-    cli_dialect_family: Option<String>,
 ) -> AppResult<Option<CampaignSummary>> {
     let cli_mutations = parse_csv::<String>(args.mutations.as_deref());
     let cli_mutations_slice = cli_mutations.as_deref();
-    let cli_dialect_family = cli_dialect_family.as_deref();
 
     let targets = if let Some(resolved) = resolved_targets {
         // Generate new mutants for the specified targets
-        let targets = Target::load_targets(
-            &resolved,
-            &store,
-            &registry,
-            None,
-            &resolution_defaults,
-            cli_dialect_family,
-        )
-        .await?;
+        let targets =
+            Target::load_targets(&resolved, &store, &registry, None, &resolution_defaults).await?;
         for target in targets.iter() {
             let (target_mutations, _) = config().resolve_run_for_path(
                 &target.path,

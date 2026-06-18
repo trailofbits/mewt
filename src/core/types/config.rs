@@ -244,18 +244,7 @@ impl Config {
         cli_timeout.or_else(|| self.test().timeout())
     }
 
-    pub fn resolve_language_defaults(
-        &self,
-        cli_dialect_family: Option<&str>,
-        cli_dialect: Option<&str>,
-    ) -> io::Result<ResolutionDefaults> {
-        if cli_dialect.is_some() && cli_dialect_family.is_none() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "--dialect was provided, but no registered language accepts CLI dialects",
-            ));
-        }
-
+    pub fn resolve_language_defaults(&self) -> io::Result<ResolutionDefaults> {
         let mut defaults = ResolutionDefaults::default();
 
         if let Some(languages) = &self.languages {
@@ -271,15 +260,6 @@ impl Config {
             }
         }
 
-        if let (Some(family), Some(dialect)) = (cli_dialect_family, cli_dialect) {
-            defaults.default_dialects.insert(
-                family.to_ascii_lowercase(),
-                DialectDefault {
-                    dialect: dialect.to_string(),
-                },
-            );
-        }
-
         Ok(defaults)
     }
 
@@ -287,10 +267,8 @@ impl Config {
         &self,
         path: &Path,
         base_defaults: &ResolutionDefaults,
-        cli_dialect_family: Option<&str>,
     ) -> ResolutionDefaults {
         let mut defaults = base_defaults.clone();
-        let cli_family = cli_dialect_family.map(str::to_ascii_lowercase);
         let path_buf = PathBuf::from(path);
 
         for rule in self.per_target() {
@@ -301,9 +279,6 @@ impl Config {
                 continue;
             };
             for (family, language_cfg) in languages.iter() {
-                if cli_family.as_deref() == Some(family.as_str()) {
-                    continue;
-                }
                 if let Some(dialect) = language_cfg.dialect.as_deref() {
                     defaults.default_dialects.insert(
                         family.to_ascii_lowercase(),
@@ -653,21 +628,10 @@ mod tests {
     }
 
     #[test]
-    fn resolve_language_defaults_prefers_cli_over_config_for_cli_family() {
-        let cfg = config_with_language_dialect("example", "configured");
-        let resolved = cfg
-            .resolve_language_defaults(Some("example"), Some("cli"))
-            .expect("valid dialect defaults");
-
-        let language_default = resolved.default_dialects.get("example").unwrap();
-        assert_eq!(language_default.dialect, "cli");
-    }
-
-    #[test]
     fn resolve_language_defaults_uses_generic_language_config() {
         let cfg = config_with_language_dialect("example", "configured");
         let resolved = cfg
-            .resolve_language_defaults(None, None)
+            .resolve_language_defaults()
             .expect("valid dialect defaults");
 
         let language_default = resolved.default_dialects.get("example").unwrap();
@@ -678,19 +642,10 @@ mod tests {
     fn resolve_language_defaults_does_not_insert_language_specific_defaults() {
         let cfg = Config::default();
         let resolved = cfg
-            .resolve_language_defaults(None, None)
+            .resolve_language_defaults()
             .expect("valid dialect defaults");
 
         assert!(resolved.default_dialects.is_empty());
-    }
-
-    #[test]
-    fn resolve_language_defaults_rejects_cli_dialect_without_accepting_family() {
-        let cfg = Config::default();
-        assert!(
-            cfg.resolve_language_defaults(None, Some("dialect"))
-                .is_err()
-        );
     }
 
     #[test]
@@ -763,7 +718,7 @@ mod tests {
     }
 
     #[test]
-    fn per_target_language_defaults_override_global_but_not_cli() {
+    fn per_target_language_defaults_override_global() {
         let cfg: Config = toml::from_str(
             r#"
                 [languages.move]
@@ -775,35 +730,16 @@ mod tests {
             "#,
         )
         .expect("valid config");
-        let base = cfg.resolve_language_defaults(None, None).unwrap();
+        let base = cfg.resolve_language_defaults().unwrap();
 
-        let defaults = cfg.resolve_language_defaults_for_path(
-            Path::new("sources/aptos/module.move"),
-            &base,
-            None,
-        );
+        let defaults =
+            cfg.resolve_language_defaults_for_path(Path::new("sources/aptos/module.move"), &base);
         assert_eq!(
             defaults
                 .default_dialects
                 .get("move")
                 .map(|d| d.dialect.as_str()),
             Some("aptos")
-        );
-
-        let cli_base = cfg
-            .resolve_language_defaults(Some("move"), Some("iota"))
-            .unwrap();
-        let defaults = cfg.resolve_language_defaults_for_path(
-            Path::new("sources/aptos/module.move"),
-            &cli_base,
-            Some("move"),
-        );
-        assert_eq!(
-            defaults
-                .default_dialects
-                .get("move")
-                .map(|d| d.dialect.as_str()),
-            Some("iota")
         );
     }
 }

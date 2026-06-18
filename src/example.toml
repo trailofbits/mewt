@@ -6,7 +6,7 @@
 ##   log.color → --log.color
 ##   test.cmd → --test.cmd (run, test commands)
 ##   test.timeout → --test.timeout (run, test commands)
-##   languages.move.dialect → --dialect (run, mutate, print mutations)
+##   languages.<family>.dialect → per-project dialect selection for dialect-aware languages
 
 ## Database path (relative to this config file or absolute)
 db = "{namespace}.sqlite"
@@ -49,6 +49,12 @@ level = "info"
 # If omitted, mewt defaults to "sui"
 # dialect = "sui"
 
+# JavaScript dialect selection is also available if a project uses nonstandard extensions,
+# but most projects should let mewt infer JS/JSX/TS/TSX from file extensions.
+# [languages.javascript]
+# Values: "js", "jsx", "ts", "tsx"
+# dialect = "jsx"
+
 [test]
 # Default test command for all targets
 # This command will be run to verify mutants are caught by your test suite
@@ -83,3 +89,8 @@ level = "info"
 # test.cmd = "aptos move test"
 # test.timeout = 30
 # languages.move.dialect = "aptos"
+
+# Example 4: Legacy JSX files stored with .js extensions
+# [[per_target]]
+# glob = "legacy-jsx/**/*.js"
+# languages.javascript.dialect = "jsx"

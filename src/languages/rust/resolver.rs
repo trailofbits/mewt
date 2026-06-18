@@ -42,11 +42,6 @@ impl LanguageResolver for RustLanguageResolver {
             if !Self::is_language_name(explicit_language) {
                 return None;
             }
-            if request.explicit_dialect.is_some() {
-                return Some(Err(
-                    "Dialect selection is not supported for Rust".to_string()
-                ));
-            }
             return Some(Ok(&self.engine));
         }
 
@@ -71,15 +66,10 @@ mod tests {
 
     use super::*;
 
-    fn request<'a>(
-        path: &'a Path,
-        explicit_language: Option<&'a str>,
-        explicit_dialect: Option<&'a str>,
-    ) -> ResolutionRequest<'a> {
+    fn request<'a>(path: &'a Path, explicit_language: Option<&'a str>) -> ResolutionRequest<'a> {
         ResolutionRequest {
             path,
             explicit_language,
-            explicit_dialect,
             defaults: None,
         }
     }
@@ -89,33 +79,15 @@ mod tests {
         let resolver = RustLanguageResolver::new();
 
         let by_extension = resolver
-            .resolve(&request(Path::new("src/lib.rs"), None, None))
+            .resolve(&request(Path::new("src/lib.rs"), None))
             .expect("rust resolver should claim .rs")
             .expect(".rs should resolve");
         assert_eq!(by_extension.language().to_string(), "rust");
 
         let by_label = resolver
-            .resolve(&request(Path::new("__virtual__.txt"), Some("rust"), None))
+            .resolve(&request(Path::new("__virtual__.txt"), Some("rust")))
             .expect("rust resolver should claim rust label")
             .expect("rust label should resolve");
         assert_eq!(by_label.language().to_string(), "rust");
-    }
-
-    #[test]
-    fn rust_rejects_explicit_dialect() {
-        let resolver = RustLanguageResolver::new();
-        let result = resolver
-            .resolve(&request(
-                Path::new("__virtual__.txt"),
-                Some("rust"),
-                Some("nightly"),
-            ))
-            .expect("rust resolver should claim rust label");
-        let error = match result {
-            Ok(engine) => panic!("expected Rust dialect rejection, got {}", engine.language()),
-            Err(error) => error,
-        };
-
-        assert_eq!(error, "Dialect selection is not supported for Rust");
     }
 }

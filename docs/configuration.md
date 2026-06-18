@@ -64,7 +64,6 @@ CLI flags use dotted notation matching the config structure:
 - `--db`
 - `--log.level`, `--log.color`
 - `--test.cmd`, `--test.timeout`
-- `--dialect` (run, mutate, print mutations; accepted only by language resolvers that support CLI dialect selection)
 
 ## Language dialect config
 
@@ -75,35 +74,26 @@ Language-specific settings live under `[languages.<family>]`. Core stores these 
 dialect = "iota"
 ```
 
-Move currently accepts configured dialects because `.move` files do not identify their dialect by extension. JavaScript does not accept project-wide dialect config; `.js`, `.jsx`, `.ts`, and `.tsx` extensions select concrete JavaScript dialect engines. This avoids accidentally reinterpreting mixed JavaScript/TypeScript projects with one global setting.
+Dialect-aware languages accept configured dialects. Move uses this for `.move` files, which do not identify their dialect by extension. JavaScript usually selects dialects from `.js`, `.jsx`, `.ts`, and `.tsx` extensions, but config can override that when a project uses nonstandard extensions.
 
 ## Move dialect resolution order
 
 For `.move` targets, the Move resolver resolves dialect in this order:
-1. CLI `--dialect`
-2. Top-level `[[per_target]]` `languages.move.dialect` for the target path
-3. Config `[languages.move].dialect`
-4. Default `sui`
-
-If no explicit dialect is selected, mewt defaults to `sui` and emits a warning when `.move` targets are processed.
+1. explicit language label, e.g. `move/iota`
+2. top-level `[[per_target]]` `languages.move.dialect` for the target path
+3. config `[languages.move].dialect`
+4. default `sui`
 
 Examples:
 
 ```bash
-# Mutate using iota dialect for .move targets
-mewt mutate src --dialect iota
-
 # Print mutation catalog for Move under sui dialect
-mewt print mutations --language move --dialect sui
-
-# Equivalent canonical dialect selector
 mewt print mutations --language move/sui
 ```
 
 Language selection:
-- `--language move` is the Move family selector and uses `--dialect`, config, or the `sui` default.
+- `--language move` is the Move family selector and uses config or the `sui` default.
 - `--language move/sui`, `--language move/iota`, and `--language move/aptos` are canonical dialect selectors.
-- For `print mutations`, use either `--language move/<dialect>` or `--language move --dialect <dialect>`, not both.
 - Legacy aliases (`suimove`, `sui_move`, `SuiMove`) are not supported.
 
 ### Ignore flag

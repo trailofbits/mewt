@@ -57,7 +57,6 @@ impl Target {
         registry: &LanguageRegistry,
         mutations: Option<&[String]>,
         resolution_defaults: &ResolutionDefaults,
-        cli_dialect_family: Option<&str>,
     ) -> io::Result<Vec<Target>> {
         let mut all_targets: Vec<Target> = vec![];
 
@@ -74,7 +73,6 @@ impl Target {
                         registry,
                         mutations,
                         resolution_defaults,
-                        cli_dialect_family,
                     )
                     .await?
                     {
@@ -90,7 +88,6 @@ impl Target {
                     &resolved_targets.ignore,
                     mutations,
                     resolution_defaults,
-                    cli_dialect_family,
                 ))
                 .await?;
                 all_targets.extend(targets_from_dir);
@@ -110,7 +107,6 @@ impl Target {
                                             registry,
                                             mutations,
                                             resolution_defaults,
-                                            cli_dialect_family,
                                         )
                                         .await?
                                         {
@@ -124,7 +120,6 @@ impl Target {
                                             &resolved_targets.ignore,
                                             mutations,
                                             resolution_defaults,
-                                            cli_dialect_family,
                                         ))
                                         .await?;
                                         all_targets.extend(targets_from_dir);
@@ -167,7 +162,6 @@ impl Target {
         registry: &LanguageRegistry,
         _mutations: Option<&[String]>,
         resolution_defaults: &ResolutionDefaults,
-        cli_dialect_family: Option<&str>,
     ) -> io::Result<Option<Target>> {
         let mut file = fs::File::open(&target_path)?;
         let mut text = String::new();
@@ -175,11 +169,8 @@ impl Target {
 
         // Determine language from the file extension.
         // For .move files, use explicitly resolved dialect from config/CLI/per-target config.
-        let path_resolution_defaults = config().resolve_language_defaults_for_path(
-            &target_path,
-            resolution_defaults,
-            cli_dialect_family,
-        );
+        let path_resolution_defaults =
+            config().resolve_language_defaults_for_path(&target_path, resolution_defaults);
         let language =
             match resolve_language_for_path(&target_path, registry, &path_resolution_defaults) {
                 Some(language) => language,
@@ -216,7 +207,6 @@ impl Target {
         ignore_patterns: &[String],
         mutations: Option<&[String]>,
         resolution_defaults: &ResolutionDefaults,
-        cli_dialect_family: Option<&str>,
     ) -> io::Result<Vec<Target>> {
         // Skip directory entirely if excluded
         if is_path_excluded(&dir_path, ignore_patterns) {
@@ -234,7 +224,6 @@ impl Target {
                         registry,
                         mutations,
                         resolution_defaults,
-                        cli_dialect_family,
                     )
                     .await?
                     {
@@ -249,7 +238,6 @@ impl Target {
                     ignore_patterns,
                     mutations,
                     resolution_defaults,
-                    cli_dialect_family,
                 ))
                 .await?;
                 targets.extend(targets_from_subdir);
@@ -413,7 +401,6 @@ fn resolve_language_for_path(
         .resolve_canonical_language(ResolutionRequest {
             path: target_path,
             explicit_language: None,
-            explicit_dialect: None,
             defaults: Some(resolution_defaults),
         })
         .ok()

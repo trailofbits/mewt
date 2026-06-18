@@ -1,5 +1,5 @@
 use crate::LanguageEngine;
-use crate::core::resolver::{LanguageResolver, ResolutionRequest};
+use crate::core::resolver::{DialectPolicy, LanguageResolver, ResolutionRequest};
 
 use crate::languages::r#move::dialect::{
     MoveDialect, dialect_from_language_name, is_language_name, language_name_for_dialect,
@@ -55,28 +55,12 @@ impl MoveLanguageResolver {
     fn resolve_dialect(&self, request: &ResolutionRequest<'_>) -> Result<MoveDialect, String> {
         if let Some(explicit_language) = request.explicit_language {
             if let Some(label_dialect) = dialect_from_language_name(explicit_language) {
-                if request.explicit_dialect.is_some()
-                    && !explicit_language.eq_ignore_ascii_case("move")
-                {
-                    return Err(
-                        "Use either --language move/<dialect> or --language move --dialect <dialect>, not both"
-                            .to_string(),
-                    );
-                }
-
                 if explicit_language.eq_ignore_ascii_case("move") {
-                    if let Some(explicit_dialect) = request.explicit_dialect {
-                        return Self::dialect_from_raw(explicit_dialect);
-                    }
                     return self.default_dialect(request);
                 }
 
                 return Ok(label_dialect);
             }
-        }
-
-        if let Some(explicit_dialect) = request.explicit_dialect {
-            return Self::dialect_from_raw(explicit_dialect);
         }
 
         self.default_dialect(request)
@@ -98,8 +82,10 @@ impl LanguageResolver for MoveLanguageResolver {
         vec![&self.sui, &self.iota, &self.aptos]
     }
 
-    fn accepts_cli_dialect(&self) -> bool {
-        true
+    fn dialect_policy(&self) -> DialectPolicy {
+        DialectPolicy {
+            dialects: &["sui", "iota", "aptos"],
+        }
     }
 
     fn resolve<'a>(
@@ -110,13 +96,6 @@ impl LanguageResolver for MoveLanguageResolver {
             if !is_language_name(explicit_language) {
                 return None;
             }
-            return Some(
-                self.resolve_dialect(request)
-                    .map(|dialect| self.engine_for_dialect(dialect)),
-            );
-        }
-
-        if request.explicit_dialect.is_some() {
             return Some(
                 self.resolve_dialect(request)
                     .map(|dialect| self.engine_for_dialect(dialect)),
@@ -177,13 +156,11 @@ mod tests {
     fn request<'a>(
         path: &'a Path,
         explicit_language: Option<&'a str>,
-        explicit_dialect: Option<&'a str>,
         defaults: Option<&'a ResolutionDefaults>,
     ) -> ResolutionRequest<'a> {
         ResolutionRequest {
             path,
             explicit_language,
-            explicit_dialect,
             defaults,
         }
     }
@@ -204,33 +181,11 @@ mod tests {
         let resolver = MoveLanguageResolver::new();
         let defaults = defaults_for_move("aptos");
         let engine = resolver
-            .resolve(&request(
-                Path::new("module.move"),
-                None,
-                None,
-                Some(&defaults),
-            ))
+            .resolve(&request(Path::new("module.move"), None, Some(&defaults)))
             .expect("move resolver should claim .move")
             .expect("valid configured dialect");
 
         assert_eq!(engine.language().to_string(), "move/aptos");
-    }
-
-    #[test]
-    fn cli_dialect_overrides_configured_move_default() {
-        let resolver = MoveLanguageResolver::new();
-        let defaults = defaults_for_move("aptos");
-        let engine = resolver
-            .resolve(&request(
-                Path::new("module.move"),
-                None,
-                Some("iota"),
-                Some(&defaults),
-            ))
-            .expect("move resolver should claim CLI dialect")
-            .expect("valid CLI dialect");
-
-        assert_eq!(engine.language().to_string(), "move/iota");
     }
 
     #[test]
@@ -241,7 +196,6 @@ mod tests {
             .resolve(&request(
                 Path::new("__virtual__.txt"),
                 Some("move"),
-                None,
                 Some(&defaults),
             ))
             .expect("move resolver should claim bare move label")
@@ -255,12 +209,7 @@ mod tests {
         let resolver = MoveLanguageResolver::new();
         let defaults = defaults_for_move("unknown");
         let result = resolver
-            .resolve(&request(
-                Path::new("module.move"),
-                None,
-                None,
-                Some(&defaults),
-            ))
+            .resolve(&request(Path::new("module.move"), None, Some(&defaults)))
             .expect("move resolver should claim .move");
         let error = match result {
             Ok(engine) => panic!(
@@ -271,27 +220,5 @@ mod tests {
         };
 
         assert!(error.contains("Invalid Move dialect 'unknown'"));
-    }
-
-    #[test]
-    fn concrete_move_label_conflicts_with_cli_dialect() {
-        let resolver = MoveLanguageResolver::new();
-        let result = resolver
-            .resolve(&request(
-                Path::new("__virtual__.txt"),
-                Some("move/iota"),
-                Some("sui"),
-                None,
-            ))
-            .expect("move resolver should claim concrete move label");
-        let error = match result {
-            Ok(engine) => panic!(
-                "expected concrete label plus CLI dialect to fail, got {}",
-                engine.language()
-            ),
-            Err(error) => error,
-        };
-
-        assert!(error.contains("Use either --language move/<dialect>"));
     }
 }

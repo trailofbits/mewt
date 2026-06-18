@@ -14,10 +14,32 @@ pub struct DialectDefault {
     pub dialect: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DialectPolicy {
+    pub dialects: &'static [&'static str],
+}
+
+impl DialectPolicy {
+    pub const NONE: Self = Self { dialects: &[] };
+
+    pub fn has_dialects(&self) -> bool {
+        !self.dialects.is_empty()
+    }
+
+    pub fn contains(&self, raw: &str) -> bool {
+        self.dialects
+            .iter()
+            .any(|dialect| dialect.eq_ignore_ascii_case(raw.trim()))
+    }
+
+    pub fn expected(&self) -> String {
+        self.dialects.join(", ")
+    }
+}
+
 pub struct ResolutionRequest<'a> {
     pub path: &'a Path,
     pub explicit_language: Option<&'a str>,
-    pub explicit_dialect: Option<&'a str>,
     pub defaults: Option<&'a ResolutionDefaults>,
 }
 
@@ -30,15 +52,18 @@ pub trait LanguageResolver: Send + Sync {
     /// Dialect-aware families return one engine per concrete dialect label.
     fn engines(&self) -> Vec<&dyn LanguageEngine>;
 
-    /// Whether this resolver accepts the global CLI `--dialect` flag.
-    fn accepts_cli_dialect(&self) -> bool {
-        false
+    /// Dialect keys exposed by this family, if any.
+    ///
+    /// These keys may be selected by dialect-qualified labels such as
+    /// `family/dialect` and by project/per-target config dialect selections.
+    fn dialect_policy(&self) -> DialectPolicy {
+        DialectPolicy::NONE
     }
 
     /// Resolve a request to one concrete engine.
     ///
     /// This is the dialect-resolution boundary. Implementations may inspect the
-    /// path, explicit language label, explicit dialect, and language defaults,
+    /// path, explicit language label, and language defaults,
     /// but the returned engine must already contain the selected dialect config.
     fn resolve<'a>(
         &'a self,

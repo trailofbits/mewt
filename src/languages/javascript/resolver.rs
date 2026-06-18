@@ -1,5 +1,5 @@
 use crate::LanguageEngine;
-use crate::core::resolver::{LanguageResolver, ResolutionRequest};
+use crate::core::resolver::{DialectPolicy, LanguageResolver, ResolutionRequest};
 use crate::languages::javascript::dialect::{
     JavaScriptDialect, dialect_from_language_name, is_language_name, language_name_for_dialect,
 };
@@ -48,34 +48,37 @@ impl LanguageResolver for JavaScriptLanguageResolver {
         vec![&self.js, &self.jsx, &self.ts, &self.tsx]
     }
 
-    fn accepts_cli_dialect(&self) -> bool {
-        false
+    fn dialect_policy(&self) -> DialectPolicy {
+        DialectPolicy {
+            dialects: &["js", "jsx", "ts", "tsx"],
+        }
     }
 
     fn resolve<'a>(
         &'a self,
         request: &ResolutionRequest<'_>,
     ) -> Option<Result<&'a dyn LanguageEngine, String>> {
-        if request.explicit_dialect.is_some() {
-            if request.explicit_language.is_some_and(is_language_name) {
-                return Some(Err(
-                    "javascript does not support --dialect; use .js/.jsx/.ts/.tsx extensions or an explicit javascript/<dialect> label"
-                        .to_string(),
-                ));
-            }
-            return None;
-        }
-
         if let Some(explicit_language) = request.explicit_language {
-            let dialect = dialect_from_language_name(explicit_language)?;
-            return Some(Ok(self.engine_for_dialect(dialect)));
+            let label_dialect = dialect_from_language_name(explicit_language)?;
+
+            if !explicit_language.eq_ignore_ascii_case("javascript")
+                && !explicit_language.eq_ignore_ascii_case("js")
+            {
+                return Some(Ok(self.engine_for_dialect(label_dialect)));
+            }
         }
 
         let dialect = request
-            .path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .and_then(JavaScriptDialect::from_key)?;
+            .defaults
+            .and_then(|defaults| defaults.default_dialects.get("javascript"))
+            .and_then(|entry| JavaScriptDialect::from_key(&entry.dialect))
+            .or_else(|| {
+                request
+                    .path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .and_then(JavaScriptDialect::from_key)
+            })?;
         Some(Ok(self.engine_for_dialect(dialect)))
     }
 
@@ -111,21 +114,31 @@ impl LanguageResolver for JavaScriptLanguageResolver {
 mod tests {
     use std::path::Path;
 
-    use crate::core::resolver::ResolutionRequest;
+    use crate::core::resolver::{DialectDefault, ResolutionDefaults, ResolutionRequest};
 
     use super::*;
 
     fn request<'a>(
         path: &'a Path,
         explicit_language: Option<&'a str>,
-        explicit_dialect: Option<&'a str>,
+        defaults: Option<&'a ResolutionDefaults>,
     ) -> ResolutionRequest<'a> {
         ResolutionRequest {
             path,
             explicit_language,
-            explicit_dialect,
-            defaults: None,
+            defaults,
         }
+    }
+
+    fn defaults_for_javascript(dialect: &str) -> ResolutionDefaults {
+        let mut defaults = ResolutionDefaults::default();
+        defaults.default_dialects.insert(
+            "javascript".to_string(),
+            DialectDefault {
+                dialect: dialect.to_string(),
+            },
+        );
+        defaults
     }
 
     #[test]
@@ -167,24 +180,25 @@ mod tests {
     }
 
     #[test]
-    fn javascript_rejects_cli_dialect_for_javascript_labels() {
+    fn bare_javascript_label_uses_extension_or_configured_dialect() {
         let resolver = JavaScriptLanguageResolver::new();
-        let result = resolver
-            .resolve(&request(
-                Path::new("__virtual__.txt"),
-                Some("javascript/ts"),
-                Some("tsx"),
-            ))
-            .expect("JavaScript resolver should claim JavaScript label");
-        let error = match result {
-            Ok(engine) => panic!(
-                "expected JavaScript --dialect rejection, got {}",
-                engine.language()
-            ),
-            Err(error) => error,
-        };
 
-        assert!(error.contains("javascript does not support --dialect"));
+        let by_extension = resolver
+            .resolve(&request(Path::new("sample.tsx"), Some("javascript"), None))
+            .expect("JavaScript resolver should claim bare JavaScript label")
+            .expect("extension should select concrete dialect");
+        assert_eq!(by_extension.language().to_string(), "javascript/tsx");
+
+        let defaults = defaults_for_javascript("jsx");
+        let by_config = resolver
+            .resolve(&request(
+                Path::new("sample.js"),
+                Some("javascript"),
+                Some(&defaults),
+            ))
+            .expect("JavaScript resolver should claim bare JavaScript label")
+            .expect("config should select concrete dialect");
+        assert_eq!(by_config.language().to_string(), "javascript/jsx");
     }
 
     #[test]

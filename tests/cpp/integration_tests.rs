@@ -315,7 +315,6 @@ fn test_different_extensions() {
         let request = ResolutionRequest {
             path: &path,
             explicit_language: None,
-            explicit_dialect: None,
             defaults: None,
         };
         let engine = resolver

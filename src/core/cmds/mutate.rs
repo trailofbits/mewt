@@ -15,14 +15,11 @@ pub async fn execute_mutate(
     resolved_targets: ResolvedTargets,
     _mutations: Option<Vec<String>>,
     resolution_defaults: ResolutionDefaults,
-    cli_dialect_family: Option<String>,
 ) -> AppResult<()> {
     info!(
         "Generating mutants for targets: {:?}",
         resolved_targets.include
     );
-
-    let cli_dialect_family = cli_dialect_family.as_deref();
 
     // Load targets from the resolved configuration
     let targets = Target::load_targets(
@@ -31,7 +28,6 @@ pub async fn execute_mutate(
         &registry,
         None,
         &resolution_defaults,
-        cli_dialect_family,
     )
     .await?;
 

@@ -4,8 +4,6 @@ use std::collections::HashMap;
 
 use crate::LanguageRegistry;
 use crate::core::cmds::print::MutationsFilters;
-use crate::core::resolver::ResolutionDefaults;
-use crate::types::config::config;
 use crate::types::{Language, Mutation, MutationSeverity};
 
 #[derive(Serialize)]
@@ -17,78 +15,17 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
     let language = filters.language;
     let is_json_format = filters.format == "json";
 
-    if filters.dialect.is_some()
-        && !language
-            .as_deref()
-            .is_some_and(|lang| registry.language_supports_cli_dialect_flag(lang))
-    {
-        return Err(
-            "--dialect requires a --language value whose resolver accepts CLI dialects".to_string(),
-        );
-    }
-
-    if filters.dialect.is_some()
-        && language
-            .as_deref()
-            .is_some_and(language_label_includes_dialect)
-    {
-        return Err(
-            "Use either a dialect-qualified --language or --language with --dialect, not both"
-                .to_string(),
-        );
-    }
-
-    let needs_cli_dialect_defaults = language.as_deref().is_some_and(|lang| {
-        registry.language_supports_cli_dialect_flag(lang) && !language_label_includes_dialect(lang)
-    });
-    let resolution_defaults = if needs_cli_dialect_defaults {
-        let cli_dialect_family = if filters.dialect.is_some() {
-            registry.cli_dialect_family().map_err(|e| e.to_string())?
-        } else {
-            None
-        };
-        Some(
-            config()
-                .resolve_language_defaults(cli_dialect_family, filters.dialect.as_deref())
-                .map_err(|e| e.to_string())?,
-        )
-    } else {
-        None
-    };
-
     if is_json_format {
         let mut all_mutations = Vec::new();
-        match &language {
-            Some(lang_str) => {
-                let (engine_language, _display_name) = resolve_language_for_print(
-                    registry,
-                    lang_str,
-                    filters.dialect.as_deref(),
-                    resolution_defaults.as_ref(),
-                )?;
-                let mutation_engine = registry
-                    .get_engine(&engine_language)
-                    .ok_or_else(|| format!("No engine found for language: {}", lang_str))?;
-                all_mutations.extend(mutation_engine.get_mutations().iter().map(|m| Mutation {
-                    slug: m.slug,
-                    description: m.description,
-                    severity: m.severity.clone(),
-                }));
-            }
-            None => {
-                for language in registry.all_languages() {
-                    let mutation_engine = registry
-                        .get_engine(&language)
-                        .ok_or_else(|| format!("No engine found for language: {}", language))?;
-                    all_mutations.extend(mutation_engine.get_mutations().iter().map(|m| {
-                        Mutation {
-                            slug: m.slug,
-                            description: m.description,
-                            severity: m.severity.clone(),
-                        }
-                    }));
-                }
-            }
+        for engine_language in languages_for_print(registry, language.as_deref())? {
+            let mutation_engine = registry
+                .get_engine(&engine_language)
+                .ok_or_else(|| format!("No engine found for language: {engine_language}"))?;
+            all_mutations.extend(mutation_engine.get_mutations().iter().map(|m| Mutation {
+                slug: m.slug,
+                description: m.description,
+                severity: m.severity.clone(),
+            }));
         }
         let json_mutations = JsonMutations {
             mutations: all_mutations,
@@ -98,42 +35,28 @@ pub async fn execute(filters: MutationsFilters, registry: &LanguageRegistry) -> 
             serde_json::to_string_pretty(&json_mutations).map_err(|e| e.to_string())?
         );
     } else {
-        match &language {
-            Some(lang_str) => {
-                let (engine_name, display_name) = resolve_language_for_print(
-                    registry,
-                    lang_str,
-                    filters.dialect.as_deref(),
-                    resolution_defaults.as_ref(),
-                )?;
-                print_mutations_for_language(&engine_name, &display_name, registry)?;
-            }
-            None => {
-                for language in registry.all_languages() {
-                    let display_name = language.to_string();
-                    print_mutations_for_language(&language, &display_name, registry)?;
-                }
-            }
-        };
+        for engine_language in languages_for_print(registry, language.as_deref())? {
+            let display_name = engine_language.to_string();
+            print_mutations_for_language(&engine_language, &display_name, registry)?;
+        }
     }
 
     Ok(())
 }
 
-fn resolve_language_for_print(
+fn languages_for_print(
     registry: &LanguageRegistry,
-    raw_language: &str,
-    explicit_dialect: Option<&str>,
-    defaults: Option<&ResolutionDefaults>,
-) -> Result<(Language, String), String> {
-    let canonical =
-        registry.resolve_canonical_for_language_label(raw_language, explicit_dialect, defaults)?;
-    let display_name = canonical.to_string();
-    Ok((canonical, display_name))
-}
+    raw_language: Option<&str>,
+) -> Result<Vec<Language>, String> {
+    let Some(raw_language) = raw_language else {
+        return Ok(registry.all_languages());
+    };
 
-fn language_label_includes_dialect(raw_language: &str) -> bool {
-    raw_language.contains('/') || raw_language.contains(':')
+    registry
+        .filter_labels(raw_language)
+        .into_iter()
+        .map(|label| registry.resolve_canonical_for_language_label(&label, None))
+        .collect()
 }
 
 fn print_mutations_for_language(

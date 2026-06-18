@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::LanguageEngine;
 use crate::types::Language;
 
-use super::resolver::{LanguageResolver, ResolutionRequest};
+use super::resolver::{DialectPolicy, LanguageResolver, ResolutionRequest};
 
 /// Registry for managing language resolvers.
 pub struct LanguageRegistry {
@@ -32,7 +32,6 @@ impl LanguageRegistry {
         self.resolve_engine(ResolutionRequest {
             path,
             explicit_language: None,
-            explicit_dialect: None,
             defaults: None,
         })
         .ok()
@@ -42,19 +41,6 @@ impl LanguageRegistry {
         &self,
         request: ResolutionRequest<'_>,
     ) -> Result<&dyn LanguageEngine, String> {
-        if request.explicit_dialect.is_some() && request.explicit_language.is_none() {
-            let accepting: Vec<_> = self
-                .resolvers
-                .iter()
-                .filter(|resolver| resolver.accepts_cli_dialect())
-                .collect();
-            if accepting.len() == 1 {
-                if let Some(result) = accepting[0].resolve(&request) {
-                    return result;
-                }
-            }
-        }
-
         for resolver in &self.resolvers {
             if let Some(result) = resolver.resolve(&request) {
                 return result;
@@ -90,43 +76,42 @@ impl LanguageRegistry {
         self.filter_labels(raw).into_iter().next()
     }
 
-    pub fn language_supports_cli_dialect_flag(&self, raw: &str) -> bool {
-        self.resolvers.iter().any(|resolver| {
-            resolver.accepts_cli_dialect()
-                && resolver
-                    .filter_labels(raw)
-                    .is_some_and(|labels| !labels.is_empty())
-        })
+    pub fn dialect_policy(&self, family: &str) -> Option<DialectPolicy> {
+        self.resolvers
+            .iter()
+            .find(|resolver| resolver.family().eq_ignore_ascii_case(family.trim()))
+            .map(|resolver| resolver.dialect_policy())
     }
 
-    pub fn cli_dialect_family(&self) -> Result<Option<&'static str>, String> {
-        let accepting: Vec<_> = self
-            .resolvers
-            .iter()
-            .filter(|resolver| resolver.accepts_cli_dialect())
-            .map(|resolver| resolver.family())
-            .collect();
+    pub fn validate_dialect_selection(&self, family: &str, dialect: &str) -> Result<(), String> {
+        let Some(policy) = self.dialect_policy(family) else {
+            return Err(format!("Unknown language family in config: {family}"));
+        };
 
-        match accepting.as_slice() {
-            [] => Ok(None),
-            [family] => Ok(Some(*family)),
-            families => Err(format!(
-                "--dialect is ambiguous; accepting language families: {}",
-                families.join(", ")
-            )),
+        if !policy.has_dialects() {
+            return Err(format!("{} does not support dialect selection", family));
         }
+
+        if !policy.contains(dialect) {
+            return Err(format!(
+                "Invalid dialect '{}' for {}. Expected one of: {}",
+                dialect,
+                family,
+                policy.expected()
+            ));
+        }
+
+        Ok(())
     }
 
     pub fn resolve_canonical_for_language_label(
         &self,
         raw_language: &str,
-        explicit_dialect: Option<&str>,
         defaults: Option<&super::resolver::ResolutionDefaults>,
     ) -> Result<Language, String> {
         self.resolve_canonical_language(ResolutionRequest {
             path: Path::new("__virtual__.txt"),
             explicit_language: Some(raw_language),
-            explicit_dialect,
             defaults,
         })
     }
@@ -170,38 +155,10 @@ impl Default for LanguageRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::resolver::LanguageResolver;
     use crate::languages;
 
-    struct FakeCliDialectResolver;
-
-    impl LanguageResolver for FakeCliDialectResolver {
-        fn family(&self) -> &'static str {
-            "fake"
-        }
-
-        fn engines(&self) -> Vec<&dyn LanguageEngine> {
-            Vec::new()
-        }
-
-        fn accepts_cli_dialect(&self) -> bool {
-            true
-        }
-
-        fn resolve<'a>(
-            &'a self,
-            _request: &crate::core::resolver::ResolutionRequest<'_>,
-        ) -> Option<Result<&'a dyn LanguageEngine, String>> {
-            None
-        }
-
-        fn filter_labels(&self, _query: &str) -> Option<Vec<String>> {
-            None
-        }
-    }
-
     #[test]
-    fn cli_dialect_flag_is_move_only_even_when_other_languages_have_dialects() {
+    fn dialect_policy_reports_language_dialect_keys() {
         let mut registry = LanguageRegistry::new();
         registry
             .register_resolver(languages::javascript::resolver::JavaScriptLanguageResolver::new());
@@ -209,34 +166,17 @@ mod tests {
 
         assert_eq!(
             registry
-                .resolve_canonical_for_language_label("javascript/ts", None, None)
+                .resolve_canonical_for_language_label("javascript/ts", None)
                 .expect("javascript dialect"),
             "javascript/ts"
         );
-        assert!(registry.language_supports_cli_dialect_flag("move"));
-        assert!(registry.language_supports_cli_dialect_flag("move/iota"));
-        assert!(!registry.language_supports_cli_dialect_flag("javascript"));
-        assert!(!registry.language_supports_cli_dialect_flag("javascript/ts"));
-        assert!(!registry.language_supports_cli_dialect_flag("js"));
-    }
 
-    #[test]
-    fn cli_dialect_family_reports_none_one_or_ambiguous() {
-        let empty = LanguageRegistry::new();
-        assert_eq!(empty.cli_dialect_family().unwrap(), None);
+        let move_policy = registry.dialect_policy("move").unwrap();
+        assert!(move_policy.contains("iota"));
+        assert!(!move_policy.contains("tsx"));
 
-        let mut move_only = LanguageRegistry::new();
-        move_only.register_resolver(languages::r#move::resolver::MoveLanguageResolver::new());
-        assert_eq!(move_only.cli_dialect_family().unwrap(), Some("move"));
-
-        let mut ambiguous = LanguageRegistry::new();
-        ambiguous.register_resolver(languages::r#move::resolver::MoveLanguageResolver::new());
-        ambiguous.register_resolver(FakeCliDialectResolver);
-        let error = ambiguous
-            .cli_dialect_family()
-            .expect_err("multiple CLI dialect families should be ambiguous");
-        assert!(error.contains("--dialect is ambiguous"));
-        assert!(error.contains("move"));
-        assert!(error.contains("fake"));
+        let javascript_policy = registry.dialect_policy("javascript").unwrap();
+        assert!(javascript_policy.contains("tsx"));
+        assert!(!javascript_policy.contains("iota"));
     }
 }

@@ -89,6 +89,8 @@ pub async fn run_main(
     // Initialize logging after config so level/color are applied
     init_logging();
 
+    validate_config_dialects(config(), &registry)?;
+
     // Initialize the database
     let db_path = config().db();
     let db_file = PathBuf::from(&db_path);
@@ -119,15 +121,7 @@ pub async fn run_main(
     // Dispatch to appropriate command
     let exit_code = match args.command {
         Commands::Run(run_args) => {
-            let cli_dialect_family = if run_args.dialect.is_some() {
-                registry
-                    .cli_dialect_family()
-                    .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidInput, err))?
-            } else {
-                None
-            };
-            let resolution_defaults = config()
-                .resolve_language_defaults(cli_dialect_family, run_args.dialect.as_deref())?;
+            let resolution_defaults = config().resolve_language_defaults()?;
 
             // Resolve command-specific options
             let resolved_targets = if !run_args.targets.is_empty()
@@ -154,7 +148,6 @@ pub async fn run_main(
                 test_cmd,
                 test_timeout,
                 resolution_defaults,
-                cli_dialect_family.map(str::to_string),
             )
             .await?;
 
@@ -171,15 +164,7 @@ pub async fn run_main(
             }
         }
         Commands::Mutate(mutate_args) => {
-            let cli_dialect_family = if mutate_args.dialect.is_some() {
-                registry
-                    .cli_dialect_family()
-                    .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidInput, err))?
-            } else {
-                None
-            };
-            let resolution_defaults = config()
-                .resolve_language_defaults(cli_dialect_family, mutate_args.dialect.as_deref())?;
+            let resolution_defaults = config().resolve_language_defaults()?;
 
             // Resolve command-specific options
             let resolved_targets = config()
@@ -193,7 +178,6 @@ pub async fn run_main(
                 resolved_targets,
                 mutations,
                 resolution_defaults,
-                cli_dialect_family.map(str::to_string),
             )
             .await?;
             0
@@ -255,7 +239,6 @@ pub async fn run_main(
                         cmds::print::PrintCommand::Mutations(cmds::print::MutationsFilters {
                             language: args.language,
                             format: args.format,
-                            dialect: args.dialect,
                         }),
                         None,
                         Arc::clone(&registry),
@@ -314,6 +297,41 @@ pub async fn run_main(
     // Exit with appropriate code
     if exit_code != 0 {
         std::process::exit(exit_code);
+    }
+
+    Ok(())
+}
+
+fn validate_config_dialects(
+    cfg: &crate::types::config::Config,
+    registry: &LanguageRegistry,
+) -> AppResult<()> {
+    if let Some(languages) = &cfg.languages {
+        for (family, language_cfg) in languages.iter() {
+            if let Some(dialect) = language_cfg.dialect.as_deref() {
+                registry
+                    .validate_dialect_selection(family, dialect)
+                    .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidInput, err))?;
+            }
+        }
+    }
+
+    for rule in cfg.per_target() {
+        let Some(languages) = &rule.languages else {
+            continue;
+        };
+        for (family, language_cfg) in languages.iter() {
+            if let Some(dialect) = language_cfg.dialect.as_deref() {
+                registry
+                    .validate_dialect_selection(family, dialect)
+                    .map_err(|err| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::InvalidInput,
+                            format!("{} in per_target glob '{}': {}", family, rule.glob, err),
+                        )
+                    })?;
+            }
+        }
     }
 
     Ok(())

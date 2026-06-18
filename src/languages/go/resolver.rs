@@ -42,9 +42,6 @@ impl LanguageResolver for GoLanguageResolver {
             if !Self::is_language_name(explicit_language) {
                 return None;
             }
-            if request.explicit_dialect.is_some() {
-                return Some(Err("Dialect selection is not supported for Go".to_string()));
-            }
             return Some(Ok(&self.engine));
         }
 
