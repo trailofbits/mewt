@@ -13,6 +13,7 @@ pub struct MoveSyntax {
     pub condition_field: &'static str,
     pub arguments_field: &'static str,
     pub unary_not_expression: &'static str,
+    pub acquires_clause: Option<&'static str>,
     pub unary_operator_field: Option<&'static str>,
     pub unary_operand_field: Option<&'static str>,
 }
@@ -31,6 +32,7 @@ pub fn syntax_for_dialect(dialect: MoveDialect) -> MoveSyntax {
             condition_field: "eb",
             arguments_field: "args",
             unary_not_expression: "unary_expression",
+            acquires_clause: None,
             unary_operator_field: Some("op"),
             unary_operand_field: Some("expr"),
         },
@@ -46,6 +48,7 @@ pub fn syntax_for_dialect(dialect: MoveDialect) -> MoveSyntax {
             condition_field: "condition",
             arguments_field: "arguments",
             unary_not_expression: "not_expression",
+            acquires_clause: Some("acquires_clause"),
             unary_operator_field: None,
             unary_operand_field: None,
         },

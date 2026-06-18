@@ -261,6 +261,21 @@ impl LanguageEngine for JavaScriptDialectEngine {
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "NR")),
                 ),
+                "NCR" => all_mutants.extend(
+                    patterns::shuffle_operators(
+                        root,
+                        source,
+                        &[syntax.binary_expression],
+                        &["??", "||"],
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "NCR")),
+                ),
+                "AWR" => all_mutants.extend(
+                    patterns::replace_with_first_named_child(root, source, syntax.await_expression)
+                        .into_iter()
+                        .map(|p| Mutant::from_partial(p, target, "AWR")),
+                ),
                 _ => panic!("Unknown mutation slug: {}", m.slug),
             }
         }

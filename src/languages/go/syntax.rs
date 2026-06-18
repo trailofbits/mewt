@@ -13,6 +13,7 @@ pub mod nodes {
     pub const INC_STATEMENT: &str = "inc_statement";
     pub const DEC_STATEMENT: &str = "dec_statement";
     pub const UNARY_EXPRESSION: &str = "unary_expression";
+    pub const DEFER_STATEMENT: &str = "defer_statement";
 }
 
 pub mod fields {

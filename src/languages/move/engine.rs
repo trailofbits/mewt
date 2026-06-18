@@ -264,6 +264,15 @@ fn mutate_move_with_config(
                     );
                 }
             }
+            "ACQ" => {
+                if let Some(acquires_clause) = syntax.acquires_clause {
+                    all_mutants.extend(
+                        patterns::remove_nodes(root, source, &[acquires_clause])
+                            .into_iter()
+                            .map(|p| Mutant::from_partial(p, target, "ACQ")),
+                    );
+                }
+            }
             _ => {
                 panic!(
                     "Unknown mutation slug encountered in Move engine: {}",

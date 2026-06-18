@@ -28,6 +28,8 @@ mod lc;
 mod los;
 #[path = "NR.rs"]
 mod nr;
+#[path = "RBR.rs"]
+mod rbr;
 #[path = "SAOS.rs"]
 mod saos;
 #[path = "SOS.rs"]

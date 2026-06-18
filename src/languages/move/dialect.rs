@@ -57,10 +57,10 @@ impl MoveDialectConfig {
 
     fn unsupported_mutation_slugs(&self) -> &'static [&'static str] {
         match self.dialect {
-            // Move has no compound assignment operators in this parser dialect.
-            MoveDialect::Sui => &["AAOS", "BAOS", "SAOS"],
-            // Start with same capabilities as Sui until grammar-specific deltas are added.
-            MoveDialect::Iota | MoveDialect::Aptos => &["AAOS", "BAOS", "SAOS"],
+            // Move has no compound assignment operators in this parser dialect; ACQ is Aptos-only.
+            MoveDialect::Sui | MoveDialect::Iota => &["AAOS", "BAOS", "SAOS", "ACQ"],
+            // Aptos currently lacks field metadata needed by NR's generic unary-removal helper.
+            MoveDialect::Aptos => &["AAOS", "BAOS", "SAOS", "NR"],
         }
     }
 }

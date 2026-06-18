@@ -2,6 +2,8 @@
 
 #[path = "AAOS.rs"]
 mod aaos;
+#[path = "ACQ.rs"]
+mod acq;
 #[path = "AOS.rs"]
 mod aos;
 #[path = "AS.rs"]

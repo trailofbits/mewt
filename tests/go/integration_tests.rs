@@ -106,6 +106,31 @@ fn go_example_file_generates_mutants() {
     );
 }
 
+#[test]
+fn go_catalog_filters_unsupported_while_false_mutation() {
+    let source = r#"package main
+
+func f(x int) int {
+    if x > 0 {
+        return x
+    }
+    return 0
+}
+"#;
+
+    let (_tmp, target) = create_test_target(source);
+    let engine = GoLanguageEngine::new();
+    let catalog_slugs: Vec<_> = engine.get_mutations().iter().map(|m| m.slug).collect();
+    assert!(!catalog_slugs.contains(&"WF"));
+
+    let wf_mutants: Vec<_> = engine
+        .mutate(&target)
+        .into_iter()
+        .filter(|m| m.mutation_slug == "WF")
+        .collect();
+    assert!(wf_mutants.is_empty(), "Go should not produce WF mutants");
+}
+
 pub(crate) fn assert_only_slug_and_expected_new_texts(
     source: &str,
     slug: &str,

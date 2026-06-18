@@ -6,6 +6,8 @@ mod aaos;
 mod aos;
 #[path = "AS.rs"]
 mod r#as;
+#[path = "AWR.rs"]
+mod awr;
 #[path = "BAOS.rs"]
 mod baos;
 #[path = "BL.rs"]
@@ -26,6 +28,8 @@ mod it;
 mod lc;
 #[path = "LOS.rs"]
 mod los;
+#[path = "NCR.rs"]
+mod ncr;
 #[path = "NR.rs"]
 mod nr;
 #[path = "SAOS.rs"]

@@ -30,7 +30,16 @@ impl Default for GoLanguageEngine {
 impl GoLanguageEngine {
     pub fn new() -> Self {
         let mut mutations: Vec<Mutation> = Vec::new();
-        mutations.extend_from_slice(COMMON_MUTATIONS);
+        mutations.extend(
+            COMMON_MUTATIONS
+                .iter()
+                .filter(|mutation| mutation.slug != "WF")
+                .map(|mutation| Mutation {
+                    slug: mutation.slug,
+                    description: mutation.description,
+                    severity: mutation.severity.clone(),
+                }),
+        );
         mutations.extend_from_slice(GO_MUTATIONS);
         Self {
             language: "go"
@@ -251,10 +260,11 @@ impl LanguageEngine for GoLanguageEngine {
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "NR")),
                 ),
-                // Mutations not applicable to Go
-                "WF" | "RZ" => {
-                    // Go has no `while` keyword (`WF`); `RZ` is a dead slug not in any mutation list.
-                }
+                "DR" => all_mutants.extend(
+                    patterns::replace_with_first_named_child(root, source, nodes::DEFER_STATEMENT)
+                        .into_iter()
+                        .map(|p| Mutant::from_partial(p, target, "DR")),
+                ),
                 _ => {
                     panic!("Unknown mutation slug encountered in Go engine: {}", m.slug);
                 }
