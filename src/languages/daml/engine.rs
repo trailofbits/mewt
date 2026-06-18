@@ -224,7 +224,11 @@ fn boolean_literal_swaps(root: Node, source: &str) -> Vec<PartialMutant> {
 fn party_swaps(root: Node, source: &str, kind: PartyDeclKind) -> Vec<PartialMutant> {
     let mut mutants = Vec::new();
     for site in party_decl_sites(&root, kind) {
-        let parties = bare_party_variables(&site.decl);
+        let mut cursor = site.decl.walk();
+        let parties: Vec<Node> = site
+            .decl
+            .children_by_field_name(fields::PARTY, &mut cursor)
+            .collect();
         if parties.is_empty() {
             continue;
         }
@@ -247,7 +251,11 @@ fn party_swaps(root: Node, source: &str, kind: PartyDeclKind) -> Vec<PartialMuta
 fn controller_party_removals(root: Node, source: &str) -> Vec<PartialMutant> {
     let mut mutants = Vec::new();
     for site in party_decl_sites(&root, PartyDeclKind::Controller) {
-        let parties = bare_party_variables(&site.decl);
+        let mut cursor = site.decl.walk();
+        let parties: Vec<Node> = site
+            .decl
+            .children_by_field_name(fields::PARTY, &mut cursor)
+            .collect();
         // The grammar's `controller_decl` requires at least one party child,
         // so a single-party `controller p` has no removal we can emit
         // without producing an empty list that won't re-parse.
@@ -256,9 +264,11 @@ fn controller_party_removals(root: Node, source: &str) -> Vec<PartialMutant> {
         }
         for idx in 0..parties.len() {
             let removed_text = node_text(&parties[idx], source);
-            // Skip when an identical name still remains: dropping a duplicate
-            // does not change the required authorization set, so the mutant
-            // is a guaranteed no-op.
+            // Skip when a text-identical party still remains: dropping it
+            // leaves the surface party list unchanged. Structural duplicates
+            // whose surface text differs (e.g. `(a), a`, `M.p, p`) are not
+            // caught here; the resulting mutants are equivalent and surface
+            // through tests, not through this filter.
             let duplicate_remains = parties
                 .iter()
                 .enumerate()
@@ -332,35 +342,6 @@ fn party_decl_sites<'a>(root: &Node<'a>, kind: PartyDeclKind) -> Vec<PartyDeclSi
     let mut sites = Vec::new();
     collect(*root, kind, &mut sites);
     sites
-}
-
-/// The bare identifiers a party-bearing decl (`controller_decl`,
-/// `signatory_decl`, ...) lists as parties. Returns the `variable` nodes
-/// themselves so callers can use their byte ranges and text directly.
-///
-/// The decl's `party` field is a multi-field; each child is an expression. We
-/// only collect children that are plain `variable` nodes. Anything else
-/// (`parens (a)`, `apply f x`, `qualified A.B`, `projection a.b`, `infix`, ...)
-/// drops the whole site rather than emit a partial list, because swapping
-/// or removing only some children would rewrite a non-trivial expression.
-/// Punctuation (`,`) is not a child of the `party` field, so there is no
-/// byte-gap classification to do here.
-///
-/// Known limitation: production DAML often uses `(view this).field`,
-/// `qualified M.party`, `apply getController this`, or `signatory key._1` in
-/// these positions; those sites currently produce zero mutants.
-fn bare_party_variables<'a>(decl: &Node<'a>) -> Vec<Node<'a>> {
-    let mut parties: Vec<Node<'a>> = Vec::new();
-    let mut cursor = decl.walk();
-    for child in decl.children_by_field_name(fields::PARTY, &mut cursor) {
-        if child.kind() != nodes::VARIABLE {
-            // Mixed shapes (some variables, some parens) collapse the whole
-            // site rather than emit a partial set.
-            return Vec::new();
-        }
-        parties.push(child);
-    }
-    parties
 }
 
 /// Party-name swap candidates for a party-decl site. Combines the template's

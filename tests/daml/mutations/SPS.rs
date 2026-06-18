@@ -1,11 +1,6 @@
 use std::collections::HashSet;
 
-use crate::daml::integration_tests::mutants_for_slug;
-use mewt::types::Mutant;
-
-fn new_texts(mutants: &[Mutant]) -> HashSet<&str> {
-    mutants.iter().map(|m| m.new_text.as_str()).collect()
-}
+use crate::daml::integration_tests::{mutant_pairs, mutants_for_slug, new_texts};
 
 #[test]
 fn sps_swaps_template_signatory_not_choice_controller() {
@@ -78,10 +73,7 @@ template T
 "#;
     let m = mutants_for_slug(source, "SPS");
     assert_eq!(m.len(), 2, "expected 2 SPS mutants, got {m:?}");
-    let pairs: HashSet<(&str, &str)> = m
-        .iter()
-        .map(|m| (m.old_text.as_str(), m.new_text.as_str()))
-        .collect();
+    let pairs = mutant_pairs(&m);
     assert_eq!(pairs, HashSet::from([("a", "c"), ("b", "c")]));
 }
 
@@ -108,10 +100,7 @@ template T
 "#;
     let m = mutants_for_slug(source, "SPS");
     assert_eq!(m.len(), 4, "expected 4 SPS mutants, got {m:?}");
-    let pairs: HashSet<(&str, &str)> = m
-        .iter()
-        .map(|m| (m.old_text.as_str(), m.new_text.as_str()))
-        .collect();
+    let pairs = mutant_pairs(&m);
     assert_eq!(
         pairs,
         HashSet::from([("a", "c"), ("a", "d"), ("b", "c"), ("b", "d")])
@@ -172,10 +161,10 @@ template T
 }
 
 #[test]
-fn sps_aborts_on_projection_signatory() {
-    // `signatory ref.owner` is a projection, not a bare variable. Even though
-    // the template has spare Party fields, the whole site is dropped rather
-    // than rewriting part of a non-trivial expression.
+fn sps_swaps_whole_projection_for_in_scope_party() {
+    // `signatory ref.owner` is a projection; the whole expression is the
+    // swap site. Each in-scope with-block Party becomes a candidate
+    // replacement. Never rewrites a sub-token of the projection.
     let source = r#"
 module M where
 
@@ -192,9 +181,101 @@ template T
         return ()
 "#;
     let m = mutants_for_slug(source, "SPS");
-    assert!(
-        m.is_empty(),
-        "projection signatory is not a plain party list; got {m:?}"
+    let pairs = mutant_pairs(&m);
+    assert_eq!(
+        pairs,
+        HashSet::from([("ref.owner", "owner"), ("ref.owner", "custodian")])
+    );
+}
+
+#[test]
+fn sps_swaps_whole_parenthesised_signatory() {
+    // Mirror of `cps_swaps_whole_parenthesised_controller` on the signatory
+    // side. Guards against a regression that re-introduces a variable-only
+    // filter on `PartyDeclKind::Signatory` while leaving Controller alone.
+    // `(alice) -> alice` is an equivalent mutant (parens are transparent);
+    // the engine does not distinguish. Surviving equivalent mutants surface
+    // test gaps. A future shape-aware dedup could suppress them.
+    let source = r#"
+module M where
+
+template T
+  with
+    alice : Party
+    bob : Party
+  where
+    signatory (alice)
+
+    choice Use : ()
+      controller alice
+      do
+        return ()
+"#;
+    let m = mutants_for_slug(source, "SPS");
+    let pairs = mutant_pairs(&m);
+    assert_eq!(
+        pairs,
+        HashSet::from([("(alice)", "alice"), ("(alice)", "bob")])
+    );
+}
+
+#[test]
+fn sps_swaps_whole_nested_projection() {
+    // Multi-level projection. The whole `ref.inner.owner` is the swap site;
+    // a regression that walked into the projection (e.g., to find atomic
+    // identifiers it could swap individually) would emit `("owner", ...)`
+    // or `("ref", ...)` pairs instead of `("ref.inner.owner", ...)`. The
+    // single-level case is covered by `sps_swaps_whole_projection_for_in_scope_party`.
+    let source = r#"
+module M where
+
+template T
+  with
+    owner : Party
+    custodian : Party
+  where
+    signatory ref.inner.owner
+
+    choice Use : ()
+      controller owner
+      do
+        return ()
+"#;
+    let m = mutants_for_slug(source, "SPS");
+    assert_eq!(
+        mutant_pairs(&m),
+        HashSet::from([
+            ("ref.inner.owner", "owner"),
+            ("ref.inner.owner", "custodian"),
+        ])
+    );
+}
+
+#[test]
+fn sps_swaps_each_party_in_multi_party_projection_signatory() {
+    // Multi-party signatory whose parties are projections into a record
+    // field, with a spare with-block `Party`. Each projection is swapped as
+    // a whole for the spare party.
+    let source = r#"
+module M where
+
+template T
+  with
+    info  : Info
+    extra : Party
+  where
+    signatory info.lead, info.peer
+
+    choice Use : ()
+      controller extra
+      do
+        return ()
+"#;
+    let m = mutants_for_slug(source, "SPS");
+    let pairs = mutant_pairs(&m);
+    assert_eq!(
+        pairs,
+        HashSet::from([("info.lead", "extra"), ("info.peer", "extra"),])
     );
 }
 
@@ -231,9 +312,6 @@ template B
 "#;
     let m = mutants_for_slug(source, "SPS");
     assert_eq!(m.len(), 2, "expected 2 SPS mutants, got {m:?}");
-    let pairs: HashSet<(&str, &str)> = m
-        .iter()
-        .map(|m| (m.old_text.as_str(), m.new_text.as_str()))
-        .collect();
+    let pairs = mutant_pairs(&m);
     assert_eq!(pairs, HashSet::from([("alice", "bob"), ("carol", "dave")]));
 }

@@ -1,11 +1,7 @@
 use std::collections::HashSet;
 
-use crate::daml::integration_tests::mutants_for_slug;
+use crate::daml::integration_tests::{mutant_pairs, mutants_for_slug, new_texts};
 use mewt::types::Mutant;
-
-fn new_texts(mutants: &[Mutant]) -> HashSet<&str> {
-    mutants.iter().map(|m| m.new_text.as_str()).collect()
-}
 
 #[test]
 fn cps_swaps_single_party_controller_to_other_template_party() {
@@ -76,10 +72,7 @@ template T
 "#;
     let m = mutants_for_slug(source, "CPS");
     assert_eq!(m.len(), 2, "expected 2 CPS mutants, got {m:?}");
-    let pairs: HashSet<(&str, &str)> = m
-        .iter()
-        .map(|m| (m.old_text.as_str(), m.new_text.as_str()))
-        .collect();
+    let pairs = mutant_pairs(&m);
     assert_eq!(pairs, HashSet::from([("a", "c"), ("b", "c")]));
 }
 
@@ -106,10 +99,7 @@ template T
 "#;
     let m = mutants_for_slug(source, "CPS");
     assert_eq!(m.len(), 4, "expected 4 CPS mutants, got {m:?}");
-    let pairs: HashSet<(&str, &str)> = m
-        .iter()
-        .map(|m| (m.old_text.as_str(), m.new_text.as_str()))
-        .collect();
+    let pairs = mutant_pairs(&m);
     assert_eq!(
         pairs,
         HashSet::from([("a", "c"), ("a", "d"), ("b", "c"), ("b", "d")])
@@ -241,10 +231,7 @@ template B
 "#;
     let m = mutants_for_slug(source, "CPS");
     assert_eq!(m.len(), 2, "expected 2 CPS mutants, got {m:?}");
-    let pairs: HashSet<(&str, &str)> = m
-        .iter()
-        .map(|m| (m.old_text.as_str(), m.new_text.as_str()))
-        .collect();
+    let pairs = mutant_pairs(&m);
     assert_eq!(pairs, HashSet::from([("alice", "bob"), ("carol", "dave")]));
 }
 
@@ -329,11 +316,11 @@ template T
 }
 
 #[test]
-fn cps_emits_nothing_for_function_application_controller() {
-    // A function-application controller is not a plain party list, so we must
-    // not mistake the function name `resolveActor` for a party. The template
-    // has two Party params, so WITHOUT the fix a swap would be emitted; with
-    // it, neither CPS nor CPR fires.
+fn cps_swaps_whole_function_application_controller() {
+    // `controller resolveActor owner` is an `apply` expression. CPS swaps the
+    // whole call for each in-scope with-block `Party`. We do not mistake the
+    // function name `resolveActor` for a party. The call site is one opaque
+    // expression. CPR still emits zero mutants (single-party list).
     let source = r#"
 module M where
 
@@ -351,13 +338,18 @@ template Asset
       controller resolveActor owner
       do return ()
 "#;
-    assert!(
-        mutants_for_slug(source, "CPS").is_empty(),
-        "function-application controller should produce no CPS mutants"
+    let m = mutants_for_slug(source, "CPS");
+    let pairs = mutant_pairs(&m);
+    assert_eq!(
+        pairs,
+        HashSet::from([
+            ("resolveActor owner", "owner"),
+            ("resolveActor owner", "custodian"),
+        ])
     );
     assert!(
         mutants_for_slug(source, "CPR").is_empty(),
-        "function-application controller should produce no CPR mutants"
+        "single-party list, nothing to drop"
     );
 }
 
@@ -397,7 +389,11 @@ template T
 }
 
 #[test]
-fn cps_aborts_on_parenthesised_controller() {
+fn cps_swaps_whole_parenthesised_controller() {
+    // `controller (a)` is a `parens` expression. We swap the whole `(a)` for
+    // each in-scope with-block `Party`. `(a) -> a` is an equivalent mutant
+    // (parens are semantically transparent); the engine does not
+    // distinguish. Surviving equivalent mutants surface test gaps.
     let source = r#"
 module M where
 
@@ -414,10 +410,65 @@ template T
         return ()
 "#;
     let m = mutants_for_slug(source, "CPS");
-    assert!(
-        m.is_empty(),
-        "parenthesised controller should produce no CPS mutants; got {m:?}"
+    let pairs = mutant_pairs(&m);
+    assert_eq!(pairs, HashSet::from([("(a)", "a"), ("(a)", "b")]));
+}
+
+#[test]
+fn cps_swaps_whole_projection_controller() {
+    // Mirror of `sps_swaps_whole_projection_for_in_scope_party` on the
+    // controller side. `controller ref.actor` is a projection; the whole
+    // expression is the swap site. Guards against a regression that
+    // re-introduces a variable-only filter on `PartyDeclKind::Controller`
+    // while leaving Signatory alone.
+    let source = r#"
+module M where
+
+template T
+  with
+    owner : Party
+    custodian : Party
+  where
+    signatory owner
+
+    choice Use : ()
+      controller ref.actor
+      do
+        return ()
+"#;
+    let m = mutants_for_slug(source, "CPS");
+    let pairs = mutant_pairs(&m);
+    assert_eq!(
+        pairs,
+        HashSet::from([("ref.actor", "owner"), ("ref.actor", "custodian")])
     );
+}
+
+#[test]
+fn cps_swaps_whole_qualified_party_controller() {
+    // `controller M.alice` is a `qualified` party expression (module-prefixed
+    // identifier), distinct from a qualified *type* annotation on a with-block
+    // field. Production DAML uses module-qualified party references; this
+    // test pins that the whole expression becomes the swap site.
+    let source = r#"
+module N where
+
+import qualified M
+
+template T
+  with
+    bob : Party
+  where
+    signatory bob
+
+    choice Use : ()
+      controller M.alice
+      do
+        return ()
+"#;
+    let m = mutants_for_slug(source, "CPS");
+    let pairs = mutant_pairs(&m);
+    assert_eq!(pairs, HashSet::from([("M.alice", "bob")]));
 }
 
 #[test]

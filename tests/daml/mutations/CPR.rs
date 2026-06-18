@@ -15,6 +15,18 @@ fn apply(source: &str, mutant: &Mutant) -> String {
     out
 }
 
+/// Apply `mutant` to `source` and return the first line that starts with
+/// `controller`, trimmed. Single-controller fixtures use this to assert the
+/// rewritten controller clause; multi-site fixtures need a different filter.
+fn mutated_controller_line(source: &str, mutant: &Mutant) -> String {
+    apply(source, mutant)
+        .lines()
+        .find(|l| l.trim_start().starts_with("controller"))
+        .unwrap()
+        .trim()
+        .to_string()
+}
+
 #[test]
 fn cpr_drops_one_party_from_a_two_party_controller() {
     let source = r#"
@@ -37,16 +49,7 @@ template T
 
     let results: HashSet<String> = m
         .iter()
-        .map(|mu| {
-            let mutated = apply(source, mu);
-            // Pull out the rewritten `controller ...` line for a stable check.
-            mutated
-                .lines()
-                .find(|l| l.trim_start().starts_with("controller"))
-                .unwrap()
-                .trim()
-                .to_string()
-        })
+        .map(|mu| mutated_controller_line(source, mu))
         .collect();
 
     assert_eq!(
@@ -78,14 +81,7 @@ template T
 
     let results: HashSet<String> = m
         .iter()
-        .map(|mu| {
-            apply(source, mu)
-                .lines()
-                .find(|l| l.trim_start().starts_with("controller"))
-                .unwrap()
-                .trim()
-                .to_string()
-        })
+        .map(|mu| mutated_controller_line(source, mu))
         .collect();
 
     // Each removal preserves the other two parties in their original order.
@@ -224,12 +220,7 @@ template T
 "#;
     let m = mutants_for_slug(source, "CPR");
     for mu in &m {
-        let line = apply(source, mu)
-            .lines()
-            .find(|l| l.trim_start().starts_with("controller"))
-            .unwrap()
-            .trim()
-            .to_string();
+        let line = mutated_controller_line(source, mu);
         assert_ne!(
             line, "controller a, a",
             "removal must change the controller line; got {mu:?}"
@@ -247,7 +238,13 @@ template T
 }
 
 #[test]
-fn cpr_does_not_fire_on_parenthesised_controller() {
+fn cpr_emits_equivalent_mutants_on_parenthesised_duplicate() {
+    // `controller (a), a`: `(a)` and `a` are semantically the same party
+    // (parens are transparent), but CPR's dedup at engine.rs compares surface
+    // text only, so `"(a)" != "a"` and neither removal is skipped. We emit
+    // two equivalent mutants here and accept them: this matches the CPS side
+    // (`cps_swaps_whole_parenthesised_controller` also asserts `(a) -> a` as
+    // an equivalent mutant). A future shape-aware dedup could suppress them.
     let source = r#"
 module M where
 
@@ -259,13 +256,88 @@ template T
     signatory a
 
     choice Use : ()
-      controller (a)
+      controller (a), a
       do
         return ()
 "#;
     let m = mutants_for_slug(source, "CPR");
-    assert!(
-        m.is_empty(),
-        "parenthesised controller is not a plain party list; got {m:?}"
+    assert_eq!(m.len(), 2, "expected 2 CPR mutants, got {m:?}");
+    let results: HashSet<String> = m
+        .iter()
+        .map(|mu| mutated_controller_line(source, mu))
+        .collect();
+    assert_eq!(
+        results,
+        HashSet::from(["controller a".to_string(), "controller (a)".to_string()])
+    );
+}
+
+#[test]
+fn cpr_drops_parenthesised_party_from_multi_party_list() {
+    // `controller (a), b`: the parens-wrapped party is removable like a
+    // bare variable. Removal byte range for idx=0 includes the open paren
+    // through the trailing separator; idx=1 takes the leading separator.
+    // The single-party `controller (a)` case is covered by the generic
+    // `cpr_emits_no_mutants_for_single_party_controllers` test.
+    let source = r#"
+module M where
+
+template T
+  with
+    a : Party
+    b : Party
+  where
+    signatory a
+
+    choice Use : ()
+      controller (a), b
+      do
+        return ()
+"#;
+    let m = mutants_for_slug(source, "CPR");
+    assert_eq!(m.len(), 2, "expected 2 CPR mutants, got {m:?}");
+    let results: HashSet<String> = m
+        .iter()
+        .map(|mu| mutated_controller_line(source, mu))
+        .collect();
+    assert_eq!(
+        results,
+        HashSet::from(["controller b".to_string(), "controller (a)".to_string(),])
+    );
+}
+
+#[test]
+fn cpr_drops_projection_party_from_multi_party_list() {
+    // `controller ref.actor, b`: projection-shaped parties are removable like
+    // bare variables. Pins the byte-range arithmetic at `removal_byte_range`
+    // and the text-equality dedup against non-atomic party expressions: a
+    // regression that, say, used `node_text` to find separators inside a
+    // projection's bytes would break this test's exact-output assertion.
+    let source = r#"
+module M where
+
+template T
+  with
+    b : Party
+  where
+    signatory b
+
+    choice Use : ()
+      controller ref.actor, b
+      do
+        return ()
+"#;
+    let m = mutants_for_slug(source, "CPR");
+    assert_eq!(m.len(), 2, "expected 2 CPR mutants, got {m:?}");
+    let results: HashSet<String> = m
+        .iter()
+        .map(|mu| mutated_controller_line(source, mu))
+        .collect();
+    assert_eq!(
+        results,
+        HashSet::from([
+            "controller b".to_string(),
+            "controller ref.actor".to_string(),
+        ])
     );
 }

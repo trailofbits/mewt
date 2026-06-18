@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::conformance;
 use crate::utils;
 use mewt::languages::daml::engine::DamlLanguageEngine;
@@ -17,6 +19,21 @@ pub(crate) fn create_test_target(content: &str) -> (TempDir, Target) {
 pub(crate) fn mutants_for_slug(source: &str, slug: &str) -> Vec<Mutant> {
     let (_tmp, target) = create_test_target(source);
     utils::mutants_for_slug(&DamlLanguageEngine::new(), &target, slug)
+}
+
+/// The set of `(old_text, new_text)` pairs across a mutant slice. Used by
+/// per-slug tests to assert the exact set of rewrites a source produces.
+pub(crate) fn mutant_pairs(mutants: &[Mutant]) -> HashSet<(&str, &str)> {
+    mutants
+        .iter()
+        .map(|m| (m.old_text.as_str(), m.new_text.as_str()))
+        .collect()
+}
+
+/// The set of `new_text` strings across a mutant slice. Used by tests that
+/// only care about candidate replacements, not which party they target.
+pub(crate) fn new_texts(mutants: &[Mutant]) -> HashSet<&str> {
+    mutants.iter().map(|m| m.new_text.as_str()).collect()
 }
 
 /// Assert the mutants for `slug` produce exactly the expected replacement texts.
