@@ -8,11 +8,12 @@ use super::dialect::{
     JavaScriptDialect, JavaScriptDialectConfig, config_for_dialect, language_name_for_dialect,
 };
 use super::mutations::JAVASCRIPT_MUTATIONS;
-use super::syntax::{fields, nodes};
+use super::syntax::{JavaScriptSyntax, syntax_for_dialect};
 
 pub struct JavaScriptDialectEngine {
     language: Language,
     config: JavaScriptDialectConfig,
+    syntax: JavaScriptSyntax,
     mutations: Vec<Mutation>,
 }
 
@@ -27,6 +28,7 @@ impl JavaScriptDialectEngine {
                 .parse()
                 .expect("hardcoded language identifier should be valid"),
             config: config_for_dialect(dialect),
+            syntax: syntax_for_dialect(dialect),
             mutations,
         }
     }
@@ -53,6 +55,7 @@ impl LanguageEngine for JavaScriptDialectEngine {
             None => return Vec::new(),
         };
         let root = tree.root_node();
+        let syntax = self.syntax;
 
         let mut all_mutants = Vec::new();
         for m in &self.mutations {
@@ -63,14 +66,14 @@ impl LanguageEngine for JavaScriptDialectEngine {
                             root,
                             source,
                             &[
-                                nodes::EXPRESSION_STATEMENT,
-                                nodes::RETURN_STATEMENT,
-                                nodes::VARIABLE_DECLARATION,
-                                nodes::IF_STATEMENT,
-                                nodes::WHILE_STATEMENT,
-                                nodes::FOR_STATEMENT,
-                                nodes::FOR_IN_STATEMENT,
-                                nodes::DO_STATEMENT,
+                                syntax.expression_statement,
+                                syntax.return_statement,
+                                syntax.variable_declaration,
+                                syntax.if_statement,
+                                syntax.while_statement,
+                                syntax.for_statement,
+                                syntax.for_in_statement,
+                                syntax.do_statement,
                             ],
                             "throw new Error(\"mewt\");",
                             &|node, src| {
@@ -89,14 +92,14 @@ impl LanguageEngine for JavaScriptDialectEngine {
                             root,
                             source,
                             &[
-                                nodes::EXPRESSION_STATEMENT,
-                                nodes::RETURN_STATEMENT,
-                                nodes::VARIABLE_DECLARATION,
-                                nodes::IF_STATEMENT,
-                                nodes::WHILE_STATEMENT,
-                                nodes::FOR_STATEMENT,
-                                nodes::FOR_IN_STATEMENT,
-                                nodes::DO_STATEMENT,
+                                syntax.expression_statement,
+                                syntax.return_statement,
+                                syntax.variable_declaration,
+                                syntax.if_statement,
+                                syntax.while_statement,
+                                syntax.for_statement,
+                                syntax.for_in_statement,
+                                syntax.do_statement,
                             ],
                             "/* ",
                             " */",
@@ -109,8 +112,8 @@ impl LanguageEngine for JavaScriptDialectEngine {
                     patterns::replace_condition(
                         root,
                         source,
-                        nodes::IF_STATEMENT,
-                        fields::CONDITION,
+                        syntax.if_statement,
+                        syntax.condition_field,
                         &["if"],
                         "false",
                     )
@@ -121,8 +124,8 @@ impl LanguageEngine for JavaScriptDialectEngine {
                     patterns::replace_condition(
                         root,
                         source,
-                        nodes::IF_STATEMENT,
-                        fields::CONDITION,
+                        syntax.if_statement,
+                        syntax.condition_field,
                         &["if"],
                         "true",
                     )
@@ -133,8 +136,8 @@ impl LanguageEngine for JavaScriptDialectEngine {
                     patterns::replace_condition(
                         root,
                         source,
-                        nodes::WHILE_STATEMENT,
-                        fields::CONDITION,
+                        syntax.while_statement,
+                        syntax.condition_field,
                         &["while"],
                         "false",
                     )
@@ -142,15 +145,20 @@ impl LanguageEngine for JavaScriptDialectEngine {
                     .map(|p| Mutant::from_partial(p, target, "WF")),
                 ),
                 "AS" => all_mutants.extend(
-                    patterns::swap_args(root, source, &[nodes::CALL_EXPRESSION], fields::ARGUMENTS)
-                        .into_iter()
-                        .map(|p| Mutant::from_partial(p, target, "AS")),
+                    patterns::swap_args(
+                        root,
+                        source,
+                        &[syntax.call_expression],
+                        syntax.arguments_field,
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "AS")),
                 ),
                 "LC" => all_mutants.extend(
                     patterns::shuffle_nodes(
                         root,
                         source,
-                        &[nodes::BREAK_STATEMENT, nodes::CONTINUE_STATEMENT],
+                        &[syntax.break_statement, syntax.continue_statement],
                         &["break", "continue"],
                     )
                     .into_iter()
@@ -165,7 +173,7 @@ impl LanguageEngine for JavaScriptDialectEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[syntax.binary_expression],
                         &["+", "-", "*", "/", "%", "**"],
                     )
                     .into_iter()
@@ -175,7 +183,7 @@ impl LanguageEngine for JavaScriptDialectEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::AUGMENTED_ASSIGNMENT_EXPRESSION],
+                        &[syntax.augmented_assignment_expression],
                         &["+=", "-=", "*=", "/=", "%=", "**="],
                     )
                     .into_iter()
@@ -185,7 +193,7 @@ impl LanguageEngine for JavaScriptDialectEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[syntax.binary_expression],
                         &["&", "|", "^"],
                     )
                     .into_iter()
@@ -195,7 +203,7 @@ impl LanguageEngine for JavaScriptDialectEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::AUGMENTED_ASSIGNMENT_EXPRESSION],
+                        &[syntax.augmented_assignment_expression],
                         &["&=", "|=", "^="],
                     )
                     .into_iter()
@@ -205,7 +213,7 @@ impl LanguageEngine for JavaScriptDialectEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[syntax.binary_expression],
                         &["&&", "||"],
                     )
                     .into_iter()
@@ -215,7 +223,7 @@ impl LanguageEngine for JavaScriptDialectEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[syntax.binary_expression],
                         &["==", "!=", "===", "!==", "<", "<=", ">", ">="],
                     )
                     .into_iter()
@@ -225,7 +233,7 @@ impl LanguageEngine for JavaScriptDialectEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[syntax.binary_expression],
                         &["<<", ">>", ">>>"],
                     )
                     .into_iter()
@@ -235,7 +243,7 @@ impl LanguageEngine for JavaScriptDialectEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::AUGMENTED_ASSIGNMENT_EXPRESSION],
+                        &[syntax.augmented_assignment_expression],
                         &["<<=", ">>=", ">>>="],
                     )
                     .into_iter()
@@ -245,9 +253,9 @@ impl LanguageEngine for JavaScriptDialectEngine {
                     patterns::remove_unary_operator(
                         root,
                         source,
-                        nodes::UNARY_EXPRESSION,
-                        fields::OPERATOR,
-                        fields::ARGUMENT,
+                        syntax.unary_expression,
+                        syntax.operator_field,
+                        syntax.argument_field,
                         "!",
                     )
                     .into_iter()
