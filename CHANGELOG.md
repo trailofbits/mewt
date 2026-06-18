@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Aptos and IOTA Move dialect support alongside Sui Move.
+- DAML language support (`.daml`)
+- New mutation operators:
+  - `CPS` (Controller Party Swap), `CPR` (Controller Party Removal), and `SPS` (Signatory Party Swap) for DAML
 
 ### Changed
 - **BREAKING**: Move language labels are now dialect-qualified (`Move/sui`, `Move/iota`, `Move/aptos`). Existing databases that contain the legacy `SuiMove` label should be purged or regenerated.

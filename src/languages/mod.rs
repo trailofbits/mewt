@@ -1,4 +1,5 @@
 pub mod cpp;
+pub mod daml;
 pub mod go;
 pub mod javascript;
 pub mod r#move;

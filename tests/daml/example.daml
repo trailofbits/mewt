@@ -1,0 +1,37 @@
+-- Canonical DAML example used as a smoke-test fixture. It exercises both the
+-- common mutations (if / boolean / arithmetic / comparison / logical) in a
+-- top-level helper and the DAML-specific controller mutations (CPS / CPR) in a
+-- multi-party choice.
+module Example where
+
+-- Plain top-level function: parses as ordinary Haskell, so the common
+-- operator/condition/boolean mutations apply here.
+withinLimit : Int -> Int -> Bool
+withinLimit amount limit = amount > 0 && amount <= limit * 2
+
+-- Bare boolean literal: BL flips True / False, so this gives the smoke
+-- test a fixture for the BL operator alongside the controller mutations.
+isOpen : Bool
+isOpen = True
+
+template Account
+  with
+    owner : Party
+    custodian : Party
+    -- A third party that is not in the controller list, so CPS has a
+    -- party to swap a controller to.
+    regulator : Party
+    balance : Int
+  where
+    signatory owner
+
+    choice Withdraw : ()
+      with
+        amount : Int
+      -- Multi-party controller: the target of CPS (swap a party) and
+      -- CPR (drop a party).
+      controller owner, custodian
+      do
+        if withinLimit amount balance
+          then return ()
+          else return ()

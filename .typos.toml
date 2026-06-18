@@ -12,3 +12,11 @@ memeber = "memeber"
 # "mis" appears in an upstream Aptos Move vendored grammar comment
 # ("mis-parsed") and is not project-authored prose.
 mis = "mis"
+
+# "synomym" is a typo in the upstream tree-sitter-haskell grammar's symbol name
+# (sym_type_synomym). It appears in vendored parser.c that we do not control.
+synomym = "synomym"
+
+# "tyops" is the upstream tree-sitter-haskell grammar's abbreviation for
+# "type operators" (`_tyops` rule). Not a typo, despite what `typos` thinks.
+tyops = "tyops"

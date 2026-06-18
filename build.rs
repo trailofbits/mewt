@@ -126,4 +126,8 @@ fn main() {
     // Build Aptos Move grammar
     let move_aptos_dir: PathBuf = ["grammars", "move-aptos", "src"].iter().collect();
     build_grammar(&move_aptos_dir, "tree-sitter-move-aptos", None);
+
+    // Build DAML grammar
+    let daml_dir: PathBuf = ["grammars", "daml", "src"].iter().collect();
+    build_grammar(&daml_dir, "tree-sitter-daml", None);
 }
