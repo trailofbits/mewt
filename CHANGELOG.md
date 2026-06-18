@@ -5,17 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 4.0.0 - 2026-06-18
 
 ### Added
+- DAML language support (`.daml`) backed by the vendored `tree-sitter-daml` grammar.
 - Aptos and IOTA Move dialect support alongside Sui Move.
-- DAML language support (`.daml`)
+- Dialect-aware language resolution with canonical `family/dialect` labels and resolver-level dialect policies.
+- Generic language dialect configuration via `[languages.<family>]`, including Move dialect defaults.
+- Top-level `[[per_target]]` rules for per-target test, run, and language-dialect overrides.
+- Documentation for language resolution and Move dialect selection.
 - New mutation operators:
   - `CPS` (Controller Party Swap), `CPR` (Controller Party Removal), and `SPS` (Signatory Party Swap) for DAML
+  - `DR` (Defer Removal) for Go
+  - `NCR` (Nullish Coalescing Replacement) and `AWR` (Await Removal) for JavaScript/TypeScript
+  - `ACQ` (Acquires Clause Removal) for Aptos Move
+  - `RBR` (Range Boundary Replacement) for Rust
 
 ### Changed
-- **BREAKING**: Move language labels are now dialect-qualified (`Move/sui`, `Move/iota`, `Move/aptos`). Existing databases that contain the legacy `SuiMove` label should be purged or regenerated.
-- `mewt print mutations` now filters Move mutation listings by the selected dialect.
+- **BREAKING**: Language labels are now canonicalized as lowercase `family` or `family/dialect` values.
+- **BREAKING**: Move language labels are now dialect-qualified (`move/sui`, `move/iota`, `move/aptos`). Existing databases that contain the legacy `SuiMove` label should be purged or regenerated.
+- **BREAKING**: `LanguageEngine` implementations now expose a canonical `Language` identifier and are registered through language resolvers.
+- JavaScript, TypeScript, JSX, and TSX are now represented as JavaScript dialects (`javascript/js`, `javascript/ts`, `javascript/jsx`, `javascript/tsx`).
+- `.move` targets now resolve dialects from explicit language labels, per-target config, project config, then the `sui` default.
+- `mewt print mutations` now expands family labels and filters mutation listings by selected dialect.
+- `run` and `mutate` now honor per-target `run.mutations` and `run.comprehensive` overrides.
+- Nested `[[test.per_target]]` rules remain supported but are deprecated in favor of top-level `[[per_target]]` rules.
+
+### Fixed
+- Language filtering now accounts for canonical dialect labels and legacy stored rows.
 
 ## 3.1.0 - 2026-04-20
 
