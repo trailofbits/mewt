@@ -7,6 +7,8 @@ mewt.toml
 
 # Cache
 .cargo
+.scratch
+.tmp/
 
 # Compiled output
 target

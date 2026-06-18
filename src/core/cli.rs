@@ -125,7 +125,7 @@ pub struct MutateArgs {
 /// Arguments for the list-mutations command
 #[derive(Parser, Debug)]
 pub struct ListMutationsArgs {
-    /// Target language for mutations
+    /// Target language for mutations (e.g., rust, solidity, move)
     #[arg(long)]
     pub language: Option<String>,
 }
@@ -168,7 +168,7 @@ pub struct PrintTargetsArgs {
 /// Arguments for the print mutations subcommand
 #[derive(Parser, Debug)]
 pub struct PrintMutationsArgs {
-    /// Target language for mutations (omit to show all)
+    /// Target language for mutations (omit to show all; dialect labels may use family/dialect)
     #[arg(long)]
     pub language: Option<String>,
 
@@ -209,7 +209,7 @@ pub struct ResultsArgs {
     #[arg(long)]
     pub status: Option<String>,
 
-    /// Filter by language (e.g., rust, python, javascript)
+    /// Filter by language (e.g., rust, javascript, move)
     #[arg(long)]
     pub language: Option<String>,
 

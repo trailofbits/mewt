@@ -167,6 +167,52 @@ pub fn replace_first_arg(
     mutants
 }
 
+/// Replace each node of a given kind with its first named child.
+pub fn replace_with_first_named_child(
+    root: Node,
+    source: &str,
+    node_kind: &str,
+) -> Vec<PartialMutant> {
+    let mut mutants = Vec::new();
+    let mut cursor = root.walk();
+    visit_nodes_with_cursor(root, &mut cursor, &mut |node| {
+        if node.kind() != node_kind || is_in_comment(&node) {
+            return;
+        }
+
+        let mut nc = node.walk();
+        let Some(child) = node.children(&mut nc).find(|child| child.is_named()) else {
+            return;
+        };
+
+        mutants.push(PartialMutant {
+            byte_offset: node.start_byte() as u32,
+            line_offset: calculate_line_offset(source, node.start_byte()),
+            old_text: node_text(&node, source).to_string(),
+            new_text: node_text(&child, source).to_string(),
+        });
+    });
+    mutants
+}
+
+/// Remove entire nodes of the provided kinds.
+pub fn remove_nodes(root: Node, source: &str, node_kinds: &[&str]) -> Vec<PartialMutant> {
+    let mut mutants = Vec::new();
+    let kinds: Vec<&str> = node_kinds.to_vec();
+    let mut cursor = root.walk();
+    visit_nodes_with_cursor(root, &mut cursor, &mut |node| {
+        if kinds.contains(&node.kind()) && !is_in_comment(&node) {
+            mutants.push(PartialMutant {
+                byte_offset: node.start_byte() as u32,
+                line_offset: calculate_line_offset(source, node.start_byte()),
+                old_text: node_text(&node, source).to_string(),
+                new_text: String::new(),
+            });
+        }
+    });
+    mutants
+}
+
 /// Shuffle operator tokens inside expressions of specified kinds by replacing any occurrence
 /// of the provided operators with any other in the set (excluding identity)
 pub fn shuffle_operators(

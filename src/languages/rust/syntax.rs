@@ -13,6 +13,7 @@ pub mod nodes {
     pub const CONTINUE_STATEMENT: &str = "continue_expression";
     pub const FOREACH_STATEMENT: &str = "for_expression";
     pub const UNARY_EXPRESSION: &str = "unary_expression";
+    pub const RANGE_EXPRESSION: &str = "range_expression";
 }
 
 pub mod fields {

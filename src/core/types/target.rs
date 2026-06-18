@@ -1,29 +1,36 @@
 use std::fs;
 use std::io;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use log::info;
 use serde::Serialize;
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
+use crate::core::resolver::{ResolutionDefaults, ResolutionRequest};
 use crate::types::config::{ResolvedTargets, config, is_path_excluded, is_slug_enabled};
-use crate::types::{Hash, Mutant};
+use crate::types::{Hash, Language, Mutant};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Target {
     pub id: i64,
     pub path: PathBuf,
     pub file_hash: Hash,
+    pub language: Language,
     #[serde(skip)]
     pub text: String,
-    pub language: String,
 }
 
 impl Target {
-    /// Returns a cwd-relative path string suitable for logging
+    /// Returns a cwd-relative path plus resolved language label suitable for logging.
     pub fn display(&self) -> String {
+        let path = self.display_path();
+        format!("{} ({})", path, self.language)
+    }
+
+    /// Returns a cwd-relative path string.
+    pub fn display_path(&self) -> String {
         // Try to make the path relative to the current working directory for concise logs
         if let Ok(cwd) = std::env::current_dir() {
             // Ensure we compare absolute paths
@@ -49,6 +56,7 @@ impl Target {
         store: &SqlStore,
         registry: &LanguageRegistry,
         mutations: Option<&[String]>,
+        resolution_defaults: &ResolutionDefaults,
     ) -> io::Result<Vec<Target>> {
         let mut all_targets: Vec<Target> = vec![];
 
@@ -59,8 +67,14 @@ impl Target {
             if path.is_file() {
                 // Direct file reference
                 if !is_path_excluded(&path, &resolved_targets.ignore) {
-                    if let Some(target) =
-                        Self::load_single_file(path, store, registry, mutations).await?
+                    if let Some(target) = Self::load_single_file(
+                        path,
+                        store,
+                        registry,
+                        mutations,
+                        resolution_defaults,
+                    )
+                    .await?
                     {
                         all_targets.push(target);
                     }
@@ -73,6 +87,7 @@ impl Target {
                     registry,
                     &resolved_targets.ignore,
                     mutations,
+                    resolution_defaults,
                 ))
                 .await?;
                 all_targets.extend(targets_from_dir);
@@ -87,7 +102,11 @@ impl Target {
                                         && !is_path_excluded(&glob_path, &resolved_targets.ignore)
                                     {
                                         if let Some(target) = Self::load_single_file(
-                                            glob_path, store, registry, mutations,
+                                            glob_path,
+                                            store,
+                                            registry,
+                                            mutations,
+                                            resolution_defaults,
                                         )
                                         .await?
                                         {
@@ -100,6 +119,7 @@ impl Target {
                                             registry,
                                             &resolved_targets.ignore,
                                             mutations,
+                                            resolution_defaults,
                                         ))
                                         .await?;
                                         all_targets.extend(targets_from_dir);
@@ -141,23 +161,27 @@ impl Target {
         store: &SqlStore,
         registry: &LanguageRegistry,
         _mutations: Option<&[String]>,
+        resolution_defaults: &ResolutionDefaults,
     ) -> io::Result<Option<Target>> {
         let mut file = fs::File::open(&target_path)?;
         let mut text = String::new();
         file.read_to_string(&mut text)?;
 
-        // Determine language from the file extension
-        let language_engine = match registry.language_from_path(&target_path) {
-            Some(engine) => engine,
-            None => {
-                info!(
-                    "Skipping file {}: unsupported language",
-                    target_path.display()
-                );
-                return Ok(None);
-            }
-        };
-        let language = language_engine.name().to_string();
+        // Determine language from the file extension.
+        // For .move files, use explicitly resolved dialect from config/CLI/per-target config.
+        let path_resolution_defaults =
+            config().resolve_language_defaults_for_path(&target_path, resolution_defaults);
+        let language =
+            match resolve_language_for_path(&target_path, registry, &path_resolution_defaults) {
+                Some(language) => language,
+                None => {
+                    info!(
+                        "Skipping file {}: unsupported language",
+                        target_path.display()
+                    );
+                    return Ok(None);
+                }
+            };
 
         let mut target = Target {
             id: 0, // dummy placeholder until we store it in the db
@@ -182,6 +206,7 @@ impl Target {
         registry: &LanguageRegistry,
         ignore_patterns: &[String],
         mutations: Option<&[String]>,
+        resolution_defaults: &ResolutionDefaults,
     ) -> io::Result<Vec<Target>> {
         // Skip directory entirely if excluded
         if is_path_excluded(&dir_path, ignore_patterns) {
@@ -193,8 +218,14 @@ impl Target {
             let path = entry?.path();
             if path.is_file() {
                 if !is_path_excluded(&path, ignore_patterns) {
-                    if let Some(target) =
-                        Self::load_single_file(path, store, registry, mutations).await?
+                    if let Some(target) = Self::load_single_file(
+                        path,
+                        store,
+                        registry,
+                        mutations,
+                        resolution_defaults,
+                    )
+                    .await?
                     {
                         targets.push(target);
                     }
@@ -206,6 +237,7 @@ impl Target {
                     registry,
                     ignore_patterns,
                     mutations,
+                    resolution_defaults,
                 ))
                 .await?;
                 targets.extend(targets_from_subdir);
@@ -357,5 +389,67 @@ impl Target {
     pub fn restore(&self) -> io::Result<()> {
         std::fs::write(&self.path, &self.text)?;
         Ok(())
+    }
+}
+
+fn resolve_language_for_path(
+    target_path: &Path,
+    registry: &LanguageRegistry,
+    resolution_defaults: &ResolutionDefaults,
+) -> Option<Language> {
+    registry
+        .resolve_canonical_language(ResolutionRequest {
+            path: target_path,
+            explicit_language: None,
+            defaults: Some(resolution_defaults),
+        })
+        .ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::resolver::{DialectDefault, ResolutionDefaults};
+    use crate::languages;
+
+    fn test_registry() -> LanguageRegistry {
+        let mut registry = LanguageRegistry::new();
+        registry.register_resolver(languages::rust::resolver::RustLanguageResolver::new());
+        registry.register_resolver(languages::r#move::resolver::MoveLanguageResolver::new());
+        registry
+    }
+
+    fn move_defaults(dialect: &str) -> ResolutionDefaults {
+        let mut defaults = ResolutionDefaults::default();
+        defaults.default_dialects.insert(
+            "move".to_string(),
+            DialectDefault {
+                dialect: dialect.to_string(),
+            },
+        );
+        defaults
+    }
+
+    #[test]
+    fn move_paths_use_resolved_dialect_label() {
+        let registry = test_registry();
+        let language = resolve_language_for_path(
+            &PathBuf::from("example.move"),
+            &registry,
+            &move_defaults("iota"),
+        )
+        .expect("move language");
+
+        assert_eq!(language, "move/iota");
+    }
+
+    #[test]
+    fn non_move_paths_use_extension_registry_lookup() {
+        let registry = test_registry();
+        let language =
+            resolve_language_for_path(&PathBuf::from("lib.rs"), &registry, &move_defaults("iota"))
+                .expect("rust language");
+
+        assert_eq!(language, "rust");
     }
 }

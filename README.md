@@ -17,12 +17,13 @@ wrong.
 - JavaScript/TypeScript
 - Rust
 - Solidity
-- Sui Move
+- Move (dialects: `sui`, `iota`, `aptos`; use `move`, `move/sui`, `move/iota`, or `move/aptos`)
 
 For details on how campaigns work under the hood, see
-[How it works](docs/how-it-works.md). To add support for a new language, see
-[Adding a language](docs/adding-a-language.md). For mutation test suite
-structure and shared test helper conventions, see
+[How it works](docs/how-it-works.md). For the language/dialect resolver contract,
+see [Language resolution contract](docs/language-resolution-contract.md).
+To add support for a new language, see [Adding a language](docs/adding-a-language.md).
+For mutation test suite structure and shared test helper conventions, see
 [`tests/README.md`](tests/README.md).
 
 ## Installation
@@ -58,6 +59,12 @@ mewt run path/to/project
 mewt print mutations --language rust
 ```
 
+- List Move mutation slugs for a specific dialect:
+
+```bash
+mewt print mutations --language move/iota
+```
+
 - Print all mutants for a target path:
 
 ```bash
@@ -84,6 +91,24 @@ You can also point to an explicit config file with `--config path/to/mewt.toml`.
 
 See [Configuration](docs/configuration.md) for the full reference and [`src/example.toml`](src/example.toml) for a commented example.
 
+## Choosing a Move dialect
+
+For `.move` files, mewt resolves dialect in this order:
+1. explicit language label, e.g. `--language move/iota`
+2. per-target `languages.move.dialect` in `mewt.toml`
+3. project-wide `[languages.move].dialect` in `mewt.toml`
+4. default `sui`
+
+Examples:
+
+```bash
+# Explicit dialect from CLI
+mewt print mutations --language move/sui
+```
+
+Compatibility note:
+- Use canonical Move names: `move`, `move/sui`, `move/iota`, and `move/aptos`.
+
 ## Examples
 
 This repo includes example files you can try:
@@ -93,7 +118,7 @@ This repo includes example files you can try:
 - JavaScript/TypeScript/JSX/TSX: `tests/javascript/example.js` (plus `example.ts`, `example.jsx`, `example.tsx`)
 - Rust: `tests/rust/example.rs`
 - Solidity: `tests/solidity/example.sol`
-- Sui Move: `tests/sui_move/example.move`
+- Move: `tests/move/example.move`
 
 ## Notes
 

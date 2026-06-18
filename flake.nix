@@ -4,9 +4,7 @@
     utils.url = "github:numtide/flake-utils";
     fenix.url = "github:nix-community/fenix";
     fenix.inputs.nixpkgs.follows = "nixpkgs";
-    naersk.url = "github:nix-community/naersk";
-    naersk.inputs.nixpkgs.follows = "nixpkgs";
-    naersk.inputs.fenix.follows = "fenix";
+    crane.url = "github:ipetkov/crane";
   };
 
   outputs = inputs: with inputs;
@@ -50,86 +48,88 @@
 
       pkgs = mkPkgs null;
 
-      fenixPkgs = fenix.packages.${buildSystem};
-      toolchain = with fenixPkgs; combine [
+      mkToolchain = p: let
+        fenixPkgs = fenix.packages.${p.stdenv.buildPlatform.system};
+      in with fenixPkgs; combine [
         stable.completeToolchain
         fenixPkgs.targets.${targets.x86_64-linux}.stable.rust-std
         fenixPkgs.targets.${targets.aarch64-linux}.stable.rust-std
       ];
+      toolchain = mkToolchain pkgs;
 
-      naerskBuild = targetSystem: let
+      craneBuild = targetSystem: let
         pkgsCross = mkPkgs targetSystem;
         isNativeBuild = targetSystem == null || targetSystem == buildSystem;
-      in (naersk.lib.${buildSystem}.override {
-        cargo = toolchain;
-        rustc = toolchain;
-      }).buildPackage(rec {
+        craneLib = (crane.mkLib pkgsCross).overrideToolchain mkToolchain;
         src = ./.;
-        strictDeps = true;
-        doCheck = false;
-        release = true;
-        postInstall = if targetSystem == null then "" else ''
-          cd "$out"/bin
-          for f in $(ls); do
-            if ext="$(echo "$f" | grep -oP '\\.[a-z]+$')"; then
-              base="$(echo "$f" | cut -d. -f1)"
-              mv "$f" "$base-${targetSystem}$ext"
-            else
-              mv "$f" "$f-${targetSystem}"
-            fi
-          done
-        '';
 
-        buildInputs = [
-          toolchain
-        ] ++ (if isNativeBuild then [
-          pkgsCross.sqlite.dev
-        ] else [
-          pkgsCross.sqlite-static
-        ]);
+        commonArgs = {
+          inherit src;
+          strictDeps = true;
+          doCheck = false;
 
-        nativeBuildInputs = with pkgs; [
-          pkgs.stdenv.cc # rust dependency build scripts must run on the build system
-        ] ++ (if isNativeBuild then [
-          pkgsCross.pkg-config
-        ] else [
-          pkgsCross.pkg-config
-        ]);
+          buildInputs = [
+            toolchain
+          ] ++ (if isNativeBuild then [
+            pkgsCross.sqlite.dev
+          ] else [
+            pkgsCross.sqlite-static
+          ]);
 
-        # Cross-compilation specific settings
-      } // (if isNativeBuild then {
-        # Native build settings
-        PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" [
-          pkgsCross.sqlite.dev
-        ];
-      } else rec {
-        # Cross-compilation settings
-        TARGET_CC = "${pkgsCross.stdenv.cc}/bin/${pkgsCross.stdenv.cc.targetPrefix}cc";
-        PKG_CONFIG_ALL_STATIC = "1";
-        PKG_CONFIG_ALLOW_CROSS = "1";
-        PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" [
-          pkgsCross.sqlite-static.dev
-          pkgsCross.zlib.static
-        ];
-        CARGO_BUILD_TARGET = targets.${targetSystem};
-        CARGO_BUILD_RUSTFLAGS = [
-          # Tells Cargo to enable static compilation
-          "-C" "target-feature=+crt-static"
-          # https://github.com/rust-lang/cargo/issues/4133
-          "-C" "linker=${TARGET_CC}"
-          "-L" "${pkgsCross.sqlite-static.dev}/lib"
-          "-L" "${pkgsCross.zlib.static}/lib"
-        ];
-      }));
+          nativeBuildInputs = with pkgs; [
+            pkgs.stdenv.cc # rust dependency build scripts must run on the build system
+            pkgsCross.pkg-config
+          ];
+
+          # Native/Cross settings
+        } // (if isNativeBuild then {
+          PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" [
+            pkgsCross.sqlite.dev
+          ];
+        } else rec {
+          TARGET_CC = "${pkgsCross.stdenv.cc}/bin/${pkgsCross.stdenv.cc.targetPrefix}cc";
+          PKG_CONFIG_ALL_STATIC = "1";
+          PKG_CONFIG_ALLOW_CROSS = "1";
+          PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" [
+            pkgsCross.sqlite-static.dev
+            pkgsCross.zlib.static
+          ];
+          CARGO_BUILD_TARGET = targets.${targetSystem};
+          CARGO_BUILD_RUSTFLAGS = pkgs.lib.concatStringsSep " " [
+            # Tells Cargo to enable static compilation
+            "-C" "target-feature=+crt-static"
+            # https://github.com/rust-lang/cargo/issues/4133
+            "-C" "linker=${TARGET_CC}"
+            "-L" "${pkgsCross.sqlite-static.dev}/lib"
+            "-L" "${pkgsCross.zlib.static}/lib"
+          ];
+        });
+
+        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+      in
+        craneLib.buildPackage (commonArgs // {
+          inherit cargoArtifacts;
+          postInstall = if targetSystem == null then "" else ''
+            cd "$out"/bin
+            for f in $(ls); do
+              if ext="$(echo "$f" | grep -oP '\\.[a-z]+$')"; then
+                base="$(echo "$f" | cut -d. -f1)"
+                mv "$f" "$base-${targetSystem}$ext"
+              else
+                mv "$f" "$f-${targetSystem}"
+              fi
+            done
+          '';
+        });
 
     in rec {
 
       packages = {
         default = packages.mewt;
-        mewt = naerskBuild null;
-        mewt-x86_64-linux = naerskBuild "x86_64-linux";
-        mewt-aarch64-linux = naerskBuild "aarch64-linux";
-        mewt-aarch64-darwin = naerskBuild "aarch64-darwin";
+        mewt = craneBuild null;
+        mewt-x86_64-linux = craneBuild "x86_64-linux";
+        mewt-aarch64-linux = craneBuild "aarch64-linux";
+        mewt-aarch64-darwin = craneBuild "aarch64-darwin";
       };
 
       devInputs = with pkgs; [

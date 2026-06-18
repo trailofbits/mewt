@@ -1,16 +1,18 @@
-use crate::types::{Mutant, Mutation, Target};
+use crate::types::{Language, Mutant, Mutation, Target};
 
 /// Core trait that language implementations must provide
 pub trait LanguageEngine: Send + Sync {
-    /// Language name (e.g., "Rust", "Solidity")
-    fn name(&self) -> &'static str;
+    /// Concrete language family/dialect handled by this engine.
+    fn language(&self) -> &Language;
 
-    /// File extensions this language handles (e.g., ["rs", "rust"])
-    fn extensions(&self) -> &[&'static str];
-
-    /// Get all available mutations for this language
+    /// Get the effective mutation catalog for this concrete engine.
     fn get_mutations(&self) -> &[Mutation];
 
-    /// Apply mutations to a target and return mutants
+    /// Apply mutations to a target and return mutants.
+    ///
+    /// Dialect resolution must already be complete before this method is called.
+    /// Implementations may validate `target.language` for diagnostics, but must
+    /// not choose dialect config, parser, syntax, or mutation availability by
+    /// parsing `target.language` or the target path.
     fn mutate(&self, target: &Target) -> Vec<Mutant>;
 }

@@ -4,9 +4,10 @@ use sqlx::{QueryBuilder, Row};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
+use crate::LanguageRegistry;
 use crate::types::{
-    CampaignSeverityStats, CampaignSummary, Hash, Mutant, Outcome, Status, StoreError, StoreResult,
-    Target, TargetStats,
+    CampaignSeverityStats, CampaignSummary, Hash, Language, Mutant, Outcome, Status, StoreError,
+    StoreResult, Target, TargetStats,
 };
 
 #[derive(Clone, Debug)]
@@ -23,7 +24,7 @@ impl SqlStore {
 
     pub async fn add_target(&self, target: Target) -> StoreResult<i64> {
         // Get language string
-        let language_str = &target.language;
+        let language_str = target.language.to_string();
 
         let file_hash_hex = target.file_hash.to_hex();
         let path_str = target.path.to_string_lossy().into_owned();
@@ -180,14 +181,12 @@ impl SqlStore {
             sqlx::Error::RowNotFound => StoreError::NotFound(target_id),
             e => StoreError::DatabaseError(e),
         })?;
-        let language = record.language;
-
         Ok(Target {
             id: record.id,
             path: PathBuf::from(record.path),
             file_hash: Hash::try_from(record.file_hash)?,
             text: record.text,
-            language,
+            language: parse_language(record.language)?,
         })
     }
 
@@ -209,7 +208,7 @@ impl SqlStore {
                 path: PathBuf::from(record.path),
                 file_hash: Hash::try_from(record.file_hash)?,
                 text: record.text,
-                language: record.language,
+                language: parse_language(record.language)?,
             });
         }
 
@@ -598,7 +597,7 @@ impl SqlStore {
                 path: PathBuf::from(row.try_get::<String, _>("path")?),
                 file_hash: Hash::try_from(row.try_get::<String, _>("file_hash")?)?,
                 text: row.try_get("text")?,
-                language: row.try_get("language")?,
+                language: parse_language(row.try_get::<String, _>("language")?)?,
             };
             results.push((mutant, target));
         }
@@ -622,6 +621,7 @@ impl SqlStore {
         language: Option<String>,
         mutation_types: Option<Vec<String>>,
         line: Option<u32>,
+        registry: &LanguageRegistry,
     ) -> StoreResult<Vec<(Mutant, Target, Outcome)>> {
         // Get target IDs matching the pattern (if provided)
         let target_ids = self.match_target_ids(target).await?;
@@ -658,8 +658,23 @@ impl SqlStore {
 
         // Add language filter
         if let Some(lang) = language {
+            let language_variants = language_filter_variants(registry, &lang);
             add_separator(&mut query_builder, &mut has_where);
-            query_builder.push("t.language = ").push_bind(lang);
+            if let Some(single_variant) = (language_variants.len() == 1)
+                .then(|| language_variants.first())
+                .flatten()
+            {
+                query_builder
+                    .push("t.language = ")
+                    .push_bind((*single_variant).clone());
+            } else {
+                query_builder.push("t.language IN (");
+                let mut separated = query_builder.separated(", ");
+                for variant in language_variants {
+                    separated.push_bind(variant);
+                }
+                query_builder.push(")");
+            }
         }
 
         // Add mutation types filter (supports multiple slugs via IN clause)
@@ -713,7 +728,7 @@ impl SqlStore {
                 path: PathBuf::from(row.try_get::<String, _>("path")?),
                 file_hash: Hash::try_from(row.try_get::<String, _>("file_hash")?)?,
                 text: row.try_get("text")?,
-                language: row.try_get("language")?,
+                language: parse_language(row.try_get::<String, _>("language")?)?,
             };
             let outcome = Outcome {
                 mutant_id: row.try_get("mutant_id")?,
@@ -834,5 +849,132 @@ impl SqlStore {
         }
 
         Ok(CampaignSeverityStats { severity_stats })
+    }
+}
+
+fn language_filter_variants(registry: &LanguageRegistry, raw: &str) -> Vec<String> {
+    let mut variants = registry.filter_labels(raw);
+    if !variants
+        .iter()
+        .any(|variant| variant.eq_ignore_ascii_case(raw))
+    {
+        variants.push(raw.to_string());
+    }
+    variants
+}
+
+fn parse_language(raw: String) -> StoreResult<Language> {
+    raw.parse().map_err(StoreError::InvalidTarget)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use chrono::Utc;
+
+    use super::*;
+    use crate::LanguageRegistry;
+
+    #[test]
+    fn language_filter_variants_include_raw_query_for_legacy_rows() {
+        let mut registry = LanguageRegistry::new();
+        registry.register_resolver(crate::languages::r#move::resolver::MoveLanguageResolver::new());
+
+        let variants = language_filter_variants(&registry, "move");
+        assert!(variants.contains(&"move/sui".to_string()));
+        assert!(variants.contains(&"move/iota".to_string()));
+        assert!(variants.contains(&"move/aptos".to_string()));
+        assert!(variants.contains(&"move".to_string()));
+    }
+
+    #[tokio::test]
+    async fn canonical_move_targets_are_filterable_by_move_and_dialect() {
+        let store = SqlStore::new("sqlite::memory:".to_string())
+            .await
+            .expect("in-memory sqlite store");
+
+        let source = r#"
+module test::canonical {
+    fun check(v: bool): bool {
+        if (v) {
+            return true;
+        }
+        false
+    }
+}
+"#;
+
+        let target = Target {
+            id: 0,
+            path: PathBuf::from("canonical.move"),
+            file_hash: Hash::digest(source.to_string()),
+            text: source.to_string(),
+            language: "move/sui".parse().unwrap(),
+        };
+
+        let target_id = store.add_target(target).await.expect("store target");
+        let reloaded = store.get_target(target_id).await.expect("read target");
+        assert_eq!(reloaded.language, "move/sui");
+
+        let mut registry = LanguageRegistry::new();
+        registry.register_resolver(crate::languages::r#move::resolver::MoveLanguageResolver::new());
+
+        let mutants = reloaded
+            .generate_mutants(&registry, None)
+            .expect("canonical target should resolve an engine and mutate");
+        assert!(!mutants.is_empty(), "expected at least one mutant");
+
+        let mut first_mutant = mutants[0].clone();
+        first_mutant.target_id = target_id;
+        let mutant_id = store
+            .add_mutant(first_mutant)
+            .await
+            .expect("store mutant")
+            .expect("new mutant id");
+
+        store
+            .add_outcome(Outcome {
+                mutant_id,
+                status: Status::Uncaught,
+                output: "ok".to_string(),
+                time: Utc::now(),
+                duration_ms: 1,
+            })
+            .await
+            .expect("store outcome");
+
+        let move_results = store
+            .get_outcomes_filtered(None, None, Some("move".to_string()), None, None, &registry)
+            .await
+            .expect("filter outcomes by move");
+        assert_eq!(move_results.len(), 1);
+        assert_eq!(move_results[0].1.language, "move/sui");
+
+        let sui_results = store
+            .get_outcomes_filtered(
+                None,
+                None,
+                Some("move/sui".to_string()),
+                None,
+                None,
+                &registry,
+            )
+            .await
+            .expect("filter outcomes by move/sui");
+        assert_eq!(sui_results.len(), 1);
+
+        let iota_results = store
+            .get_outcomes_filtered(
+                None,
+                None,
+                Some("move/iota".to_string()),
+                None,
+                None,
+                &registry,
+            )
+            .await
+            .expect("filter outcomes by move/iota");
+        assert!(iota_results.is_empty());
     }
 }

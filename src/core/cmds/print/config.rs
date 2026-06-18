@@ -68,6 +68,24 @@ pub async fn execute(format: String) -> AppResult<()> {
         }
 
         info!("");
+        info!("Languages:");
+        if let Some(languages) = &effective_config.languages {
+            if languages.families.is_empty() {
+                info!("  (not configured)");
+            } else {
+                for (family, language_cfg) in languages.iter() {
+                    if let Some(dialect) = &language_cfg.dialect {
+                        info!("  {}.dialect: {}", family, dialect);
+                    } else {
+                        info!("  {}.dialect: (not set)", family);
+                    }
+                }
+            }
+        } else {
+            info!("  (not configured)");
+        }
+
+        info!("");
         info!("Test:");
         if let Some(test) = &effective_config.test {
             if let Some(cmd) = &test.cmd {
@@ -81,17 +99,35 @@ pub async fn execute(format: String) -> AppResult<()> {
             } else {
                 info!("  timeout: (not set)");
             }
+        }
 
-            if let Some(per_target) = &test.per_target {
-                if !per_target.is_empty() {
-                    info!("  per_target:");
-                    for rule in per_target {
-                        info!("    - glob: {}", rule.glob);
-                        if let Some(cmd) = &rule.cmd {
-                            info!("      cmd: {}", cmd);
+        if let Some(per_target) = &effective_config.per_target {
+            if !per_target.is_empty() {
+                info!("");
+                info!("Per-target:");
+                for rule in per_target {
+                    info!("  - glob: {}", rule.glob);
+                    if let Some(test) = &rule.test {
+                        if let Some(cmd) = &test.cmd {
+                            info!("    test.cmd: {}", cmd);
                         }
-                        if let Some(timeout) = rule.timeout {
-                            info!("      timeout: {}s", timeout);
+                        if let Some(timeout) = test.timeout {
+                            info!("    test.timeout: {}s", timeout);
+                        }
+                    }
+                    if let Some(run) = &rule.run {
+                        if let Some(mutations) = &run.mutations {
+                            info!("    run.mutations: [{}]", mutations.join(", "));
+                        }
+                        if let Some(comprehensive) = run.comprehensive {
+                            info!("    run.comprehensive: {}", comprehensive);
+                        }
+                    }
+                    if let Some(languages) = &rule.languages {
+                        for (family, language_cfg) in languages.iter() {
+                            if let Some(dialect) = &language_cfg.dialect {
+                                info!("    languages.{}.dialect: {}", family, dialect);
+                            }
                         }
                     }
                 }

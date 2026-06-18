@@ -1,6 +1,7 @@
 pub mod config;
 mod error;
 mod hash;
+mod language;
 mod mutant;
 mod mutation;
 mod outcome;
@@ -9,6 +10,7 @@ mod target;
 
 pub use error::*;
 pub use hash::*;
+pub use language::*;
 pub use mutant::*;
 pub use mutation::*;
 pub use outcome::*;

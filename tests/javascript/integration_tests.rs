@@ -5,7 +5,7 @@ use mewt::languages::javascript::engine::JavaScriptLanguageEngine;
 use mewt::types::Target;
 
 pub(crate) fn create_test_target(content: &str, filename: &str) -> (tempfile::TempDir, Target) {
-    utils::target_fixture_for_filename("JavaScript", filename, content).into_parts()
+    utils::target_fixture_for_filename("javascript", filename, content).into_parts()
 }
 
 #[test]
@@ -73,7 +73,7 @@ function testFunc() {
     };
 
     let expectations = conformance::CommonConformanceExpectations {
-        language_name: "JavaScript",
+        language_name: "javascript",
         min_complex_mutants: 6,
     };
 

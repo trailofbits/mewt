@@ -1,51 +1,46 @@
-use std::sync::OnceLock;
-use tree_sitter::Language as TsLanguage;
-
 use crate::LanguageEngine;
 use crate::mutations::COMMON_MUTATIONS;
 use crate::patterns;
-use crate::types::{Mutant, Mutation, Target};
+use crate::types::{Language, Mutant, Mutation, Target};
 use crate::utils::{node_text, parse_source};
 
+use super::dialect::{
+    JavaScriptDialect, JavaScriptDialectConfig, config_for_dialect, language_name_for_dialect,
+};
 use super::mutations::JAVASCRIPT_MUTATIONS;
-use super::syntax::{fields, nodes};
+use super::syntax::{JavaScriptSyntax, syntax_for_dialect};
 
-static JS_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
-static TS_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
-static TSX_LANGUAGE: OnceLock<TsLanguage> = OnceLock::new();
-
-unsafe extern "C" {
-    fn tree_sitter_javascript() -> *const tree_sitter::ffi::TSLanguage;
-    fn tree_sitter_typescript() -> *const tree_sitter::ffi::TSLanguage;
-    fn tree_sitter_tsx() -> *const tree_sitter::ffi::TSLanguage;
-}
-
-pub struct JavaScriptLanguageEngine {
+pub struct JavaScriptDialectEngine {
+    language: Language,
+    config: JavaScriptDialectConfig,
+    syntax: JavaScriptSyntax,
     mutations: Vec<Mutation>,
 }
 
-impl Default for JavaScriptLanguageEngine {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl JavaScriptLanguageEngine {
-    pub fn new() -> Self {
+impl JavaScriptDialectEngine {
+    pub fn new(dialect: JavaScriptDialect) -> Self {
         let mut mutations: Vec<Mutation> = Vec::new();
         mutations.extend_from_slice(COMMON_MUTATIONS);
         mutations.extend_from_slice(JAVASCRIPT_MUTATIONS);
-        Self { mutations }
+
+        Self {
+            language: language_name_for_dialect(dialect)
+                .parse()
+                .expect("hardcoded language identifier should be valid"),
+            config: config_for_dialect(dialect),
+            syntax: syntax_for_dialect(dialect),
+            mutations,
+        }
+    }
+
+    pub fn dialect(&self) -> JavaScriptDialect {
+        self.config.dialect
     }
 }
 
-impl LanguageEngine for JavaScriptLanguageEngine {
-    fn name(&self) -> &'static str {
-        "JavaScript"
-    }
-
-    fn extensions(&self) -> &[&'static str] {
-        &["js", "ts", "jsx", "tsx"]
+impl LanguageEngine for JavaScriptDialectEngine {
+    fn language(&self) -> &Language {
+        &self.language
     }
 
     fn get_mutations(&self) -> &[Mutation] {
@@ -55,25 +50,12 @@ impl LanguageEngine for JavaScriptLanguageEngine {
     fn mutate(&self, target: &Target) -> Vec<Mutant> {
         let source = &target.text;
 
-        // Determine which grammar to use based on file extension
-        let extension = target.path.extension().and_then(|e| e.to_str());
-
-        let language = match extension {
-            Some("ts") => TS_LANGUAGE
-                .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_typescript()) }),
-            Some("tsx") => {
-                TSX_LANGUAGE.get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_tsx()) })
-            }
-            // Default to JavaScript for .js, .jsx, and any other files
-            _ => JS_LANGUAGE
-                .get_or_init(|| unsafe { TsLanguage::from_raw(tree_sitter_javascript()) }),
-        };
-
-        let tree = match parse_source(source, language) {
+        let tree = match parse_source(source, self.config.parser_language()) {
             Some(t) => t,
             None => return Vec::new(),
         };
         let root = tree.root_node();
+        let syntax = self.syntax;
 
         let mut all_mutants = Vec::new();
         for m in &self.mutations {
@@ -84,14 +66,14 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                             root,
                             source,
                             &[
-                                nodes::EXPRESSION_STATEMENT,
-                                nodes::RETURN_STATEMENT,
-                                nodes::VARIABLE_DECLARATION,
-                                nodes::IF_STATEMENT,
-                                nodes::WHILE_STATEMENT,
-                                nodes::FOR_STATEMENT,
-                                nodes::FOR_IN_STATEMENT,
-                                nodes::DO_STATEMENT,
+                                syntax.expression_statement,
+                                syntax.return_statement,
+                                syntax.variable_declaration,
+                                syntax.if_statement,
+                                syntax.while_statement,
+                                syntax.for_statement,
+                                syntax.for_in_statement,
+                                syntax.do_statement,
                             ],
                             "throw new Error(\"mewt\");",
                             &|node, src| {
@@ -110,14 +92,14 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                             root,
                             source,
                             &[
-                                nodes::EXPRESSION_STATEMENT,
-                                nodes::RETURN_STATEMENT,
-                                nodes::VARIABLE_DECLARATION,
-                                nodes::IF_STATEMENT,
-                                nodes::WHILE_STATEMENT,
-                                nodes::FOR_STATEMENT,
-                                nodes::FOR_IN_STATEMENT,
-                                nodes::DO_STATEMENT,
+                                syntax.expression_statement,
+                                syntax.return_statement,
+                                syntax.variable_declaration,
+                                syntax.if_statement,
+                                syntax.while_statement,
+                                syntax.for_statement,
+                                syntax.for_in_statement,
+                                syntax.do_statement,
                             ],
                             "/* ",
                             " */",
@@ -130,8 +112,8 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::replace_condition(
                         root,
                         source,
-                        nodes::IF_STATEMENT,
-                        fields::CONDITION,
+                        syntax.if_statement,
+                        syntax.condition_field,
                         &["if"],
                         "false",
                     )
@@ -142,8 +124,8 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::replace_condition(
                         root,
                         source,
-                        nodes::IF_STATEMENT,
-                        fields::CONDITION,
+                        syntax.if_statement,
+                        syntax.condition_field,
                         &["if"],
                         "true",
                     )
@@ -154,8 +136,8 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::replace_condition(
                         root,
                         source,
-                        nodes::WHILE_STATEMENT,
-                        fields::CONDITION,
+                        syntax.while_statement,
+                        syntax.condition_field,
                         &["while"],
                         "false",
                     )
@@ -163,15 +145,20 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     .map(|p| Mutant::from_partial(p, target, "WF")),
                 ),
                 "AS" => all_mutants.extend(
-                    patterns::swap_args(root, source, &[nodes::CALL_EXPRESSION], fields::ARGUMENTS)
-                        .into_iter()
-                        .map(|p| Mutant::from_partial(p, target, "AS")),
+                    patterns::swap_args(
+                        root,
+                        source,
+                        &[syntax.call_expression],
+                        syntax.arguments_field,
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "AS")),
                 ),
                 "LC" => all_mutants.extend(
                     patterns::shuffle_nodes(
                         root,
                         source,
-                        &[nodes::BREAK_STATEMENT, nodes::CONTINUE_STATEMENT],
+                        &[syntax.break_statement, syntax.continue_statement],
                         &["break", "continue"],
                     )
                     .into_iter()
@@ -186,7 +173,7 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[syntax.binary_expression],
                         &["+", "-", "*", "/", "%", "**"],
                     )
                     .into_iter()
@@ -196,7 +183,7 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::AUGMENTED_ASSIGNMENT_EXPRESSION],
+                        &[syntax.augmented_assignment_expression],
                         &["+=", "-=", "*=", "/=", "%=", "**="],
                     )
                     .into_iter()
@@ -206,7 +193,7 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[syntax.binary_expression],
                         &["&", "|", "^"],
                     )
                     .into_iter()
@@ -216,7 +203,7 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::AUGMENTED_ASSIGNMENT_EXPRESSION],
+                        &[syntax.augmented_assignment_expression],
                         &["&=", "|=", "^="],
                     )
                     .into_iter()
@@ -226,7 +213,7 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[syntax.binary_expression],
                         &["&&", "||"],
                     )
                     .into_iter()
@@ -236,7 +223,7 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[syntax.binary_expression],
                         &["==", "!=", "===", "!==", "<", "<=", ">", ">="],
                     )
                     .into_iter()
@@ -246,7 +233,7 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::BINARY_EXPRESSION],
+                        &[syntax.binary_expression],
                         &["<<", ">>", ">>>"],
                     )
                     .into_iter()
@@ -256,7 +243,7 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::shuffle_operators(
                         root,
                         source,
-                        &[nodes::AUGMENTED_ASSIGNMENT_EXPRESSION],
+                        &[syntax.augmented_assignment_expression],
                         &["<<=", ">>=", ">>>="],
                     )
                     .into_iter()
@@ -266,19 +253,66 @@ impl LanguageEngine for JavaScriptLanguageEngine {
                     patterns::remove_unary_operator(
                         root,
                         source,
-                        nodes::UNARY_EXPRESSION,
-                        fields::OPERATOR,
-                        fields::ARGUMENT,
+                        syntax.unary_expression,
+                        syntax.operator_field,
+                        syntax.argument_field,
                         "!",
                     )
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "NR")),
+                ),
+                "NCR" => all_mutants.extend(
+                    patterns::shuffle_operators(
+                        root,
+                        source,
+                        &[syntax.binary_expression],
+                        &["??", "||"],
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "NCR")),
+                ),
+                "AWR" => all_mutants.extend(
+                    patterns::replace_with_first_named_child(root, source, syntax.await_expression)
+                        .into_iter()
+                        .map(|p| Mutant::from_partial(p, target, "AWR")),
                 ),
                 _ => panic!("Unknown mutation slug: {}", m.slug),
             }
         }
 
         all_mutants
+    }
+}
+
+pub struct JavaScriptLanguageEngine {
+    inner: JavaScriptDialectEngine,
+}
+
+impl Default for JavaScriptLanguageEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl JavaScriptLanguageEngine {
+    pub fn new() -> Self {
+        Self {
+            inner: JavaScriptDialectEngine::new(JavaScriptDialect::JavaScript),
+        }
+    }
+}
+
+impl LanguageEngine for JavaScriptLanguageEngine {
+    fn language(&self) -> &Language {
+        self.inner.language()
+    }
+
+    fn get_mutations(&self) -> &[Mutation] {
+        self.inner.get_mutations()
+    }
+
+    fn mutate(&self, target: &Target) -> Vec<Mutant> {
+        self.inner.mutate(target)
     }
 }
 
@@ -309,7 +343,7 @@ mod tests {
             path: PathBuf::from("test.js"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "JavaScript".to_string(),
+            language: "javascript".parse().unwrap(),
         };
         let engine = JavaScriptLanguageEngine::new();
         let _ = engine.mutate(&target);

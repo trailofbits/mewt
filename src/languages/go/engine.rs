@@ -4,7 +4,7 @@ use tree_sitter::Language as TsLanguage;
 use crate::LanguageEngine;
 use crate::mutations::COMMON_MUTATIONS;
 use crate::patterns;
-use crate::types::{Mutant, Mutation, Target};
+use crate::types::{Language, Mutant, Mutation, Target};
 use crate::utils::{node_text, parse_source};
 
 use super::mutations::GO_MUTATIONS;
@@ -17,6 +17,7 @@ unsafe extern "C" {
 }
 
 pub struct GoLanguageEngine {
+    language: Language,
     mutations: Vec<Mutation>,
 }
 
@@ -29,19 +30,29 @@ impl Default for GoLanguageEngine {
 impl GoLanguageEngine {
     pub fn new() -> Self {
         let mut mutations: Vec<Mutation> = Vec::new();
-        mutations.extend_from_slice(COMMON_MUTATIONS);
+        mutations.extend(
+            COMMON_MUTATIONS
+                .iter()
+                .filter(|mutation| mutation.slug != "WF")
+                .map(|mutation| Mutation {
+                    slug: mutation.slug,
+                    description: mutation.description,
+                    severity: mutation.severity.clone(),
+                }),
+        );
         mutations.extend_from_slice(GO_MUTATIONS);
-        Self { mutations }
+        Self {
+            language: "go"
+                .parse()
+                .expect("hardcoded language identifier should be valid"),
+            mutations,
+        }
     }
 }
 
 impl LanguageEngine for GoLanguageEngine {
-    fn name(&self) -> &'static str {
-        "Go"
-    }
-
-    fn extensions(&self) -> &[&'static str] {
-        &["go"]
+    fn language(&self) -> &Language {
+        &self.language
     }
 
     fn get_mutations(&self) -> &[Mutation] {
@@ -249,10 +260,11 @@ impl LanguageEngine for GoLanguageEngine {
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "NR")),
                 ),
-                // Mutations not applicable to Go
-                "WF" | "RZ" => {
-                    // Go has no `while` keyword (`WF`); `RZ` is a dead slug not in any mutation list.
-                }
+                "DR" => all_mutants.extend(
+                    patterns::replace_with_first_named_child(root, source, nodes::DEFER_STATEMENT)
+                        .into_iter()
+                        .map(|p| Mutant::from_partial(p, target, "DR")),
+                ),
                 _ => {
                     panic!("Unknown mutation slug encountered in Go engine: {}", m.slug);
                 }
@@ -298,7 +310,7 @@ func main() {
             path: PathBuf::from("test.go"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "Go".to_string(),
+            language: "go".parse().unwrap(),
         };
         let engine = GoLanguageEngine::new();
         let _ = engine.mutate(&target);

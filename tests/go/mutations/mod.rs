@@ -16,6 +16,8 @@ mod bos;
 mod cos;
 #[path = "CR.rs"]
 mod cr;
+#[path = "DR.rs"]
+mod dr;
 #[path = "ER.rs"]
 mod er;
 #[path = "IF.rs"]
@@ -32,5 +34,3 @@ mod nr;
 mod saos;
 #[path = "SOS.rs"]
 mod sos;
-#[path = "WF.rs"]
-mod wf;

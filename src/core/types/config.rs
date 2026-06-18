@@ -1,9 +1,13 @@
+use std::collections::BTreeMap;
 use std::fs;
+use std::hash::Hash as StdHash;
+use std::io;
 use std::path::{Path, PathBuf};
 
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
+use crate::core::resolver::{DialectDefault, ResolutionDefaults};
 use crate::core::utils::parse_csv;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -37,9 +41,18 @@ pub struct PerTargetTestRule {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct PerTargetRule {
+    pub glob: String,
+    pub test: Option<TestConfig>,
+    pub run: Option<RunConfig>,
+    pub languages: Option<LanguagesConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct TestConfig {
     pub cmd: Option<String>,
     pub timeout: Option<u32>,
+    /// Deprecated: use top-level [[per_target]] with test.cmd/test.timeout.
     pub per_target: Option<Vec<PerTargetTestRule>>, // ordered, first match wins
 }
 
@@ -83,11 +96,37 @@ pub struct ResolvedTargets {
     pub ignore: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq, StdHash)]
 pub struct RunConfig {
     /// Whitelist specific mutation types by slug (None = all enabled)
     pub mutations: Option<Vec<String>>,
     pub comprehensive: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct LanguageConfig {
+    pub dialect: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct LanguagesConfig {
+    #[serde(flatten)]
+    pub families: BTreeMap<String, LanguageConfig>,
+}
+
+impl LanguagesConfig {
+    pub fn get(&self, family: &str) -> Option<&LanguageConfig> {
+        self.families.get(&family.to_ascii_lowercase())
+    }
+
+    pub fn insert(&mut self, family: impl Into<String>, config: LanguageConfig) {
+        self.families
+            .insert(family.into().to_ascii_lowercase(), config);
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &LanguageConfig)> {
+        self.families.iter()
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -97,9 +136,12 @@ pub struct Config {
 
     // Nested sections
     pub log: Option<LogConfig>,
-    pub test: Option<TestConfig>,
     pub targets: Option<TargetsConfig>,
+
+    pub languages: Option<LanguagesConfig>,
+    pub test: Option<TestConfig>,
     pub run: Option<RunConfig>,
+    pub per_target: Option<Vec<PerTargetRule>>,
 }
 
 impl Config {
@@ -125,15 +167,19 @@ impl Config {
         self.run.as_ref()
     }
 
+    pub fn per_target(&self) -> &[PerTargetRule] {
+        self.per_target.as_deref().unwrap_or(&[])
+    }
+
     /// Resolve target configuration with CLI overrides (complete replacement)
     pub fn resolve_targets(
         &self,
-        cli_targets: &[String],
+        cli_include: &[String],
         cli_ignore: Option<&str>,
     ) -> std::io::Result<ResolvedTargets> {
         // CLI completely replaces config
-        let include = if !cli_targets.is_empty() {
-            cli_targets.to_vec()
+        let include = if !cli_include.is_empty() {
+            cli_include.to_vec()
         } else if let Some(config_include) = self.targets().and_then(|t| t.include.as_ref()) {
             config_include.clone()
         } else {
@@ -159,6 +205,33 @@ impl Config {
         parse_csv::<String>(cli_mutations).or_else(|| self.run().and_then(|r| r.mutations.clone()))
     }
 
+    pub fn resolve_run_for_path(
+        &self,
+        path: &Path,
+        cli_mutations: Option<&[String]>,
+        cli_comprehensive: bool,
+    ) -> (Option<Vec<String>>, bool) {
+        let path_buf = PathBuf::from(path);
+        let per_target_run = self
+            .per_target()
+            .iter()
+            .find(|rule| glob_matches(&rule.glob, &path_buf) && rule.run.is_some())
+            .and_then(|rule| rule.run.as_ref());
+
+        let mutations = cli_mutations
+            .map(|m| m.to_vec())
+            .or_else(|| per_target_run.and_then(|r| r.mutations.clone()))
+            .or_else(|| self.run().and_then(|r| r.mutations.clone()));
+
+        let comprehensive = cli_comprehensive
+            || per_target_run
+                .and_then(|r| r.comprehensive)
+                .unwrap_or(false)
+            || self.run().and_then(|r| r.comprehensive).unwrap_or(false);
+
+        (mutations, comprehensive)
+    }
+
     /// Resolve test command with CLI override
     pub fn resolve_test_cmd(&self, cli_test_cmd: Option<&str>) -> Option<String> {
         cli_test_cmd
@@ -171,13 +244,69 @@ impl Config {
         cli_timeout.or_else(|| self.test().timeout())
     }
 
+    pub fn resolve_language_defaults(&self) -> io::Result<ResolutionDefaults> {
+        let mut defaults = ResolutionDefaults::default();
+
+        if let Some(languages) = &self.languages {
+            for (family, language_cfg) in languages.iter() {
+                if let Some(dialect) = language_cfg.dialect.as_deref() {
+                    defaults.default_dialects.insert(
+                        family.to_ascii_lowercase(),
+                        DialectDefault {
+                            dialect: dialect.to_string(),
+                        },
+                    );
+                }
+            }
+        }
+
+        Ok(defaults)
+    }
+
+    pub fn resolve_language_defaults_for_path(
+        &self,
+        path: &Path,
+        base_defaults: &ResolutionDefaults,
+    ) -> ResolutionDefaults {
+        let mut defaults = base_defaults.clone();
+        let path_buf = PathBuf::from(path);
+
+        for rule in self.per_target() {
+            if !glob_matches(&rule.glob, &path_buf) {
+                continue;
+            }
+            let Some(languages) = &rule.languages else {
+                continue;
+            };
+            for (family, language_cfg) in languages.iter() {
+                if let Some(dialect) = language_cfg.dialect.as_deref() {
+                    defaults.default_dialects.insert(
+                        family.to_ascii_lowercase(),
+                        DialectDefault {
+                            dialect: dialect.to_string(),
+                        },
+                    );
+                }
+            }
+            break;
+        }
+
+        defaults
+    }
+
     pub fn to_effective(&self) -> Self {
         Self {
             db: Some(self.db().to_string()),
             log: Some(self.log().to_effective()),
-            test: Some(self.test().to_effective()),
             targets: self.targets.clone(),
+            test: Some(self.test().to_effective()),
             run: self.run.clone(),
+            languages: self.languages.clone(),
+            per_target: if self.per_target().is_empty() {
+                None
+            } else {
+                Some(self.per_target().to_vec())
+            },
         }
     }
 }
@@ -297,6 +426,13 @@ fn apply_file_config(cfg: &mut Config, file: &Config) {
         cfg.test = Some(test);
     }
 
+    // Merge top-level per-target rules
+    if let Some(file_per_target) = &file.per_target {
+        let mut rules = cfg.per_target().to_vec();
+        rules.extend(file_per_target.clone());
+        cfg.per_target = Some(rules);
+    }
+
     // Merge targets section
     if let Some(file_targets) = &file.targets {
         cfg.targets = Some(file_targets.clone());
@@ -305,6 +441,21 @@ fn apply_file_config(cfg: &mut Config, file: &Config) {
     // Merge run section
     if let Some(file_run) = &file.run {
         cfg.run = Some(file_run.clone());
+    }
+
+    // Merge languages section
+    if let Some(file_languages) = &file.languages {
+        let mut languages = cfg.languages.clone().unwrap_or_default();
+
+        for (family, file_language_cfg) in file_languages.iter() {
+            let mut language_cfg = languages.get(family).cloned().unwrap_or_default();
+            if file_language_cfg.dialect.is_some() {
+                language_cfg.dialect = file_language_cfg.dialect.clone();
+            }
+            languages.insert(family, language_cfg);
+        }
+
+        cfg.languages = Some(languages);
     }
 }
 
@@ -419,8 +570,21 @@ pub fn resolve_test_for_path(
         }
     }
 
-    // Per-target rules: first match wins
+    // Top-level per-target rules: first matching test override wins
     let path_buf = PathBuf::from(path);
+    for rule in config().per_target() {
+        if !glob_matches(&rule.glob, &path_buf) {
+            continue;
+        }
+        let Some(rule_test) = &rule.test else {
+            continue;
+        };
+        let cmd = rule_test.cmd().or_else(|| test.cmd()).map(str::to_string);
+        let timeout = resolved_timeout.or(rule_test.timeout()).or(test.timeout());
+        return (cmd, timeout);
+    }
+
+    // Deprecated nested per-target rules: first match wins
     for rule in test.per_target() {
         if glob_matches(&rule.glob, &path_buf) {
             if let Some(cmd) = &rule.cmd {
@@ -443,4 +607,139 @@ fn glob_matches(pattern: &str, path: &Path) -> bool {
         return matcher.is_match(path);
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config_with_language_dialect(family: &str, dialect: &str) -> Config {
+        let mut languages = LanguagesConfig::default();
+        languages.insert(
+            family,
+            LanguageConfig {
+                dialect: Some(dialect.to_string()),
+            },
+        );
+        Config {
+            languages: Some(languages),
+            ..Config::default()
+        }
+    }
+
+    #[test]
+    fn resolve_language_defaults_uses_generic_language_config() {
+        let cfg = config_with_language_dialect("example", "configured");
+        let resolved = cfg
+            .resolve_language_defaults()
+            .expect("valid dialect defaults");
+
+        let language_default = resolved.default_dialects.get("example").unwrap();
+        assert_eq!(language_default.dialect, "configured");
+    }
+
+    #[test]
+    fn resolve_language_defaults_does_not_insert_language_specific_defaults() {
+        let cfg = Config::default();
+        let resolved = cfg
+            .resolve_language_defaults()
+            .expect("valid dialect defaults");
+
+        assert!(resolved.default_dialects.is_empty());
+    }
+
+    #[test]
+    fn parses_top_level_per_target_dot_notation() {
+        let cfg: Config = toml::from_str(
+            r#"
+                [[per_target]]
+                glob = "src/auth/login.rs"
+                test.cmd = "cargo test auth_login"
+                test.timeout = 60
+                run.mutations = ["ER", "CR"]
+                run.comprehensive = true
+                languages.move.dialect = "aptos"
+            "#,
+        )
+        .expect("valid per-target config");
+
+        let rule = cfg.per_target().first().expect("per-target rule");
+        assert_eq!(rule.glob, "src/auth/login.rs");
+        assert_eq!(
+            rule.test.as_ref().and_then(|t| t.cmd.as_deref()),
+            Some("cargo test auth_login")
+        );
+        assert_eq!(rule.test.as_ref().and_then(|t| t.timeout), Some(60));
+        assert_eq!(
+            rule.run.as_ref().and_then(|r| r.mutations.clone()),
+            Some(vec!["ER".to_string(), "CR".to_string()])
+        );
+        assert_eq!(rule.run.as_ref().and_then(|r| r.comprehensive), Some(true));
+        assert_eq!(
+            rule.languages
+                .as_ref()
+                .and_then(|l| l.get("move"))
+                .and_then(|l| l.dialect.as_deref()),
+            Some("aptos")
+        );
+    }
+
+    #[test]
+    fn resolve_run_for_path_prefers_cli_then_per_target_then_global() {
+        let cfg: Config = toml::from_str(
+            r#"
+                [run]
+                mutations = ["GLOBAL"]
+                comprehensive = false
+
+                [[per_target]]
+                glob = "src/special.rs"
+                run.mutations = ["LOCAL"]
+                run.comprehensive = true
+            "#,
+        )
+        .expect("valid config");
+
+        let (mutations, comprehensive) =
+            cfg.resolve_run_for_path(Path::new("src/special.rs"), None, false);
+        assert_eq!(mutations, Some(vec!["LOCAL".to_string()]));
+        assert!(comprehensive);
+
+        let cli = vec!["CLI".to_string()];
+        let (mutations, comprehensive) =
+            cfg.resolve_run_for_path(Path::new("src/special.rs"), Some(&cli), false);
+        assert_eq!(mutations, Some(vec!["CLI".to_string()]));
+        assert!(comprehensive);
+
+        let (mutations, comprehensive) =
+            cfg.resolve_run_for_path(Path::new("src/other.rs"), None, false);
+        assert_eq!(mutations, Some(vec!["GLOBAL".to_string()]));
+        assert!(!comprehensive);
+    }
+
+    #[test]
+    fn per_target_language_defaults_override_global() {
+        let cfg: Config = toml::from_str(
+            r#"
+                [languages.move]
+                dialect = "sui"
+
+                [[per_target]]
+                glob = "sources/aptos/**/*.move"
+                languages.move.dialect = "aptos"
+            "#,
+        )
+        .expect("valid config");
+        let base = cfg.resolve_language_defaults().unwrap();
+
+        let defaults =
+            cfg.resolve_language_defaults_for_path(Path::new("sources/aptos/module.move"), &base);
+        assert_eq!(
+            defaults
+                .default_dialects
+                .get("move")
+                .map(|d| d.dialect.as_str()),
+            Some("aptos")
+        );
+    }
 }

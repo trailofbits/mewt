@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::core::cli::StatusArgs;
-use crate::types::{AppResult, MutationSeverity};
+use crate::types::{AppResult, Language, MutationSeverity};
 
 #[derive(Debug, Serialize)]
 struct TargetStats {
@@ -200,7 +200,7 @@ async fn generate_status_report(
 fn compute_severity_catch_rates(
     slug_stats: &HashMap<String, (usize, usize)>,
     registry: &LanguageRegistry,
-    language: &str,
+    language: &Language,
 ) -> (Option<f64>, Option<f64>, Option<f64>) {
     // Aggregate slug-level stats into severity-level stats
     let mut severity_stats: HashMap<MutationSeverity, (usize, usize)> = HashMap::new();

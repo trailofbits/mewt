@@ -4,7 +4,7 @@ use tree_sitter::Language as TsLanguage;
 use crate::LanguageEngine;
 use crate::mutations::COMMON_MUTATIONS;
 use crate::patterns;
-use crate::types::{Mutant, Mutation, Target};
+use crate::types::{Language, Mutant, Mutation, Target};
 use crate::utils::{node_text, parse_source};
 
 use super::mutations::RUST_MUTATIONS;
@@ -17,6 +17,7 @@ unsafe extern "C" {
 }
 
 pub struct RustLanguageEngine {
+    language: Language,
     mutations: Vec<Mutation>,
 }
 
@@ -31,17 +32,18 @@ impl RustLanguageEngine {
         let mut mutations: Vec<Mutation> = Vec::new();
         mutations.extend_from_slice(COMMON_MUTATIONS);
         mutations.extend_from_slice(RUST_MUTATIONS);
-        Self { mutations }
+        Self {
+            language: "rust"
+                .parse()
+                .expect("hardcoded language identifier should be valid"),
+            mutations,
+        }
     }
 }
 
 impl LanguageEngine for RustLanguageEngine {
-    fn name(&self) -> &'static str {
-        "Rust"
-    }
-
-    fn extensions(&self) -> &[&'static str] {
-        &["rs"]
+    fn language(&self) -> &Language {
+        &self.language
     }
 
     fn get_mutations(&self) -> &[Mutation] {
@@ -275,6 +277,16 @@ impl LanguageEngine for RustLanguageEngine {
                     .into_iter()
                     .map(|p| Mutant::from_partial(p, target, "NR")),
                 ),
+                "RBR" => all_mutants.extend(
+                    patterns::shuffle_operators(
+                        root,
+                        source,
+                        &[nodes::RANGE_EXPRESSION],
+                        &["..", "..="],
+                    )
+                    .into_iter()
+                    .map(|p| Mutant::from_partial(p, target, "RBR")),
+                ),
                 _ => {
                     panic!(
                         "Unknown mutation slug encountered in Rust engine: {}",
@@ -318,7 +330,7 @@ mod tests {
             path: PathBuf::from("test.rs"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "Rust".to_string(),
+            language: "rust".parse().unwrap(),
         };
         let engine = RustLanguageEngine::new();
         let _ = engine.mutate(&target);

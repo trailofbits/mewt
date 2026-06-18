@@ -17,11 +17,11 @@ pub struct PartialMutant {
 pub struct Mutant {
     pub id: i64,
     pub target_id: i64,
+    pub mutation_slug: String,
     pub byte_offset: u32,
     pub line_offset: u32,
     pub old_text: String,
     pub new_text: String,
-    pub mutation_slug: String,
 }
 
 impl Mutant {
@@ -48,7 +48,7 @@ impl Mutant {
     /// Formats a mutant for display
     /// - Includes line number or range information
     /// - Shows the full line(s) before and after the mutation
-    /// - Collapses indentation from newlines into single spaces
+    /// - Collapses indentation after newlines into single spaces
     /// - Replaces newlines with the literal string "\n"
     /// - Highlights removed parts in red and added parts in green
     pub fn display(&self, target: &Target) -> String {

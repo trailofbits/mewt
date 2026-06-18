@@ -20,7 +20,9 @@ declare -A REPO_URLS=(
   ["typescript"]="https://github.com/tree-sitter/tree-sitter-typescript"
   ["tsx"]="https://github.com/tree-sitter/tree-sitter-typescript"
   ["cpp"]="https://github.com/tree-sitter/tree-sitter-cpp"
-  ["move"]="https://github.com/MystenLabs/sui"
+  ["move-sui"]="https://github.com/MystenLabs/sui"
+  ["move-iota"]="https://github.com/iotaledger/iota"
+  ["move-aptos"]="https://github.com/aptos-labs/tree-sitter-move-on-aptos"
 )
 
 declare -A GRAMMAR_PATHS=(
@@ -31,13 +33,16 @@ declare -A GRAMMAR_PATHS=(
   ["typescript"]="typescript" # grammar is in typescript/ subdirectory
   ["tsx"]="tsx" # grammar is in tsx/ subdirectory
   ["cpp"]="" # repo root
-  ["move"]="external-crates/move/tooling/tree-sitter" # grammar in Sui monorepo
+  ["move-sui"]="external-crates/move/tooling/tree-sitter" # grammar in Sui monorepo
+  ["move-iota"]="external-crates/move/tooling/tree-sitter" # grammar in IOTA monorepo
+  ["move-aptos"]="" # repo root
 )
 
 # Languages that require sparse checkout (large monorepos)
 # Maps language -> subdirectory path to sparse-checkout
 declare -A SPARSE_PATHS=(
-  ["move"]="external-crates/move/tooling/tree-sitter"
+  ["move-sui"]="external-crates/move/tooling/tree-sitter"
+  ["move-iota"]="external-crates/move/tooling/tree-sitter"
 )
 
 # Validate language argument

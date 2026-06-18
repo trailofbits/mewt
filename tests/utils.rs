@@ -24,7 +24,7 @@ impl TargetFixture {
             path,
             file_hash: Hash::digest(text.clone()),
             text,
-            language: language.into(),
+            language: language.into().parse().unwrap(),
         };
 
         Self { temp_dir, target }

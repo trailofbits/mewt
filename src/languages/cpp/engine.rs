@@ -4,7 +4,7 @@ use tree_sitter::{Language as TsLanguage, Node};
 use crate::LanguageEngine;
 use crate::mutations::COMMON_MUTATIONS;
 use crate::patterns;
-use crate::types::{Mutant, Mutation, PartialMutant, Target};
+use crate::types::{Language, Mutant, Mutation, PartialMutant, Target};
 use crate::utils::{
     calculate_line_offset, is_in_comment, node_text, parse_source, visit_nodes_with_cursor,
 };
@@ -19,6 +19,7 @@ unsafe extern "C" {
 }
 
 pub struct CppLanguageEngine {
+    language: Language,
     mutations: Vec<Mutation>,
 }
 
@@ -33,17 +34,18 @@ impl CppLanguageEngine {
         let mut mutations: Vec<Mutation> = Vec::new();
         mutations.extend_from_slice(COMMON_MUTATIONS);
         mutations.extend_from_slice(CPP_MUTATIONS);
-        Self { mutations }
+        Self {
+            language: "cpp"
+                .parse()
+                .expect("hardcoded language identifier should be valid"),
+            mutations,
+        }
     }
 }
 
 impl LanguageEngine for CppLanguageEngine {
-    fn name(&self) -> &'static str {
-        "C++"
-    }
-
-    fn extensions(&self) -> &[&'static str] {
-        &["cpp", "cc", "cxx", "hpp", "hxx"]
+    fn language(&self) -> &Language {
+        &self.language
     }
 
     fn get_mutations(&self) -> &[Mutation] {
@@ -599,7 +601,7 @@ mod tests {
             path: PathBuf::from("test.cpp"),
             file_hash: crate::types::Hash::digest(text.to_string()),
             text: text.to_string(),
-            language: "C++".to_string(),
+            language: "cpp".parse().unwrap(),
         };
         let engine = CppLanguageEngine::new();
         let _ = engine.mutate(&target);

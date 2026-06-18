@@ -1,12 +1,14 @@
 use crate::conformance;
 use crate::utils;
 use mewt::LanguageEngine;
+use mewt::core::resolver::{LanguageResolver, ResolutionRequest};
 use mewt::languages::cpp::engine::CppLanguageEngine;
+use mewt::languages::cpp::resolver::CppLanguageResolver;
 use mewt::types::{Mutant, Target};
 use std::collections::HashSet;
 
 pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
-    utils::target_fixture_for_extension("C++", "cpp", content).into_parts()
+    utils::target_fixture_for_extension("cpp", "cpp", content).into_parts()
 }
 
 pub(crate) fn mutants_for_slug(source: &str, slug: &str) -> Vec<Mutant> {
@@ -82,7 +84,7 @@ int compute(int x) {
     };
 
     let expectations = conformance::CommonConformanceExpectations {
-        language_name: "C++",
+        language_name: "cpp",
         min_complex_mutants: 6,
     };
 
@@ -306,14 +308,21 @@ public:
 
 #[test]
 fn test_different_extensions() {
-    // Verify the engine claims the right extensions
-    let engine = CppLanguageEngine::new();
-    let exts = engine.extensions();
-    assert!(exts.contains(&"cpp"), "Should support .cpp");
-    assert!(exts.contains(&"cc"), "Should support .cc");
-    assert!(exts.contains(&"cxx"), "Should support .cxx");
-    assert!(exts.contains(&"hpp"), "Should support .hpp");
-    assert!(exts.contains(&"hxx"), "Should support .hxx");
+    // Verify resolver handles supported extensions
+    let resolver = CppLanguageResolver::new();
+    for ext in ["cpp", "cc", "cxx", "hpp", "hxx"] {
+        let path = std::path::PathBuf::from(format!("test.{ext}"));
+        let request = ResolutionRequest {
+            path: &path,
+            explicit_language: None,
+            defaults: None,
+        };
+        let engine = resolver
+            .resolve(&request)
+            .expect("extension should be recognized")
+            .expect("resolution should succeed");
+        assert_eq!(engine.language().to_string(), "cpp");
+    }
 }
 
 #[test]

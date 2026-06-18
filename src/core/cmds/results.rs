@@ -294,6 +294,7 @@ async fn get_results_data(
                 filters.language.clone(),
                 mutation_slugs,
                 filters.line,
+                registry,
             )
             .await
             .map_err(|e| -> crate::types::AppError { e.into() })?

@@ -4,6 +4,7 @@ pub mod engine;
 pub mod logging;
 pub mod main_shared;
 pub mod registry;
+pub mod resolver;
 pub mod runner;
 pub mod store;
 pub mod types;

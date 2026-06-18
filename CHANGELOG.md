@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- Aptos and IOTA Move dialect support alongside Sui Move.
+
+### Changed
+- **BREAKING**: Move language labels are now dialect-qualified (`Move/sui`, `Move/iota`, `Move/aptos`). Existing databases that contain the legacy `SuiMove` label should be purged or regenerated.
+- `mewt print mutations` now filters Move mutation listings by the selected dialect.
+
 ## 3.1.0 - 2026-04-20
 
 ### Added

@@ -6,9 +6,9 @@ mod utils;
 mod cpp;
 mod go;
 mod javascript;
+mod r#move;
 mod rust;
 mod solidity;
-mod sui_move;
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -18,31 +18,31 @@ use mewt::LanguageEngine;
 use mewt::languages::cpp::engine::CppLanguageEngine;
 use mewt::languages::go::engine::GoLanguageEngine;
 use mewt::languages::javascript::engine::JavaScriptLanguageEngine;
+use mewt::languages::r#move::engine::MoveLanguageEngine;
 use mewt::languages::rust::engine::RustLanguageEngine;
 use mewt::languages::solidity::engine::SolidityLanguageEngine;
-use mewt::languages::sui_move::engine::MoveLanguageEngine;
 
 #[test]
 fn every_mutation_slug_has_a_per_language_test_module() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
 
     let cpp = CppLanguageEngine::new();
-    check_language(manifest_dir, "C++", "cpp", &cpp);
+    check_language(manifest_dir, "cpp", "cpp", &cpp);
 
     let rust = RustLanguageEngine::new();
-    check_language(manifest_dir, "Rust", "rust", &rust);
+    check_language(manifest_dir, "rust", "rust", &rust);
 
     let go = GoLanguageEngine::new();
-    check_language(manifest_dir, "Go", "go", &go);
+    check_language(manifest_dir, "go", "go", &go);
 
     let javascript = JavaScriptLanguageEngine::new();
-    check_language(manifest_dir, "JavaScript", "javascript", &javascript);
+    check_language(manifest_dir, "javascript", "javascript", &javascript);
 
     let solidity = SolidityLanguageEngine::new();
-    check_language(manifest_dir, "Solidity", "solidity", &solidity);
+    check_language(manifest_dir, "solidity", "solidity", &solidity);
 
-    let sui_move = MoveLanguageEngine::new();
-    check_language(manifest_dir, "SuiMove", "sui_move", &sui_move);
+    let move_language = MoveLanguageEngine::new();
+    check_language_allowing_extra_test_modules(manifest_dir, "move", "move", &move_language);
 }
 
 fn check_language(
@@ -50,6 +50,25 @@ fn check_language(
     language_name: &str,
     language_dir: &str,
     engine: &dyn LanguageEngine,
+) {
+    check_language_impl(manifest_dir, language_name, language_dir, engine, false);
+}
+
+fn check_language_allowing_extra_test_modules(
+    manifest_dir: &Path,
+    language_name: &str,
+    language_dir: &str,
+    engine: &dyn LanguageEngine,
+) {
+    check_language_impl(manifest_dir, language_name, language_dir, engine, true);
+}
+
+fn check_language_impl(
+    manifest_dir: &Path,
+    language_name: &str,
+    language_dir: &str,
+    engine: &dyn LanguageEngine,
+    allow_extra_test_modules: bool,
 ) {
     let slug_set: BTreeSet<String> = engine
         .get_mutations()
@@ -97,7 +116,7 @@ fn check_language(
         "{language_name} is missing mutation test modules for slugs: {missing:?}"
     );
     assert!(
-        unexpected.is_empty(),
+        allow_extra_test_modules || unexpected.is_empty(),
         "{language_name} has mutation test modules without corresponding slugs: {unexpected:?}"
     );
 }

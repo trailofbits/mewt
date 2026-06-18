@@ -6,7 +6,7 @@ use mewt::types::{Mutant, Target};
 
 /// Helper to create a temporary Solidity target for tests.
 pub(crate) fn create_test_target(content: &str) -> (tempfile::TempDir, Target) {
-    utils::target_fixture_for_extension("Solidity", "sol", content).into_parts()
+    utils::target_fixture_for_extension("solidity", "sol", content).into_parts()
 }
 
 /// Collect all mutants for the given slug from a Solidity source string.
@@ -114,7 +114,7 @@ contract Test {
     };
 
     let expectations = conformance::CommonConformanceExpectations {
-        language_name: "Solidity",
+        language_name: "solidity",
         min_complex_mutants: 10,
     };
 
@@ -127,7 +127,7 @@ contract Test {
 }
 
 fn solidity_target_from_source(source: &str) -> Target {
-    utils::target_fixture_for_extension("Solidity", "sol", source).into_target()
+    utils::target_fixture_for_extension("solidity", "sol", source).into_target()
 }
 
 #[test]
