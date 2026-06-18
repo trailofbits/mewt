@@ -1,6 +1,6 @@
 [package]
 name = "mewt"
-version = "3.1.0"
+version = "4.0.0"
 edition = "2024"
 description = "Mutation testing framework with multi-language support"
 authors = ["Bo Henderson <bo.henderson@trailofbits.com>"]
