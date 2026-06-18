@@ -11,4 +11,9 @@ pub const DAML_MUTATIONS: &[Mutation] = &[
         description: "Controller Party Removal: drop one party from a multi-party `controller` list, weakening required authorization",
         severity: MutationSeverity::High,
     },
+    Mutation {
+        slug: "SPS",
+        description: "Signatory Party Swap: replace a template's signatory with another Party parameter from the template's `with`-block",
+        severity: MutationSeverity::High,
+    },
 ];

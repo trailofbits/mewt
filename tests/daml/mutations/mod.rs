@@ -16,3 +16,5 @@ mod if_;
 mod it;
 #[path = "LOS.rs"]
 mod los;
+#[path = "SPS.rs"]
+mod sps;

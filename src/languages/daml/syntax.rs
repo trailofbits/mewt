@@ -20,6 +20,7 @@ pub mod nodes {
     pub const TEMPLATE: &str = "template";
     pub const CHOICE_DECL: &str = "choice_decl";
     pub const CONTROLLER_DECL: &str = "controller_decl";
+    pub const SIGNATORY_DECL: &str = "signatory_decl";
     pub const FIELD_DECL: &str = "field_decl";
     // A module-qualified identifier like `M.Party`; has fields `module` and `id`.
     pub const QUALIFIED: &str = "qualified";

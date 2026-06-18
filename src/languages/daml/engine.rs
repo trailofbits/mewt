@@ -164,9 +164,14 @@ impl LanguageEngine for DamlLanguageEngine {
                         .map(|p| Mutant::from_partial(p, target, "LOS")),
                 ),
                 "CPS" => all_mutants.extend(
-                    controller_party_swaps(root, source)
+                    party_swaps(root, source, PartyDeclKind::Controller)
                         .into_iter()
                         .map(|p| Mutant::from_partial(p, target, "CPS")),
+                ),
+                "SPS" => all_mutants.extend(
+                    party_swaps(root, source, PartyDeclKind::Signatory)
+                        .into_iter()
+                        .map(|p| Mutant::from_partial(p, target, "SPS")),
                 ),
                 "CPR" => all_mutants.extend(
                     controller_party_removals(root, source)
@@ -213,15 +218,17 @@ fn boolean_literal_swaps(root: Node, source: &str) -> Vec<PartialMutant> {
     mutants
 }
 
-// Example: `controller alice` in a template with `bob : Party` becomes `controller bob`.
-fn controller_party_swaps(root: Node, source: &str) -> Vec<PartialMutant> {
+// Swap one listed party for another in-scope Party parameter; `kind` picks the
+// decl to walk. Example: signatory `alice, bob` with a spare `carol : Party`
+// yields `alice -> carol` and `bob -> carol`.
+fn party_swaps(root: Node, source: &str, kind: PartyDeclKind) -> Vec<PartialMutant> {
     let mut mutants = Vec::new();
-    for site in controller_sites(&root) {
-        let parties = bare_party_variables(&site.controller);
+    for site in party_decl_sites(&root, kind) {
+        let parties = bare_party_variables(&site.decl);
         if parties.is_empty() {
             continue;
         }
-        let candidates = swap_candidates(&site, &parties, source);
+        let candidates = party_swap_candidates(&site, &parties, source);
         for party in &parties {
             for cand in &candidates {
                 mutants.push(PartialMutant {
@@ -239,8 +246,8 @@ fn controller_party_swaps(root: Node, source: &str) -> Vec<PartialMutant> {
 // Example: `controller primary, counter` yields two mutants dropping each party in turn.
 fn controller_party_removals(root: Node, source: &str) -> Vec<PartialMutant> {
     let mut mutants = Vec::new();
-    for site in controller_sites(&root) {
-        let parties = bare_party_variables(&site.controller);
+    for site in party_decl_sites(&root, PartyDeclKind::Controller) {
+        let parties = bare_party_variables(&site.decl);
         // The grammar's `controller_decl` requires at least one party child,
         // so a single-party `controller p` has no removal we can emit
         // without producing an empty list that won't re-parse.
@@ -271,68 +278,81 @@ fn controller_party_removals(root: Node, source: &str) -> Vec<PartialMutant> {
     mutants
 }
 
-/// One `controller_decl` plus its enclosing `choice_decl` and `template`.
-/// Holding all three lets us look up swap candidates without re-walking:
-/// the template's `with_fields` gives template-level Party fields, the
-/// choice's own `with_fields` (when present) gives choice-local ones.
-// DAML: a `template` is a contract type; a `choice` is an action on it whose
-// `controller` lists the Party values authorized to invoke it; `with_fields` is
-// the `with`-block of typed parameters (Party, Int, ...).
-struct ControllerSite<'a> {
-    controller: Node<'a>,
-    choice: Node<'a>,
+/// A party-bearing decl with its enclosing `template` and, when nested in a
+/// choice, that `choice_decl`. Both scopes' `with_fields` supply swap
+/// candidates; `choice` is `None` for template-body decls.
+// DAML: a `template` is a contract type; a `choice` is an action whose
+// `controller` lists authorized Party values; a `signatory` carries the
+// contract's authority. `with_fields` is the `with`-block of typed params.
+struct PartyDeclSite<'a> {
+    decl: Node<'a>,
+    choice: Option<Node<'a>>,
     template: Node<'a>,
 }
 
-fn controller_sites<'a>(root: &Node<'a>) -> Vec<ControllerSite<'a>> {
-    let mut sites = Vec::new();
-    collect_controller_sites(*root, &mut sites);
-    sites
+/// Which party-bearing decl an operator targets; maps to its grammar node kind
+/// via `node_kind`.
+#[derive(Copy, Clone)]
+enum PartyDeclKind {
+    Signatory,
+    Controller,
+}
+
+impl PartyDeclKind {
+    fn node_kind(self) -> &'static str {
+        match self {
+            PartyDeclKind::Signatory => nodes::SIGNATORY_DECL,
+            PartyDeclKind::Controller => nodes::CONTROLLER_DECL,
+        }
+    }
 }
 
 /// Walks the AST top-down (visit a node, then recurse into its children) and
-/// gathers every `controller_decl` along with its enclosing choice and
-/// template. Hand-rolled rather than delegated to the shared visitor because
-/// the visitor's callback hands out nodes with a closure-local lifetime,
-/// which can't escape into the returned vector.
-fn collect_controller_sites<'a>(node: Node<'a>, sites: &mut Vec<ControllerSite<'a>>) {
-    if node.kind() == nodes::CONTROLLER_DECL && !is_in_comment(&node) {
-        if let (Some(choice), Some(template)) = (
-            ancestor_of_kind(&node, nodes::CHOICE_DECL),
-            ancestor_of_kind(&node, nodes::TEMPLATE),
-        ) {
-            sites.push(ControllerSite {
-                controller: node,
-                choice,
-                template,
-            });
+/// gathers every decl of `kind` along with its enclosing template and
+/// (optional) choice. Hand-rolled rather than delegated to the shared visitor
+/// because the visitor's callback hands out nodes with a closure-local
+/// lifetime, which can't escape into the returned vector.
+fn party_decl_sites<'a>(root: &Node<'a>, kind: PartyDeclKind) -> Vec<PartyDeclSite<'a>> {
+    fn collect<'a>(node: Node<'a>, kind: PartyDeclKind, sites: &mut Vec<PartyDeclSite<'a>>) {
+        if node.kind() == kind.node_kind() && !is_in_comment(&node) {
+            if let Some(template) = ancestor_of_kind(&node, nodes::TEMPLATE) {
+                let choice = ancestor_of_kind(&node, nodes::CHOICE_DECL);
+                sites.push(PartyDeclSite {
+                    decl: node,
+                    choice,
+                    template,
+                });
+            }
+        }
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            collect(child, kind, sites);
         }
     }
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        collect_controller_sites(child, sites);
-    }
+    let mut sites = Vec::new();
+    collect(*root, kind, &mut sites);
+    sites
 }
 
-/// The bare identifiers a `controller_decl` lists as parties. Returns the
-/// `variable` nodes themselves so callers can use their byte ranges and
-/// text directly.
+/// The bare identifiers a party-bearing decl (`controller_decl`,
+/// `signatory_decl`, ...) lists as parties. Returns the `variable` nodes
+/// themselves so callers can use their byte ranges and text directly.
 ///
-/// A `controller_decl`'s `party` field is a multi-field; each child is an
-/// expression. We only collect children that are plain `variable` nodes.
-/// Anything else (`parens (a)`, `apply f x`, `qualified A.B`, `infix`, ...)
+/// The decl's `party` field is a multi-field; each child is an expression. We
+/// only collect children that are plain `variable` nodes. Anything else
+/// (`parens (a)`, `apply f x`, `qualified A.B`, `projection a.b`, `infix`, ...)
 /// drops the whole site rather than emit a partial list, because swapping
 /// or removing only some children would rewrite a non-trivial expression.
 /// Punctuation (`,`) is not a child of the `party` field, so there is no
 /// byte-gap classification to do here.
 ///
 /// Known limitation: production DAML often uses `(view this).field`,
-/// `qualified M.party`, or `apply getController this` in `controller`; those
-/// sites currently produce zero mutants.
-fn bare_party_variables<'a>(controller: &Node<'a>) -> Vec<Node<'a>> {
+/// `qualified M.party`, `apply getController this`, or `signatory key._1` in
+/// these positions; those sites currently produce zero mutants.
+fn bare_party_variables<'a>(decl: &Node<'a>) -> Vec<Node<'a>> {
     let mut parties: Vec<Node<'a>> = Vec::new();
-    let mut cursor = controller.walk();
-    for child in controller.children_by_field_name(fields::PARTY, &mut cursor) {
+    let mut cursor = decl.walk();
+    for child in decl.children_by_field_name(fields::PARTY, &mut cursor) {
         if child.kind() != nodes::VARIABLE {
             // Mixed shapes (some variables, some parens) collapse the whole
             // site rather than emit a partial set.
@@ -343,10 +363,11 @@ fn bare_party_variables<'a>(controller: &Node<'a>) -> Vec<Node<'a>> {
     parties
 }
 
-/// Party-name swap candidates for a controller site. Combines the template's
-/// `with`-block Party params with this choice's own Party params, drops
-/// duplicates, then excludes names already named in this controller list.
-fn swap_candidates(site: &ControllerSite, in_list: &[Node], source: &str) -> Vec<String> {
+/// Party-name swap candidates for a party-decl site. Combines the template's
+/// `with`-block Party params with the enclosing choice's own Party params
+/// (when the site sits inside a choice), drops duplicates, then excludes names
+/// already named in this decl's party list.
+fn party_swap_candidates(site: &PartyDeclSite, in_list: &[Node], source: &str) -> Vec<String> {
     let mut available_parties: Vec<String> = Vec::new();
     let mut push_unique = |name: &str| {
         if !available_parties.iter().any(|n| n == name) {
@@ -356,8 +377,10 @@ fn swap_candidates(site: &ControllerSite, in_list: &[Node], source: &str) -> Vec
     for n in collect_party_param_names(&site.template, source) {
         push_unique(&n);
     }
-    for n in collect_party_param_names(&site.choice, source) {
-        push_unique(&n);
+    if let Some(choice) = &site.choice {
+        for n in collect_party_param_names(choice, source) {
+            push_unique(&n);
+        }
     }
     let in_list_texts: Vec<&str> = in_list.iter().map(|n| node_text(n, source)).collect();
     available_parties
