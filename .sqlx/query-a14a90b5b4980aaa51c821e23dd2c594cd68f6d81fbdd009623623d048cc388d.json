@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT ms.slug AS mutation_slug, o.status\n            FROM mutants m\n            JOIN mutant_slugs ms ON ms.mutant_id = m.id\n            JOIN outcomes o ON m.id = o.mutant_id\n            WHERE m.target_id = ? AND o.status IN ('TestFail', 'Uncaught')\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "mutation_slug",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "status",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "a14a90b5b4980aaa51c821e23dd2c594cd68f6d81fbdd009623623d048cc388d"
+}
