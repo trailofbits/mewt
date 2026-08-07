@@ -24,6 +24,7 @@ declare -A REPO_URLS=(
   ["move-iota"]="https://github.com/iotaledger/iota"
   ["move-aptos"]="https://github.com/aptos-labs/tree-sitter-move-on-aptos"
   ["daml"]="https://github.com/trailofbits/tree-sitter-daml"
+  ["ruby"]="https://github.com/tree-sitter/tree-sitter-ruby"
 )
 
 declare -A GRAMMAR_PATHS=(
@@ -38,6 +39,7 @@ declare -A GRAMMAR_PATHS=(
   ["move-iota"]="external-crates/move/tooling/tree-sitter" # grammar in IOTA monorepo
   ["move-aptos"]="" # repo root
   ["daml"]="" # repo root
+  ["ruby"]="" # repo root
 )
 
 # Languages that require sparse checkout (large monorepos)
