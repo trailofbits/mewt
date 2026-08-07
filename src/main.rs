@@ -13,6 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     registry.register_resolver(langs::go::resolver::GoLanguageResolver::new());
     registry.register_resolver(langs::javascript::resolver::JavaScriptLanguageResolver::new());
     registry.register_resolver(langs::rust::resolver::RustLanguageResolver::new());
+    registry.register_resolver(langs::ruby::resolver::RubyLanguageResolver::new());
     registry.register_resolver(langs::solidity::resolver::SolidityLanguageResolver::new());
     registry.register_resolver(langs::r#move::resolver::MoveLanguageResolver::new());
 

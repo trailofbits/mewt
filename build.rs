@@ -130,4 +130,8 @@ fn main() {
     // Build DAML grammar
     let daml_dir: PathBuf = ["grammars", "daml", "src"].iter().collect();
     build_grammar(&daml_dir, "tree-sitter-daml", None);
+
+    // Build Ruby grammar
+    let ruby_dir: PathBuf = ["grammars", "ruby", "src"].iter().collect();
+    build_grammar(&ruby_dir, "tree-sitter-ruby", None);
 }

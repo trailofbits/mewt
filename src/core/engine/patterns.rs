@@ -356,6 +356,43 @@ pub fn swap_args(
     mutants
 }
 
+pub fn swap_named_children(root: Node, source: &str, node_kinds: &[&str]) -> Vec<PartialMutant> {
+    let mut mutants = Vec::new();
+    let kinds: Vec<&str> = node_kinds.to_vec();
+    let mut cursor = root.walk();
+    visit_nodes_with_cursor(root, &mut cursor, &mut |node| {
+        if kinds.contains(&node.kind()) && !is_in_comment(&node) {
+            let mut args: Vec<Node> = Vec::new();
+            let mut ac = node.walk();
+            for child in node.children(&mut ac) {
+                if child.is_named() {
+                    args.push(child);
+                }
+            }
+
+            if args.len() >= 2 {
+                for i in 0..args.len() - 1 {
+                    let a = args[i];
+                    let b = args[i + 1];
+                    let start = a.start_byte();
+                    let end = b.end_byte();
+                    let a_text = node_text(&a, source);
+                    let b_text = node_text(&b, source);
+                    let full_text = &source[start..end];
+                    let swapped = format!("{b_text}, {a_text}");
+                    mutants.push(PartialMutant {
+                        byte_offset: start as u32,
+                        line_offset: calculate_line_offset(source, start),
+                        old_text: full_text.to_string(),
+                        new_text: swapped,
+                    });
+                }
+            }
+        }
+    });
+    mutants
+}
+
 /// Remove a unary operator from expressions of the given kind where the operator matches.
 /// Replaces the entire unary expression with its operand (e.g., `!x` -> `x`).
 /// Uses field-based child access with positional fallback for grammars without field names.

@@ -16,6 +16,7 @@ wrong.
 - DAML
 - Go
 - JavaScript/TypeScript
+- Ruby
 - Rust
 - Solidity
 - Move (dialects: `sui`, `iota`, `aptos`; use `move`, `move/sui`, `move/iota`, or `move/aptos`)
