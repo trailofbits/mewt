@@ -1,5 +1,6 @@
 pub mod core;
 pub mod languages;
+pub mod typesafe;
 
 // Re-export key items for easy importing in this crate
 pub use core::store::SqlStore;
