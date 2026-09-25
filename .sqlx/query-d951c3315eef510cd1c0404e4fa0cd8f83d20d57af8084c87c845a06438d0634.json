@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mutant_priorities\n               (mutant_id, purpose, input_hash, model, created_at, payload_json)\n               VALUES (?, ?, ?, ?, ?, ?)\n               ON CONFLICT(mutant_id, purpose) DO UPDATE SET\n               input_hash = excluded.input_hash,\n               model = excluded.model,\n               created_at = excluded.created_at,\n               payload_json = excluded.payload_json",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "d951c3315eef510cd1c0404e4fa0cd8f83d20d57af8084c87c845a06438d0634"
+}

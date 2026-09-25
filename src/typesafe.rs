@@ -91,7 +91,7 @@ impl Evaluation {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Answer {
     Noul {
@@ -110,7 +110,7 @@ pub enum Answer {
     },
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Usage {
     pub input_tokens: u64,
     pub output_tokens: u64,
@@ -165,7 +165,7 @@ impl Client {
             return Err(Error::InvalidApiKey);
         }
         let http = reqwest::Client::builder()
-            .timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(60))
             .build()?;
         Ok(Self {
             http,
@@ -217,8 +217,11 @@ impl Client {
     }
 }
 
-fn validate_answers(request: &Evaluation, result: &EvaluationResult) -> Result<(), Error> {
-    if result.answers.len() != request.questions.len() || result.model.is_empty() {
+pub(crate) fn validate_answers(
+    request: &Evaluation,
+    result: &EvaluationResult,
+) -> Result<(), Error> {
+    if result.answers.len() != request.questions.len() || result.model.trim().is_empty() {
         return Err(Error::InvalidResponse(
             "missing or unexpected answers/model".into(),
         ));
@@ -262,8 +265,18 @@ fn validate_answers(request: &Evaluation, result: &EvaluationResult) -> Result<(
                         .enumerate()
                         .all(|(i, level)| legend.get(&i.to_string()) == Some(level))
                     && probabilities.len() == criteria.len()
-                    && (0..criteria.len()).all(|i| probabilities.contains_key(&i.to_string()))
+                    && probabilities.keys().eq((0..criteria.len())
+                        .map(|i| i.to_string())
+                        .collect::<Vec<_>>()
+                        .iter())
                     && distribution(probabilities)
+                    && (probabilities
+                        .iter()
+                        .filter_map(|(level, p)| level.parse::<usize>().ok().map(|i| i as f64 * p))
+                        .sum::<f64>()
+                        - score)
+                        .abs()
+                        < 0.05
             }
             _ => false,
         };

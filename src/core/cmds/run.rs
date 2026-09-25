@@ -27,6 +27,13 @@ pub async fn execute_run(
     test_timeout: Option<u32>,
     resolution_defaults: ResolutionDefaults,
 ) -> AppResult<Option<CampaignSummary>> {
+    if args.priority_threshold.is_some()
+        && (!args.targets.is_empty() || args.ignore_targets.is_some())
+    {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput,
+            "--priority-threshold requires saved mutants: run 'mewt mutate TARGET', then 'mewt prioritize mutants', then 'mewt run --priority-threshold T' without targets"
+        ).into());
+    }
     let cli_mutations = parse_csv::<String>(args.mutations.as_deref());
     let cli_mutations_slice = cli_mutations.as_deref();
 
@@ -115,6 +122,9 @@ pub async fn execute_run(
             Err(e) => return Err(e.into()),
         };
 
+        if let Some(threshold) = args.priority_threshold {
+            runner.set_priority_threshold(threshold);
+        }
         runner
             .run_mutation_campaign(group_targets, group_mutations.as_ref().map(|v| v.join(",")))
             .await?;

@@ -7,12 +7,15 @@ use clap::{CommandFactory, FromArgMatches};
 use log::{debug, warn};
 
 use crate::LanguageRegistry;
-use crate::core::cli::{Args, Commands, PrintArgs};
+use crate::core::cli::{Args, Commands, PrintArgs, PrioritizeArgs};
 use crate::core::cmds;
 use crate::core::logging::init_logging;
+use crate::core::prioritize::{self, Purpose};
 use crate::core::store::SqlStore;
+use crate::types::AppError;
 use crate::types::AppResult;
 use crate::types::config::{CliOverrides, config, init_with_overrides, set_namespace};
+use crate::typesafe::Client;
 
 pub async fn run_main(
     registry: Arc<LanguageRegistry>,
@@ -38,6 +41,15 @@ pub async fn run_main(
     let matches = cmd.get_matches();
     let args = Args::from_arg_matches(&matches)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e.to_string()))?;
+
+    // Consent/key check precedes even config and cache lookup, including an empty campaign.
+    let priority_client = if matches!(&args.command, Commands::Prioritize { .. }) {
+        Some(Client::from_env().map_err(|_| AppError::Custom(
+            "Set TYPESAFE_API_KEY (get a key at https://typesafe.ai/). Prioritizing uploads source windows and mutation edits to TypeSafe; survivors also send Uncaught status.".into()
+        ))?)
+    } else {
+        None
+    };
 
     // Handle config file path: either explicit via --config or auto-discovered
     let config_path = if let Some(config_path_arg) = args.config.as_ref() {
@@ -178,6 +190,22 @@ pub async fn run_main(
                 resolved_targets,
                 mutations,
                 resolution_defaults,
+            )
+            .await?;
+            0
+        }
+        Commands::Prioritize { command } => {
+            let (purpose, options) = match command {
+                PrioritizeArgs::Mutants(opts) => (Purpose::Pre, opts),
+                PrioritizeArgs::Survivors(opts) => (Purpose::Post, opts),
+            };
+            let targets = prioritize::select_targets(&store, &options.targets).await?;
+            prioritize::evaluate(
+                &store,
+                priority_client.as_ref().expect("key checked"),
+                &targets,
+                purpose,
+                options.force,
             )
             .await?;
             0

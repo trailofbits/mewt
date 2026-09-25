@@ -79,6 +79,23 @@ mewt print mutants --target path/to/contract.rs
 mewt results --target path/to/contract.rs
 ```
 
+- Optionally annotate saved mutants with TypeSafe's heuristic scores before and after testing:
+
+```bash
+mewt mutate path/to/contract.rs
+export TYPESAFE_API_KEY=... # get a key at https://typesafe.ai/
+mewt prioritize mutants
+mewt run --priority-threshold 2 --test.cmd 'your test command'
+mewt prioritize survivors
+mewt results
+```
+
+**Privacy:** `prioritize` sends source windows and mutation edits to TypeSafe (and
+`Uncaught` status for survivors). Code may be private. No other command needs
+an API key or contacts TypeSafe. Scores are experimental heuristics, not
+measured TCAP. See [Prioritization](docs/prioritization.md) for limits, cache,
+threshold semantics, and output formats.
+
 - Test all mutants even if more severe ones were uncaught (disable skip optimization):
 
 ```bash

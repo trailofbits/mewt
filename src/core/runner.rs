@@ -12,11 +12,16 @@ use indicatif::{HumanDuration, ProgressBar};
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
+use crate::core::prioritize::{self, Purpose};
 use crate::core::utils::parse_csv;
 use crate::types::{CampaignSummary, Mutant, MutationSeverity, Outcome, Status, Target};
 
 pub struct TestRunner {
     test_cmd: String,
+    priority_filter: Option<f64>,
+    priority_excluded: usize,
+    actually_tested: usize,
+    severity_skipped: usize,
     timeout: Option<Duration>,
     comprehensive: bool,
     verbose: bool,
@@ -47,6 +52,10 @@ impl TestRunner {
     ) -> Self {
         Self {
             test_cmd,
+            priority_filter: None,
+            priority_excluded: 0,
+            actually_tested: 0,
+            severity_skipped: 0,
             timeout: timeout_secs.map(|secs| Duration::from_secs(secs as u64)),
             comprehensive,
             verbose,
@@ -130,6 +139,10 @@ impl TestRunner {
             store,
             registry,
         ))
+    }
+
+    pub fn set_priority_threshold(&mut self, threshold: f64) {
+        self.priority_filter = Some(threshold);
     }
 
     pub async fn run_baseline_test(&mut self) -> Result<u32, io::Error> {
@@ -270,6 +283,12 @@ impl TestRunner {
         info!("  Caught:   {} mutants", summary.caught);
         info!("  Uncaught: {} mutants", summary.uncaught);
         info!("  Skipped:  {} mutants", summary.skipped);
+        if self.priority_filter.is_some() {
+            info!(
+                "  This run: {} priority-excluded, {} severity-skipped, {} actually tested",
+                self.priority_excluded, self.severity_skipped, self.actually_tested
+            );
+        }
 
         if summary.tested == 0 {
             info!("No mutants were tested");
@@ -345,6 +364,30 @@ impl TestRunner {
 
         let mut count = 1;
         let mut skipped = 0;
+        let mut priority_excluded = 0;
+        let scores = if self.priority_filter.is_some() {
+            match prioritize::prepare(&self.store, &target, Purpose::Pre).await {
+                Ok(plan) => match prioritize::annotations(&self.store, &target, &plan).await {
+                    Ok(scores) => scores,
+                    Err(e) => {
+                        warn!(
+                            "Cannot read priority judgments for {}: {e}; running eligible mutants",
+                            target.display()
+                        );
+                        Default::default()
+                    }
+                },
+                Err(e) => {
+                    warn!(
+                        "Cannot prepare priority judgments for {}: {e}; running eligible mutants",
+                        target.display()
+                    );
+                    Default::default()
+                }
+            }
+        } else {
+            Default::default()
+        };
 
         // Get counts of untested vs retest mutants for this target
         let (untested_count, retest_count) =
@@ -417,6 +460,19 @@ impl TestRunner {
                 }
             }
 
+            // Policy is distinct from a Skipped outcome: leave the existing row
+            // (including a Timeout to be retested later) completely untouched.
+            if let Some(threshold) = self.priority_filter {
+                if scores.get(&mutant.id).is_some_and(|a| a.score < threshold) {
+                    priority_excluded += 1;
+                    self.priority_excluded += 1;
+                    if let Some(bar) = &self.campaign_bar {
+                        bar.inc(1);
+                    }
+                    continue;
+                }
+            }
+
             // Skip less severe mutations if more severe ones on the same line were uncaught
             // and comprehensive mode is not enabled
             if !self.comprehensive {
@@ -466,6 +522,7 @@ impl TestRunner {
                     }
 
                     skipped += 1;
+                    self.severity_skipped += 1;
                     if let Some(bar) = &self.campaign_bar {
                         bar.inc(1);
                     }
@@ -501,11 +558,15 @@ impl TestRunner {
             info!(
                 "  Testing mutation {}/{}: {}",
                 count,
-                total_untested - skipped,
+                total_untested - skipped - priority_excluded,
                 mutant.display(&target)
             );
             self.test_mutant(target.clone(), mutant, &mut target_duration_ms)
                 .await?;
+            if !self.running.load(Ordering::SeqCst) {
+                break; // Interrupted before the test produced an outcome.
+            }
+            self.actually_tested += 1;
             count += 1;
             if let Some(bar) = &self.campaign_bar {
                 bar.inc(1);
@@ -513,7 +574,10 @@ impl TestRunner {
         }
 
         if skipped > 0 {
-            info!("Skipped {skipped} mutations");
+            info!("Skipped {skipped} mutations (severity or slug filter)");
+        }
+        if priority_excluded > 0 {
+            info!("Priority-excluded {priority_excluded} mutations (no outcomes written)");
         }
 
         // Calculate actual target duration

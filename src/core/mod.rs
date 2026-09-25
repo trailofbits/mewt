@@ -3,6 +3,7 @@ pub mod cmds;
 pub mod engine;
 pub mod logging;
 pub mod main_shared;
+pub mod prioritize;
 pub mod registry;
 pub mod resolver;
 pub mod runner;
