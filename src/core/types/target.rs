@@ -163,10 +163,6 @@ impl Target {
         _mutations: Option<&[String]>,
         resolution_defaults: &ResolutionDefaults,
     ) -> io::Result<Option<Target>> {
-        let mut file = fs::File::open(&target_path)?;
-        let mut text = String::new();
-        file.read_to_string(&mut text)?;
-
         // Determine language from the file extension.
         // For .move files, use explicitly resolved dialect from config/CLI/per-target config.
         let path_resolution_defaults =
@@ -182,6 +178,10 @@ impl Target {
                     return Ok(None);
                 }
             };
+
+        let mut file = fs::File::open(&target_path)?;
+        let mut text = String::new();
+        file.read_to_string(&mut text)?;
 
         let mut target = Target {
             id: 0, // dummy placeholder until we store it in the db
