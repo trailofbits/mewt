@@ -139,7 +139,7 @@ fn normalize_status(status_str: Option<String>) -> Option<String> {
 fn print_outcome(mutant: &Mutant, target: &Target, outcome: &Outcome, verbose: bool) {
     info!(
         "  {:<9} | {}",
-        &outcome.status.display(),
+        outcome.status.display(),
         mutant.display(target)
     );
 
@@ -341,12 +341,9 @@ async fn print_table_format(
     registry: &LanguageRegistry,
 ) -> AppResult<()> {
     // If mutant_id is provided, special handling
-    if filters.id.is_some() {
+    if let Some(id) = filters.id {
         if data.is_empty() {
-            info!(
-                "No outcome found for mutant with ID: {}",
-                filters.id.unwrap()
-            );
+            info!("No outcome found for mutant with ID: {}", id);
         } else {
             let (mutant, target, outcome) = &data[0];
             info!("Target: {}", target.display());

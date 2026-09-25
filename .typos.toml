@@ -17,6 +17,10 @@ mis = "mis"
 # (sym_type_synomym). It appears in vendored parser.c that we do not control.
 synomym = "synomym"
 
+# "varaint" is a typo in the upstream tree-sitter-ruby grammar's comment
+# ("command varaint") in grammar.js. We do not control this vendored file.
+varaint = "varaint"
+
 # "tyops" is the upstream tree-sitter-haskell grammar's abbreviation for
 # "type operators" (`_tyops` rule). Not a typo, despite what `typos` thinks.
 tyops = "tyops"

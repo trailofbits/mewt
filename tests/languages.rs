@@ -8,6 +8,7 @@ mod daml;
 mod go;
 mod javascript;
 mod r#move;
+mod ruby;
 mod rust;
 mod solidity;
 
@@ -21,6 +22,7 @@ use mewt::languages::daml::engine::DamlLanguageEngine;
 use mewt::languages::go::engine::GoLanguageEngine;
 use mewt::languages::javascript::engine::JavaScriptLanguageEngine;
 use mewt::languages::r#move::engine::MoveLanguageEngine;
+use mewt::languages::ruby::engine::RubyLanguageEngine;
 use mewt::languages::rust::engine::RustLanguageEngine;
 use mewt::languages::solidity::engine::SolidityLanguageEngine;
 
@@ -42,6 +44,9 @@ fn every_mutation_slug_has_a_per_language_test_module() {
 
     let javascript = JavaScriptLanguageEngine::new();
     check_language(manifest_dir, "javascript", "javascript", &javascript);
+
+    let ruby = RubyLanguageEngine::new();
+    check_language(manifest_dir, "ruby", "ruby", &ruby);
 
     let solidity = SolidityLanguageEngine::new();
     check_language(manifest_dir, "solidity", "solidity", &solidity);
