@@ -20,6 +20,7 @@ pub struct TestRunner {
     test_cmd: String,
     priority_filter: Option<f64>,
     priority_excluded: usize,
+    slug_excluded: usize,
     actually_tested: usize,
     severity_skipped: usize,
     timeout: Option<Duration>,
@@ -54,6 +55,7 @@ impl TestRunner {
             test_cmd,
             priority_filter: None,
             priority_excluded: 0,
+            slug_excluded: 0,
             actually_tested: 0,
             severity_skipped: 0,
             timeout: timeout_secs.map(|secs| Duration::from_secs(secs as u64)),
@@ -229,7 +231,7 @@ impl TestRunner {
             );
         }
         info!(
-            "Estimated maximum completion time: {}",
+            "Upper-bound runtime before priority, slug, and severity exclusions: {}",
             HumanDuration(estimated_total_duration)
         );
 
@@ -278,19 +280,24 @@ impl TestRunner {
 
         // Print summary
         info!("");
-        info!("Campaign Summary:");
+        info!("Campaign Summary (database-wide totals):");
         info!("  Tested:   {} mutants", summary.tested);
         info!("  Caught:   {} mutants", summary.caught);
         info!("  Uncaught: {} mutants", summary.uncaught);
         info!("  Skipped:  {} mutants", summary.skipped);
         if self.priority_filter.is_some() {
             info!(
-                "  This run: {} priority-excluded, {} severity-skipped, {} actually tested",
-                self.priority_excluded, self.severity_skipped, self.actually_tested
+                "  This run: {} priority-excluded, {} slug-excluded, {} severity-skipped, {} actually tested",
+                self.priority_excluded,
+                self.slug_excluded,
+                self.severity_skipped,
+                self.actually_tested
             );
         }
 
-        if summary.tested == 0 {
+        if self.priority_filter.is_some() && self.actually_tested == 0 {
+            info!("No mutants were tested in this run");
+        } else if summary.tested == 0 {
             info!("No mutants were tested");
         } else {
             info!("Mutation testing campaign completed successfully");
@@ -344,8 +351,10 @@ impl TestRunner {
         let mut mutants = match self.store.get_mutants(target.id).await {
             Ok(mutants) => mutants,
             Err(e) => {
-                error!("Failed to get mutants for target {}: {}", target.id, e);
-                return Ok(());
+                return Err(io::Error::other(format!(
+                    "Failed to get mutants for target {}: {e}",
+                    target.id
+                )));
             }
         };
 
@@ -363,7 +372,8 @@ impl TestRunner {
         });
 
         let mut count = 1;
-        let mut skipped = 0;
+        let mut slug_excluded = 0;
+        let mut severity_skipped = 0;
         let mut priority_excluded = 0;
         let scores = if self.priority_filter.is_some() {
             match prioritize::prepare(&self.store, &target, Purpose::Pre).await {
@@ -403,11 +413,12 @@ impl TestRunner {
 
         // Estimate time for this target
         let timeout_secs = self.timeout.map(|t| t.as_secs()).unwrap_or(0);
+        // Severity, priority, and slug exclusions can only reduce this bound.
         let estimated_target_duration = Duration::from_secs(timeout_secs * total_untested as u64);
 
         if untested_count > 0 && retest_count > 0 {
             info!(
-                "Found {} mutants for this target ({} untested, {} to be retested), maximum runtime: {}",
+                "Found {} mutants for this target ({} untested, {} to be retested), upper-bound runtime before exclusions: {}",
                 mutants.len(),
                 untested_count,
                 retest_count,
@@ -415,21 +426,21 @@ impl TestRunner {
             );
         } else if untested_count > 0 {
             info!(
-                "Found {} mutants for this target ({} untested), maximum runtime: {}",
+                "Found {} mutants for this target ({} untested), upper-bound runtime before exclusions: {}",
                 mutants.len(),
                 untested_count,
                 HumanDuration(estimated_target_duration),
             );
         } else if retest_count > 0 {
             info!(
-                "Found {} mutants for this target ({} to be retested), maximum runtime: {}",
+                "Found {} mutants for this target ({} to be retested), upper-bound runtime before exclusions: {}",
                 mutants.len(),
                 retest_count,
                 HumanDuration(estimated_target_duration),
             );
         } else {
             info!(
-                "Found {} mutants for this target (all have been tested), maximum runtime: {}",
+                "Found {} mutants for this target (all have been tested), upper-bound runtime before exclusions: {}",
                 mutants.len(),
                 HumanDuration(estimated_target_duration),
             );
@@ -447,16 +458,44 @@ impl TestRunner {
                 break;
             }
 
-            // Skip if this mutation already has an outcome, unless it's a Timeout
-            if let Ok(Some(outcome)) = self.store.get_outcome(mutant.id).await {
+            // Skip if this mutation already has an outcome, unless it's a Timeout.
+            // A database read failure is not proof that the mutant is untested.
+            if let Some(outcome) = self
+                .store
+                .get_outcome(mutant.id)
+                .await
+                .map_err(io::Error::other)?
+            {
                 if outcome.status != Status::Timeout {
                     debug!(
                         "Mutation {} already has a valid outcome, skipping",
                         mutant.id
                     );
                     continue;
-                } else {
-                    debug!("Mutation {} has timeout outcome, retesting", mutant.id);
+                }
+                debug!("Mutation {} has timeout outcome, retesting", mutant.id);
+            }
+
+            // Slug exclusions are not priority exclusions or severity skips.
+            if let Some(slugs) = &allowed_slugs {
+                if !slugs.is_empty() {
+                    if !slugs.iter().any(|s| s == &mutant.mutation_slug) {
+                        slug_excluded += 1;
+                        self.slug_excluded += 1;
+                        if let Some(bar) = &self.campaign_bar {
+                            bar.inc(1);
+                        }
+                        continue;
+                    }
+                    if !warned_invalid_slugs.contains(&mutant.mutation_slug)
+                        && self
+                            .registry
+                            .get_mutation(&target.language, &mutant.mutation_slug)
+                            .is_none()
+                    {
+                        warn!("Unknown mutation slug: {}", mutant.mutation_slug);
+                        warned_invalid_slugs.push(mutant.mutation_slug.clone());
+                    }
                 }
             }
 
@@ -521,7 +560,7 @@ impl TestRunner {
                         );
                     }
 
-                    skipped += 1;
+                    severity_skipped += 1;
                     self.severity_skipped += 1;
                     if let Some(bar) = &self.campaign_bar {
                         bar.inc(1);
@@ -530,37 +569,7 @@ impl TestRunner {
                 }
             }
 
-            // If we're filtering by mutation type, check if this one matches
-            if let Some(slugs) = &allowed_slugs {
-                if !slugs.is_empty() {
-                    // Check if the mutant's slug is in our allowed list
-                    if !slugs.iter().any(|s| s == &mutant.mutation_slug) {
-                        // Skip this mutant as its slug is not in our allowed list
-                        skipped += 1;
-                        if let Some(bar) = &self.campaign_bar {
-                            bar.inc(1);
-                        }
-                        continue;
-                    } else if !warned_invalid_slugs.contains(&mutant.mutation_slug) {
-                        // For invalid slugs, we'll warn the user but only once per slug
-                        if self
-                            .registry
-                            .get_mutation(&target.language, &mutant.mutation_slug)
-                            .is_none()
-                        {
-                            warn!("Unknown mutation slug: {}", mutant.mutation_slug);
-                            warned_invalid_slugs.push(mutant.mutation_slug.clone());
-                        }
-                    }
-                }
-            }
-
-            info!(
-                "  Testing mutation {}/{}: {}",
-                count,
-                total_untested - skipped - priority_excluded,
-                mutant.display(&target)
-            );
+            info!("  Testing mutation {count}: {}", mutant.display(&target));
             self.test_mutant(target.clone(), mutant, &mut target_duration_ms)
                 .await?;
             if !self.running.load(Ordering::SeqCst) {
@@ -573,11 +582,14 @@ impl TestRunner {
             }
         }
 
-        if skipped > 0 {
-            info!("Skipped {skipped} mutations (severity or slug filter)");
+        if slug_excluded > 0 {
+            info!("Slug-excluded: {slug_excluded}");
+        }
+        if severity_skipped > 0 {
+            info!("Severity-skipped: {severity_skipped}");
         }
         if priority_excluded > 0 {
-            info!("Priority-excluded {priority_excluded} mutations (no outcomes written)");
+            info!("Priority-excluded: {priority_excluded} (no outcomes written)");
         }
 
         // Calculate actual target duration

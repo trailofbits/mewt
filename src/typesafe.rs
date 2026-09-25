@@ -245,6 +245,9 @@ pub(crate) fn validate_answers(
                     && criteria.contains_key(choice)
                     && probabilities.keys().eq(criteria.keys())
                     && distribution(probabilities)
+                    && probabilities
+                        .get(choice)
+                        .is_some_and(|chosen| probabilities.values().all(|p| *chosen >= *p))
             }
             (
                 Question::Score { criteria, .. },
@@ -302,7 +305,7 @@ mod tests {
 
     #[test]
     fn round_trip_questions_and_answers() {
-        let request = Evaluation::new(
+        let mut request = Evaluation::new(
             json!({"mutant": "x + 1"}),
             BTreeMap::from([
                 (
@@ -341,6 +344,20 @@ mod tests {
             }
         })).unwrap();
         validate_answers(&request, &result).unwrap();
+        let mut invalid = result;
+        if let Question::Choice { criteria, .. } = request.questions.get_mut("kind").unwrap() {
+            criteria.insert("different".into(), json!(null));
+        }
+        if let Answer::Choice { probabilities, .. } = invalid.answers.get_mut("kind").unwrap() {
+            probabilities.insert("different".into(), 0.5);
+            probabilities.insert("other".into(), 0.5);
+        }
+        assert!(validate_answers(&request, &invalid).is_ok()); // A tie is valid.
+        if let Answer::Choice { probabilities, .. } = invalid.answers.get_mut("kind").unwrap() {
+            probabilities.insert("different".into(), 0.75);
+            probabilities.insert("other".into(), 0.25);
+        }
+        assert!(validate_answers(&request, &invalid).is_err()); // Selected option is not most likely.
     }
 
     #[tokio::test]

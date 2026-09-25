@@ -12,12 +12,12 @@ use crate::types::{AppError, AppResult, Hash, Mutant, Outcome, Status, Target};
 use crate::typesafe::{self, Answer, Client, Evaluation, EvaluationResult, Question, Usage};
 
 // Experimental product limits, not published TypeSafe API limits. Revise after a pilot.
-pub const MAX_SOURCE_LINES: usize = 160;
+pub const MAX_SOURCE_LINES: usize = 192;
 pub const SOURCE_OVERLAP_LINES: usize = 40;
 pub const MAX_SOURCE_BYTES: usize = 16_384;
 pub const MAX_REQUEST_BYTES: usize = 32_768;
 pub const MAX_MUTANTS_PER_REQUEST: usize = 8;
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 const MODEL: &str = "jev-latest";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -35,19 +35,32 @@ impl Purpose {
 }
 
 const PRE_RUBRIC: [&str; 5] = [
-    "Very unlikely to provide actionable, nonredundant information from executing tests",
-    "Unlikely to provide actionable, nonredundant information from executing tests",
-    "Unclear or mixed evidence of actionable, nonredundant test signal",
-    "Likely to provide actionable, nonredundant information from executing tests",
-    "Very likely to provide actionable, nonredundant information from executing tests",
+    "Strong source evidence that the edit has no observable effect; executing tests adds little information",
+    "The edit may change behavior, but source evidence suggests limited or redundant test signal",
+    "Source context is insufficient or mixed; the value of executing tests is unclear",
+    "The edit changes a testable behavior; executing tests could reveal a useful distinction",
+    "The edit changes a distinct, consequential behavior; executing tests could reveal an important gap",
 ];
 const POST_RUBRIC: [&str; 5] = [
-    "Very unlikely that writing a detecting test would advance test completeness",
-    "Unlikely that writing a detecting test would advance test completeness",
-    "Unclear or mixed evidence that a detecting test would advance completeness",
-    "Likely that writing a detecting test would advance test completeness",
-    "Very likely that writing a detecting test would advance test completeness",
+    "Strong source evidence that no detecting test can distinguish the edit's observable behavior",
+    "A detecting test would probably cover only a minor or redundant behavior",
+    "The source and Uncaught status give insufficient or mixed evidence of a useful new test goal",
+    "A detecting test could check a distinct, meaningful behavior missing from the observed tests",
+    "A detecting test could cover a consequential, clearly distinct behavior missing from the observed tests",
 ];
+
+// The full edit is in state. Keep questions small even for multi-line edits,
+// but identify the edit *in the instructions*: question IDs are not sent to Jev.
+fn preview(text: &str) -> String {
+    const MAX_CHARS: usize = 60;
+    let mut chars = text.chars();
+    let head: String = chars.by_ref().take(MAX_CHARS).collect();
+    if chars.next().is_some() {
+        format!("{head}…")
+    } else {
+        head
+    }
+}
 
 fn questions(mutant: &Mutant, purpose: Purpose) -> BTreeMap<String, Question> {
     let reference = format!(
@@ -56,15 +69,16 @@ fn questions(mutant: &Mutant, purpose: Purpose) -> BTreeMap<String, Question> {
         mutant.line_offset + 1,
         mutant.byte_offset,
         mutant.mutation_slug,
-        mutant.old_text,
-        mutant.new_text
+        preview(&mutant.old_text),
+        preview(&mutant.new_text)
     );
     let instructions = match purpose {
         Purpose::Pre => format!(
-            "For {reference}, if tests were executed on this mutant, how likely is the result to provide actionable, nonredundant information about a meaningful behavior difference? Use source context only; do not assume a test outcome, coverage, equivalence or subsumption. This is not a measure of killability, bug likelihood or code importance. Favor the middle level when evidence is insufficient."
+            "For {reference}, read the complete edit in state.mutants.m{} and the numbered source window. Rate the value of executing tests on this edit: could the outcome reveal a distinct, observable behavior gap? Use only source evidence, regardless of existing test outcomes. Do not guess whether tests will kill it, or infer coverage, equivalence, or subsumption without evidence. Use level 2 when evidence is insufficient.",
+            mutant.id
         ),
         Purpose::Post => format!(
-            "For {reference}, with the observed Uncaught status in state.mutants.m{}, how useful would this mutant be as a goal for writing a new detecting test that advances completeness rather than repeating existing distinctions? Uncaught does not prove equivalence. Do not invent coverage, subsumption, or dominator evidence. Favor the middle level when evidence is insufficient.",
+            "For {reference}, read the complete edit and observed Uncaught status in state.mutants.m{} and the numbered source window. Rate the value of a new test that distinguishes this edit: would it check a distinct, meaningful behavior? Uncaught means the observed tests did not detect this edit, not that it is equivalent or that a new test is feasible. Do not invent coverage, subsumption, or dominator evidence. Use level 2 when evidence is insufficient.",
             mutant.id
         ),
     };
@@ -85,13 +99,16 @@ fn questions(mutant: &Mutant, purpose: Purpose) -> BTreeMap<String, Question> {
             format!("m{}_kind", mutant.id),
             Question::Choice {
                 instructions: json!(format!(
-                    "For {reference}, choose the best-supported *tentative* description. An Uncaught outcome does not prove equivalence or triviality. Do not infer dominator status without mutant-set evidence; if unsure choose unclear."
+                    "For {reference}, read the complete edit in state.mutants.m{} and the numbered source window. Which kind of *new assertion* could best distinguish the original behavior from this Uncaught mutant? Choose a test focus, not a claim about equivalence, subsumption, or existing coverage. If no focus follows from the source, choose unclear.",
+                    mutant.id
                 )),
                 criteria: BTreeMap::from([
-                    ("equivalent".into(), json!("Suspected equivalent based on source evidence, not proven by surviving tests")),
-                    ("trivial".into(), json!("Suspected immediate detection by any test executing the location; not merely easy to detect")),
-                    ("other_or_subsumed".into(), json!("Potentially useful or redundant test goal; relationship to other mutants is unknown")),
-                    ("unclear".into(), json!("Insufficient or conflicting evidence")),
+                    ("boundary".into(), json!("A threshold, range, equality, or off-by-one input at a boundary")),
+                    ("branch".into(), json!("A control-flow decision or short-circuit path, other than a numeric boundary")),
+                    ("error_path".into(), json!("An error, revert, exception, or validation failure")),
+                    ("side_effect".into(), json!("An observable state change, event, I/O, or other side effect")),
+                    ("value".into(), json!("A returned value, computation, or argument passed to another function")),
+                    ("unclear".into(), json!("No specific distinguishing assertion can be inferred from this source window")),
                 ]),
             },
         );
@@ -120,6 +137,7 @@ pub struct Batch {
 }
 
 pub struct Plan {
+    purpose: Purpose,
     pub batches: Vec<Batch>,
     pub unsupported: Vec<(i64, &'static str)>,
 }
@@ -139,13 +157,38 @@ fn source_lines(source: &str) -> Vec<(usize, usize)> {
 
 fn window_end(lines: &[(usize, usize)], start: usize) -> usize {
     let mut end = start;
-    while end < lines.len()
-        && end - start < MAX_SOURCE_LINES
-        && lines[end].1 - lines[start].0 <= MAX_SOURCE_BYTES
-    {
+    let mut bytes = 0;
+    while end < lines.len() && end - start < MAX_SOURCE_LINES {
+        let numbered_line_bytes = (end + 1).to_string().len() + 3 + lines[end].1 - lines[end].0;
+        if bytes + numbered_line_bytes > MAX_SOURCE_BYTES {
+            break;
+        }
+        bytes += numbered_line_bytes;
         end += 1;
     }
     end
+}
+
+fn numbered_source(target: &Target, lines: &[(usize, usize)], start: usize, end: usize) -> String {
+    let mut text = String::new();
+    for (index, &(from, to)) in lines.iter().enumerate().take(end).skip(start) {
+        text.push_str(&format!("{} | ", index + 1));
+        text.push_str(&target.text[from..to]);
+    }
+    text
+}
+
+fn language_hint(target: &Target) -> String {
+    let label = target.language.to_string();
+    let extension = target.path.extension().and_then(|ext| ext.to_str());
+    match (label.as_str(), extension) {
+        // Older campaigns saved a family-only label even for TypeScript/JSX.
+        ("javascript", Some(dialect @ ("js" | "jsx" | "ts" | "tsx"))) => {
+            format!("javascript/{dialect}")
+        }
+        ("suimove", _) => "move/sui".into(),
+        _ => label,
+    }
 }
 
 fn entry(mutant: &Mutant, purpose: Purpose) -> Value {
@@ -182,10 +225,10 @@ fn build_request(
     let mut evaluation = Evaluation::new(
         json!({
             "purpose": purpose.as_str(),
-            "language": target.language.to_string(),
+            "language": language_hint(target),
             "source_window": {
                 "first_line": start + 1,
-                "text": &target.text[lines[start].0..lines[end - 1].1],
+                "text": numbered_source(target, lines, start, end),
             },
             "mutants": manifest,
         }),
@@ -294,6 +337,7 @@ pub fn plan(target: &Target, mut mutants: Vec<Mutant>, purpose: Purpose) -> Plan
         }
     }
     Plan {
+        purpose,
         batches,
         unsupported,
     }
@@ -324,15 +368,28 @@ pub async fn select_targets(store: &SqlStore, patterns: &[String]) -> AppResult<
         };
         matchers.push((path, glob));
     }
-    Ok(targets
-        .into_iter()
-        .filter(|t| {
-            matchers.iter().any(|(path, glob)| {
+    let mut selected = HashSet::new();
+    for (path, glob) in &matchers {
+        let matches: Vec<_> = targets
+            .iter()
+            .filter(|t| {
                 t.path == *path
                     || t.path.starts_with(path)
                     || glob.as_ref().is_some_and(|g| g.is_match(&t.path))
             })
-        })
+            .map(|t| t.id)
+            .collect();
+        if matches.is_empty() {
+            return Err(AppError::Custom(format!(
+                "No saved targets match {:?}; run 'mewt mutate TARGET' first",
+                path
+            )));
+        }
+        selected.extend(matches);
+    }
+    Ok(targets
+        .into_iter()
+        .filter(|t| selected.contains(&t.id))
         .collect())
 }
 
@@ -430,16 +487,11 @@ pub async fn annotations(
 ) -> AppResult<HashMap<i64, Annotation>> {
     let mut found = HashMap::new();
     for batch in &plan.batches {
-        let purpose = if batch.request.state["purpose"] == "pre" {
-            Purpose::Pre
-        } else {
-            Purpose::Post
-        };
         for mutant in &batch.mutants {
-            let hash = fingerprint(target, mutant, purpose, &batch.request)?;
-            if let Some(row) = store.get_priority(mutant.id, purpose.as_str()).await? {
+            let hash = fingerprint(target, mutant, plan.purpose, &batch.request)?;
+            if let Some(row) = store.get_priority(mutant.id, plan.purpose.as_str()).await? {
                 if let Some(annotation) =
-                    checked_annotation(&row, &hash, mutant, purpose, &batch.request)
+                    checked_annotation(&row, &hash, mutant, plan.purpose, &batch.request)
                 {
                     found.insert(mutant.id, annotation);
                 }
@@ -454,6 +506,80 @@ pub struct Counts {
     pub cached: usize,
     pub evaluated: usize,
     pub failed: usize,
+    pub requests: usize,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+}
+
+struct ScoredMutant {
+    id: i64,
+    path: String,
+    line: u32,
+    annotation: Annotation,
+}
+
+impl ScoredMutant {
+    fn new(target: &Target, mutant: &Mutant, annotation: Annotation) -> Self {
+        Self {
+            id: mutant.id,
+            path: target.display_path(),
+            line: mutant.line_offset + 1,
+            annotation,
+        }
+    }
+}
+
+fn report(counts: &Counts, purpose: Purpose, scored: &mut [ScoredMutant]) {
+    info!(
+        "Priority {}: {} evaluated, {} cached, {} failed ({} requests, {} input / {} output tokens)",
+        purpose.as_str(),
+        counts.evaluated,
+        counts.cached,
+        counts.failed,
+        counts.requests,
+        counts.input_tokens,
+        counts.output_tokens
+    );
+    if scored.is_empty() {
+        return;
+    }
+    let mut bands = [0; 4];
+    for item in scored.iter() {
+        bands[(item.annotation.score.floor() as usize).min(3)] += 1;
+    }
+    info!(
+        "  Available score bands 0–<1: {}, 1–<2: {}, 2–<3: {}, 3–4: {} (heuristic; no recommended threshold)",
+        bands[0], bands[1], bands[2], bands[3]
+    );
+    if purpose == Purpose::Pre {
+        scored.sort_by(|a, b| {
+            a.annotation
+                .score
+                .total_cmp(&b.annotation.score)
+                .then_with(|| a.id.cmp(&b.id))
+        });
+        info!("  Lowest-scoring available mutants (not proof of redundancy):");
+    } else {
+        scored.sort_by(|a, b| {
+            b.annotation
+                .score
+                .total_cmp(&a.annotation.score)
+                .then_with(|| a.id.cmp(&b.id))
+        });
+        info!("  Highest-scoring available test goals (results keep their usual order):");
+    }
+    for item in scored.iter().take(5) {
+        let focus = item
+            .annotation
+            .category
+            .as_deref()
+            .map(|s| format!(", test focus: {}", s.replace('_', " ")))
+            .unwrap_or_default();
+        info!(
+            "    #{} {}:{}  {:.2}/4 (confidence {:.2}{focus})",
+            item.id, item.path, item.line, item.annotation.score, item.annotation.confidence
+        );
+    }
 }
 
 /// Sequential batches bound in-flight request count to one. A failed chunk
@@ -466,6 +592,7 @@ pub async fn evaluate(
     force: bool,
 ) -> AppResult<Counts> {
     let mut counts = Counts::default();
+    let mut scored = Vec::new();
     for target in targets {
         let plan = match prepare(store, target, purpose).await {
             Ok(plan) => plan,
@@ -490,34 +617,38 @@ pub async fn evaluate(
             let mut pending = Vec::new();
             for mutant in &batch.mutants {
                 let hash = fingerprint(target, mutant, purpose, &batch.request)?;
-                let hit = if force {
-                    false
-                } else {
+                if !force {
                     match store.get_priority(mutant.id, purpose.as_str()).await {
-                        Ok(row) => row
-                            .and_then(|r| {
-                                checked_annotation(&r, &hash, mutant, purpose, &batch.request)
-                            })
-                            .is_some(),
+                        Ok(Some(row)) => {
+                            if let Some(annotation) =
+                                checked_annotation(&row, &hash, mutant, purpose, &batch.request)
+                            {
+                                counts.cached += 1;
+                                scored.push(ScoredMutant::new(target, mutant, annotation));
+                                continue;
+                            }
+                        }
+                        Ok(None) => {}
                         Err(e) => {
                             warn!("Priority cache read failed for mutant {}: {e}", mutant.id);
                             counts.failed += 1;
                             continue;
                         }
                     }
-                };
-                if hit {
-                    counts.cached += 1;
-                } else {
-                    pending.push((mutant, hash));
                 }
+                pending.push((mutant, hash));
             }
             if pending.is_empty() {
                 continue;
             }
-            // Even partial cache hits retain the original shared state/questions.
+            // The shared state and *all* questions are part of each fingerprint.
+            // Re-query the original batch after a partial hit so the cache stays
+            // valid; only write entries that needed a refresh.
+            counts.requests += 1;
             match client.evaluate(&batch.request).await {
                 Ok(result) => {
+                    counts.input_tokens += result.usage.input_tokens;
+                    counts.output_tokens += result.usage.output_tokens;
                     for (mutant, hash) in pending {
                         let ids = questions(mutant, purpose);
                         let answers = ids
@@ -532,13 +663,29 @@ pub async fn evaluate(
                             usage: result.usage.clone(),
                         };
                         let payload_json = serde_json::to_string(&payload)?;
+                        let row = PriorityRow {
+                            input_hash: hash,
+                            model: result.model.clone(),
+                            payload_json,
+                        };
+                        let Some(annotation) = checked_annotation(
+                            &row,
+                            &row.input_hash,
+                            mutant,
+                            purpose,
+                            &batch.request,
+                        ) else {
+                            warn!("Invalid priority judgment for mutant {}", mutant.id);
+                            counts.failed += 1;
+                            continue;
+                        };
                         if let Err(e) = store
                             .put_priority(
                                 mutant.id,
                                 purpose.as_str(),
-                                &hash,
-                                &result.model,
-                                &payload_json,
+                                &row.input_hash,
+                                &row.model,
+                                &row.payload_json,
                             )
                             .await
                         {
@@ -548,6 +695,7 @@ pub async fn evaluate(
                             );
                             counts.failed += 1;
                         } else {
+                            scored.push(ScoredMutant::new(target, mutant, annotation));
                             counts.evaluated += 1;
                         }
                     }
@@ -560,13 +708,7 @@ pub async fn evaluate(
             }
         }
     }
-    info!(
-        "Priority {}: {} evaluated, {} cached, {} failed",
-        purpose.as_str(),
-        counts.evaluated,
-        counts.cached,
-        counts.failed
-    );
+    report(&counts, purpose, &mut scored);
     if counts.failed > 0 {
         return Err(AppError::Custom(format!(
             "Priority {} incomplete: {} evaluated, {} cached, {} failed",
@@ -662,7 +804,13 @@ mod tests {
                         .collect();
                     answers.insert(id.clone(), json!({"type":"score","score":score,"confidence":1.0,"legend":legend,"probabilities":probs}));
                 } else {
-                    answers.insert(id.clone(), json!({"type":"choice","choice":"unclear","confidence":1.0,"probabilities":{"equivalent":0.0,"other_or_subsumed":0.0,"trivial":0.0,"unclear":1.0}}));
+                    let probabilities: BTreeMap<String, f64> = question["criteria"]
+                        .as_object()
+                        .unwrap()
+                        .keys()
+                        .map(|key| (key.clone(), if key == "boundary" { 1.0 } else { 0.0 }))
+                        .collect();
+                    answers.insert(id.clone(), json!({"type":"choice","choice":"boundary","confidence":1.0,"probabilities":probabilities}));
                 }
             }
             let body = serde_json::to_string(&json!({"model":"jev-test-v1","usage":{"input_tokens":42,"output_tokens":5},"answers":answers})).unwrap();
@@ -755,6 +903,40 @@ mod tests {
         );
     }
 
+    #[test]
+    fn long_edits_and_legacy_dialects_keep_the_full_edit_in_a_bounded_request() {
+        let body = "let value = 1 + 2;\n".repeat(177);
+        let mut target = saved("example.ts".into(), &body);
+        target.language = "JavaScript".parse().unwrap();
+        let planned = plan(
+            &target,
+            vec![mutation(&target, 1, &body, "return 0;\n")],
+            Purpose::Post,
+        );
+        assert!(planned.unsupported.is_empty(), "{:?}", planned.unsupported);
+        let batch = &planned.batches[0];
+        assert_eq!(batch.request.state["language"], "javascript/ts");
+        assert_eq!(batch.request.state["mutants"]["m1"]["old_text"], body);
+        assert!(
+            batch.request.state["source_window"]["text"]
+                .as_str()
+                .unwrap()
+                .contains("177 | let value")
+        );
+        assert!(serde_json::to_vec(&batch.request).unwrap().len() <= MAX_REQUEST_BYTES);
+        let instructions = serde_json::to_string(&batch.request.questions).unwrap();
+        assert!(instructions.contains("state.mutants.m1"));
+        assert!(!instructions.contains(&body)); // Full edit is in state, not repeated in each question.
+
+        target.language = "SuiMove".parse().unwrap();
+        let move_plan = plan(
+            &target,
+            vec![mutation(&target, 1, "1 + 2", "1 - 2")],
+            Purpose::Pre,
+        );
+        assert_eq!(move_plan.batches[0].request.state["language"], "move/sui");
+    }
+
     #[tokio::test]
     async fn selects_only_saved_paths_with_or_without_files() {
         let store = SqlStore::new("sqlite::memory:".into()).await.unwrap();
@@ -793,8 +975,7 @@ mod tests {
         assert!(
             select_targets(&store, &["nonexistent".into()])
                 .await
-                .unwrap()
-                .is_empty()
+                .is_err()
         );
         assert!(select_targets(&store, &["[bad".into()]).await.is_err());
     }
@@ -868,7 +1049,7 @@ mod tests {
                 .contains_key(&1)
         );
         let corrupt_score = serde_json::json!({
-            "version": 1,
+            "version": VERSION,
             "usage": {"input_tokens": 1, "output_tokens": 1},
             "answers": {"m1_signal": {"type": "score", "score": 4.0, "confidence": 1.0,
                 "legend": {"0": PRE_RUBRIC[0], "1": PRE_RUBRIC[1], "2": PRE_RUBRIC[2], "3": PRE_RUBRIC[3], "4": PRE_RUBRIC[4]},
@@ -902,11 +1083,41 @@ mod tests {
         .unwrap();
         assert_eq!(refresh.evaluated, 1);
         assert_eq!(refresh.cached, 1);
+        assert_eq!(refresh.requests, 1); // The original batch is re-queried after a partial hit.
         handle.await.unwrap();
         assert_eq!(
             annotations(&store, &target, &planned).await.unwrap().len(),
             2
         );
+        let current = store.get_priority(1, "pre").await.unwrap().unwrap();
+        let mut previous: Value = serde_json::from_str(&current.payload_json).unwrap();
+        previous["version"] = json!(1);
+        store
+            .put_priority(
+                1,
+                "pre",
+                &current.input_hash,
+                &current.model,
+                &previous.to_string(),
+            )
+            .await
+            .unwrap();
+        assert!(
+            !annotations(&store, &target, &planned)
+                .await
+                .unwrap()
+                .contains_key(&1)
+        );
+        store
+            .put_priority(
+                1,
+                "pre",
+                &current.input_hash,
+                &current.model,
+                &current.payload_json,
+            )
+            .await
+            .unwrap();
 
         let changed = plan(
             &target,
@@ -960,7 +1171,7 @@ mod tests {
             annotations(&store, &target, &post_plan).await.unwrap()[&1]
                 .category
                 .as_deref(),
-            Some("unclear")
+            Some("boundary")
         );
         store
             .add_outcome(Outcome {

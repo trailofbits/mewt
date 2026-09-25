@@ -109,7 +109,8 @@ pub struct RunArgs {
     pub verbose: bool,
 
     /// Exclude saved mutants with a fresh pre-campaign score strictly below T (0..=4).
-    /// Requires previously generated mutants; no TypeSafe key or network is used here.
+    /// Experimental: validate missed useful signal before choosing T. Requires saved
+    /// mutants; no TypeSafe key or network is used here.
     #[arg(long, value_parser = parse_priority_threshold)]
     pub priority_threshold: Option<f64>,
 }

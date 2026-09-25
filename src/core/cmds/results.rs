@@ -155,14 +155,14 @@ fn print_outcome(
 
     if let Some(priority) = priority {
         info!(
-            "    Test-goal priority: {:.2}/4 (distribution confidence {:.2}{}) [heuristic]",
+            "    Test-goal priority: {:.2}/4 (distribution confidence {:.2}, test focus: {}) [heuristic]",
             priority.score,
             priority.confidence,
             priority
                 .category
                 .as_deref()
-                .map(|s| format!(", {s}"))
-                .unwrap_or_default()
+                .unwrap_or("unclear")
+                .replace('_', " ")
         );
     }
 

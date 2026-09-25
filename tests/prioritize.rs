@@ -61,6 +61,14 @@ fn cli_consent_threshold_and_help() {
         "{}",
         String::from_utf8_lossy(&out.stderr)
     );
+    let unmatched = Command::new(bin)
+        .current_dir(temp.path())
+        .env("TYPESAFE_API_KEY", "not-a-real-key")
+        .args(["prioritize", "mutants", "missing.rs"])
+        .output()
+        .unwrap();
+    assert!(!unmatched.status.success());
+    assert!(String::from_utf8_lossy(&unmatched.stderr).contains("No saved targets match"));
     let out = invoke(&[
         "run",
         "--priority-threshold",
