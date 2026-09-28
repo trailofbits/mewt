@@ -7,9 +7,9 @@ use clap::{CommandFactory, FromArgMatches};
 use log::{debug, warn};
 
 use crate::LanguageRegistry;
-use crate::core::cli::{Args, Commands, PrintArgs, PrioritizeArgs};
+use crate::core::cli::{Args, Commands, PrintArgs};
 use crate::core::cmds;
-use crate::core::cmds::prioritize::{self, Purpose};
+use crate::core::cmds::prioritize;
 use crate::core::logging::init_logging;
 use crate::core::store::SqlStore;
 use crate::core::typesafe::Client;
@@ -195,17 +195,10 @@ pub async fn run_main(
             0
         }
         Commands::Prioritize { command } => {
-            let (purpose, options) = match command {
-                PrioritizeArgs::Mutants(opts) => (Purpose::Pre, opts),
-                PrioritizeArgs::Results(opts) => (Purpose::Post, opts),
-            };
-            let targets = prioritize::select_targets(&store, &options.targets).await?;
-            prioritize::evaluate(
+            prioritize::execute_prioritize(
                 &store,
                 priority_client.as_ref().expect("key checked"),
-                &targets,
-                purpose,
-                options.force,
+                command,
             )
             .await?;
             0

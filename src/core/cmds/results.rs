@@ -2,7 +2,7 @@ use log::{info, warn};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 
-use crate::core::cmds::prioritize::{self, Annotation, Purpose};
+use crate::core::prioritize::{self, Annotation, Purpose};
 
 use crate::LanguageRegistry;
 use crate::SqlStore;

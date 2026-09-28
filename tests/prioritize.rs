@@ -1,7 +1,7 @@
 use std::process::Command;
 
 use mewt::LanguageEngine;
-use mewt::core::cmds::prioritize::{Purpose, plan};
+use mewt::core::prioritize::{Purpose, plan};
 use mewt::languages;
 use mewt::types::{Hash, Target};
 

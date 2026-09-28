@@ -12,7 +12,7 @@ use indicatif::{HumanDuration, ProgressBar};
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
-use crate::core::cmds::prioritize::{self, Purpose};
+use crate::core::prioritize::{self, Purpose};
 use crate::core::utils::parse_csv;
 use crate::types::{CampaignSummary, Mutant, MutationSeverity, Outcome, Status, Target};
 
