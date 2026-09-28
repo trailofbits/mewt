@@ -9,13 +9,13 @@ use log::{debug, warn};
 use crate::LanguageRegistry;
 use crate::core::cli::{Args, Commands, PrintArgs, PrioritizeArgs};
 use crate::core::cmds;
+use crate::core::cmds::prioritize::{self, Purpose};
 use crate::core::logging::init_logging;
-use crate::core::prioritize::{self, Purpose};
 use crate::core::store::SqlStore;
+use crate::core::typesafe::Client;
 use crate::types::AppError;
 use crate::types::AppResult;
 use crate::types::config::{CliOverrides, config, init_with_overrides, set_namespace};
-use crate::typesafe::Client;
 
 pub async fn run_main(
     registry: Arc<LanguageRegistry>,
@@ -45,7 +45,7 @@ pub async fn run_main(
     // Consent/key check precedes even config and cache lookup, including an empty campaign.
     let priority_client = if matches!(&args.command, Commands::Prioritize { .. }) {
         Some(Client::from_env().map_err(|_| AppError::Custom(
-            "Set TYPESAFE_API_KEY (get a key at https://typesafe.ai/). Prioritizing uploads source windows and mutation edits to TypeSafe; survivors also send Uncaught status.".into()
+            "Set TYPESAFE_API_KEY (get a key at https://typesafe.ai/). Prioritizing uploads source windows and mutation edits to TypeSafe; uncaught mutants also send Uncaught status.".into()
         ))?)
     } else {
         None
@@ -197,7 +197,7 @@ pub async fn run_main(
         Commands::Prioritize { command } => {
             let (purpose, options) = match command {
                 PrioritizeArgs::Mutants(opts) => (Purpose::Pre, opts),
-                PrioritizeArgs::Survivors(opts) => (Purpose::Post, opts),
+                PrioritizeArgs::Results(opts) => (Purpose::Post, opts),
             };
             let targets = prioritize::select_targets(&store, &options.targets).await?;
             prioritize::evaluate(

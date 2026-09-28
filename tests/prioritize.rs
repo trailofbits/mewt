@@ -1,7 +1,7 @@
 use std::process::Command;
 
 use mewt::LanguageEngine;
-use mewt::core::prioritize::{Purpose, plan};
+use mewt::core::cmds::prioritize::{Purpose, plan};
 use mewt::languages;
 use mewt::types::{Hash, Target};
 
@@ -17,7 +17,7 @@ fn cli_consent_threshold_and_help() {
             .output()
             .unwrap()
     };
-    for mode in ["mutants", "survivors"] {
+    for mode in ["mutants", "results"] {
         let out = invoke(&["prioritize", mode]);
         assert!(!out.status.success());
         let text = String::from_utf8_lossy(&out.stderr);

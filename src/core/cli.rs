@@ -36,7 +36,7 @@ pub enum Commands {
 
     /// Annotate saved mutants using TypeSafe (uploads source and mutation edits)
     #[command(
-        after_help = "Requires TYPESAFE_API_KEY. Get a key at https://typesafe.ai/. Source windows and mutation edits are sent to TypeSafe; survivors also send Uncaught status. This may expose private code."
+        after_help = "Requires TYPESAFE_API_KEY. Get a key at https://typesafe.ai/. Source windows and mutation edits are sent to TypeSafe; uncaught mutants also send Uncaught status. This may expose private code."
     )]
     Prioritize {
         #[command(subcommand)]
@@ -132,12 +132,12 @@ pub enum PrioritizeArgs {
     /// Judge execution value using source only (no test outcomes).
     Mutants(PrioritizeOptions),
     /// Judge test-goal value for current Uncaught mutants only.
-    Survivors(PrioritizeOptions),
+    Results(PrioritizeOptions),
 }
 
 #[derive(Parser, Debug)]
 #[command(
-    after_help = "Requires TYPESAFE_API_KEY. Get a key at https://typesafe.ai/. Source windows and mutation edits are sent to TypeSafe; survivors also send Uncaught status. This may expose private code."
+    after_help = "Requires TYPESAFE_API_KEY. Get a key at https://typesafe.ai/. Source windows and mutation edits are sent to TypeSafe; uncaught mutants also send Uncaught status. This may expose private code."
 )]
 pub struct PrioritizeOptions {
     /// Saved target path(s), directories or glob patterns; omit for all saved targets.

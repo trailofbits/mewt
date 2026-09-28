@@ -8,8 +8,8 @@ use serde_json::{Value, json};
 
 use crate::SqlStore;
 use crate::core::store::PriorityRow;
+use crate::core::typesafe::{self, Answer, Client, Evaluation, EvaluationResult, Question, Usage};
 use crate::types::{AppError, AppResult, Hash, Mutant, Outcome, Status, Target};
-use crate::typesafe::{self, Answer, Client, Evaluation, EvaluationResult, Question, Usage};
 
 // Experimental product limits, not published TypeSafe API limits. Revise after a pilot.
 pub const MAX_SOURCE_LINES: usize = 192;

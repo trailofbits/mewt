@@ -2,6 +2,7 @@ pub mod clean;
 pub mod init;
 pub mod mutate;
 pub mod print;
+pub mod prioritize;
 pub mod purge;
 pub mod results;
 pub mod run;
