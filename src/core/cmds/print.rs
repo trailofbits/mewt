@@ -17,6 +17,7 @@ pub struct MutantsFilters {
     pub severity: Option<String>,
     pub tested: bool,
     pub untested: bool,
+    pub verbose: bool,
     pub format: String,
 }
 

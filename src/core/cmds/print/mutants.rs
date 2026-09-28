@@ -1,11 +1,12 @@
 use console::style;
 use log::info;
 use serde::Serialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
 use crate::core::cmds::print::MutantsFilters;
+use crate::core::prioritize::{self, Annotation, Purpose};
 use crate::core::utils::parse_csv;
 use crate::types::{AppResult, Mutant, MutationSeverity, Target};
 
@@ -18,6 +19,56 @@ struct JsonMutant {
 #[derive(Serialize)]
 struct JsonMutants {
     mutants: Vec<JsonMutant>,
+}
+
+async fn cached_pre_priorities(store: &SqlStore, targets: &[Target]) -> HashMap<i64, Annotation> {
+    let mut priorities = HashMap::new();
+    for target in targets {
+        match prioritize::prepare(store, target, Purpose::Pre).await {
+            Ok(plan) => match prioritize::annotations(store, target, &plan).await {
+                Ok(found) => priorities.extend(found),
+                Err(error) => log::warn!(
+                    "Could not read cached priorities for {}: {error}",
+                    target.display()
+                ),
+            },
+            Err(error) => log::warn!(
+                "Could not prepare cached priorities for {}: {error}",
+                target.display()
+            ),
+        }
+    }
+    priorities
+}
+
+fn priority_label(priority: &Annotation, verbose: bool) -> String {
+    if verbose {
+        format!(
+            "P={:.2}/4 (distribution confidence {:.2}; execution-value heuristic)",
+            priority.score, priority.confidence
+        )
+    } else {
+        format!("P={}", priority.score.round() as u8)
+    }
+}
+
+fn display_mutant(
+    mutant: &Mutant,
+    target: &Target,
+    priority: Option<&Annotation>,
+    verbose: bool,
+) -> String {
+    let display = mutant.display(target);
+    let Some(priority) = priority else {
+        return display;
+    };
+    let prefix = format!("[{} {}]", mutant.mutation_slug, mutant.id);
+    if let Some(rest) = display.strip_prefix(&prefix) {
+        format!("{prefix} ({}){rest}", priority_label(priority, verbose))
+    } else {
+        // Keep the mutant visible if its display format ever changes.
+        display
+    }
 }
 
 pub async fn execute(
@@ -95,6 +146,17 @@ pub async fn execute(
             return Ok(());
         }
 
+        let selected_targets: Vec<Target> = results
+            .iter()
+            .map(|(_, target)| target.clone())
+            .fold(BTreeMap::new(), |mut targets, target| {
+                targets.insert(target.id, target);
+                targets
+            })
+            .into_values()
+            .collect();
+        let priorities = cached_pre_priorities(&store, &selected_targets).await;
+
         // Group by target path for display
         // Note: Data is already sorted by path from database query,
         // BTreeMap maintains this order since we insert in sorted order
@@ -116,7 +178,10 @@ pub async fn execute(
             info!("{}", style(format!("Target: {}", target.display())).bold());
 
             for (mutant, target) in entries {
-                info!("  {}", mutant.display(target));
+                info!(
+                    "  {}",
+                    display_mutant(mutant, target, priorities.get(&mutant.id), filters.verbose)
+                );
             }
             info!(""); // Empty line between targets
         }
@@ -184,6 +249,11 @@ pub async fn execute(
 
         // Get all mutants for this target
         let mutants = store.get_mutants(target.id).await?;
+        let priorities = if !is_ids_format {
+            cached_pre_priorities(&store, std::slice::from_ref(&target)).await
+        } else {
+            HashMap::new()
+        };
         if mutants.is_empty() {
             if !is_ids_format {
                 info!("  No mutants found for this target");
@@ -212,7 +282,15 @@ pub async fn execute(
                 if is_ids_format {
                     info!("{}", mutant.id);
                 } else {
-                    info!("  {}", mutant.display(&target));
+                    info!(
+                        "  {}",
+                        display_mutant(
+                            &mutant,
+                            &target,
+                            priorities.get(&mutant.id),
+                            filters.verbose
+                        )
+                    );
                 }
             }
         }
@@ -227,4 +305,44 @@ pub async fn execute(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::Hash;
+    use std::path::PathBuf;
+
+    #[test]
+    fn cached_priority_sits_beside_id_and_rounds_only_in_compact_mode() {
+        let source = "fn f() -> bool { true }";
+        let target = Target {
+            id: 1,
+            path: PathBuf::from("example.rs"),
+            file_hash: Hash::digest(source.into()),
+            text: source.into(),
+            language: "rust".parse().unwrap(),
+        };
+        let mutant = Mutant {
+            id: 42,
+            target_id: 1,
+            mutation_slug: "BL".into(),
+            byte_offset: 17,
+            line_offset: 0,
+            old_text: "true".into(),
+            new_text: "false".into(),
+        };
+        let priority = Annotation {
+            score: 0.64,
+            confidence: 0.47,
+            category: None,
+        };
+        let plain = display_mutant(&mutant, &target, None, false);
+        assert_eq!(plain, mutant.display(&target));
+        let compact = display_mutant(&mutant, &target, Some(&priority), false);
+        assert!(compact.starts_with("[BL 42] (P=1) Line 1:"), "{compact}");
+        assert!(compact.ends_with(&plain["[BL 42]".len()..]));
+        let verbose = display_mutant(&mutant, &target, Some(&priority), true);
+        assert!(verbose.starts_with("[BL 42] (P=0.64/4 (distribution confidence 0.47; execution-value heuristic)) Line 1:"), "{verbose}");
+    }
 }

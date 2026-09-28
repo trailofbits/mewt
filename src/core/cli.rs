@@ -241,7 +241,8 @@ pub struct ResultsArgs {
     #[arg(long)]
     pub target: Option<String>,
 
-    /// Show verbose output including test output and timing information
+    /// Show verbose output including test output, timing, and full test-goal priority details.
+    /// By default, annotated results show rounded priority as P=0..4; P means heuristic test-goal priority.
     #[arg(long, default_value = "false")]
     pub verbose: bool,
 
@@ -313,6 +314,12 @@ pub struct PrintMutantsArgs {
     /// Show only untested mutants (those without outcomes)
     #[arg(long)]
     pub untested: bool,
+
+    /// Show full cached execution-priority score and distribution confidence.
+    /// Table output otherwise shows rounded P=0..4 beside the mutant ID.
+    /// P is a heuristic pre-campaign execution-value score, not a test result or probability.
+    #[arg(long)]
+    pub verbose: bool,
 
     /// Output format: "table" (default) or "ids" (just IDs, one per line)
     #[arg(long, default_value = "table")]

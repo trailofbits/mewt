@@ -291,6 +291,7 @@ pub async fn run_main(
                             severity: args.severity,
                             tested: args.tested,
                             untested: args.untested,
+                            verbose: args.verbose,
                             format: args.format,
                         }),
                         Some(store),

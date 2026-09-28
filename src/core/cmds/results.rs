@@ -140,6 +140,23 @@ fn normalize_status(status_str: Option<String>) -> Option<String> {
 }
 
 // Print outcome details and verbose information if requested
+fn priority_display(priority: &Annotation, verbose: bool) -> String {
+    if verbose {
+        format!(
+            "Test-goal priority: {:.2}/4 (distribution confidence {:.2}, test focus: {}) [heuristic]",
+            priority.score,
+            priority.confidence,
+            priority
+                .category
+                .as_deref()
+                .unwrap_or("unclear")
+                .replace('_', " ")
+        )
+    } else {
+        format!("P={}", priority.score.round() as u8)
+    }
+}
+
 fn print_outcome(
     mutant: &Mutant,
     target: &Target,
@@ -154,16 +171,7 @@ fn print_outcome(
     );
 
     if let Some(priority) = priority {
-        info!(
-            "    Test-goal priority: {:.2}/4 (distribution confidence {:.2}, test focus: {}) [heuristic]",
-            priority.score,
-            priority.confidence,
-            priority
-                .category
-                .as_deref()
-                .unwrap_or("unclear")
-                .replace('_', " ")
-        );
+        info!("    {}", priority_display(priority, verbose));
     }
 
     // Print output & timing info if verbose
@@ -553,6 +561,20 @@ mod priority_tests {
     use crate::types::Hash;
     use chrono::Utc;
     use std::path::PathBuf;
+
+    #[test]
+    fn compact_priority_rounds_to_nearest_integer_and_verbose_keeps_details() {
+        let annotation = Annotation {
+            score: 3.31,
+            confidence: 0.42,
+            category: Some("branch".into()),
+        };
+        assert_eq!(priority_display(&annotation, false), "P=3");
+        assert_eq!(
+            priority_display(&annotation, true),
+            "Test-goal priority: 3.31/4 (distribution confidence 0.42, test focus: branch) [heuristic]"
+        );
+    }
 
     #[test]
     fn json_adds_optional_test_goal_priority_without_changing_existing_fields() {
