@@ -2,7 +2,7 @@
 
 ## Purpose and scope
 
-This document proposes an optional `mewt prioritize` command that annotates and ranks existing Mewt mutants using TypeSafe's Jev API. The proposal is informed by the paper included in this repository, [`prioritizing_mutants_tcap_icse_2022.pdf`](prioritizing_mutants_tcap_icse_2022.pdf):
+This document proposes an optional `mewt prioritize` command that annotates and ranks existing Mewt mutants using TypeSafe's Jev API. The proposal is informed by the paper cited below:
 
 > Samuel J. Kaufman, Ryan Featherman, Justin Alvin, Bob Kurtz, Paul Ammann, and René Just. “Prioritizing Mutants to Guide Mutation Testing.” ICSE 2022. [DOI: 10.1145/3510003.3510187](https://doi.org/10.1145/3510003.3510187).
 
