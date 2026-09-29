@@ -158,6 +158,23 @@ fn priority_display(priority: &Annotation, verbose: bool) -> String {
     }
 }
 
+fn display_result_mutant(
+    mutant: &Mutant,
+    target: &Target,
+    priority: Option<&Annotation>,
+) -> String {
+    let display = mutant.display(target);
+    let Some(priority) = priority else {
+        return display;
+    };
+    let prefix = format!("[{} {}]", mutant.mutation_slug, mutant.id);
+    if let Some(rest) = display.strip_prefix(&prefix) {
+        format!("{prefix} ({}){rest}", priority_display(priority, false))
+    } else {
+        display
+    }
+}
+
 fn print_outcome(
     mutant: &Mutant,
     target: &Target,
@@ -168,15 +185,14 @@ fn print_outcome(
     info!(
         "  {:<9} | {}",
         outcome.status.display(),
-        mutant.display(target)
+        display_result_mutant(mutant, target, priority)
     );
-
-    if let Some(priority) = priority {
-        info!("    {}", priority_display(priority, verbose));
-    }
 
     // Print output & timing info if verbose
     if verbose {
+        if let Some(priority) = priority {
+            info!("    {}", priority_display(priority, true));
+        }
         info!(
             "  Executed at: {}, Duration: {}ms",
             outcome.time, outcome.duration_ms
@@ -598,6 +614,40 @@ mod priority_tests {
             priority_display(&annotation, true),
             "Test-goal priority: 3.31/4 (distribution confidence 0.42, test focus: branch) [heuristic]"
         );
+    }
+
+    #[test]
+    fn compact_priority_sits_beside_mutant_id() {
+        let source = "fn f() -> bool { true }";
+        let target = Target {
+            id: 1,
+            path: PathBuf::from("example.rs"),
+            file_hash: Hash::digest(source.into()),
+            text: source.into(),
+            language: "rust".parse().unwrap(),
+        };
+        let mutant = Mutant {
+            id: 42,
+            target_id: 1,
+            mutation_slug: "BL".into(),
+            byte_offset: 16,
+            line_offset: 0,
+            old_text: "true".into(),
+            new_text: "false".into(),
+        };
+        let priority = Annotation {
+            score: 3.31,
+            confidence: 0.42,
+            category: None,
+        };
+        let plain = display_result_mutant(&mutant, &target, None);
+        assert_eq!(plain, mutant.display(&target));
+        let annotated = display_result_mutant(&mutant, &target, Some(&priority));
+        assert_eq!(
+            annotated,
+            format!("[BL 42] (P=3){}", &plain["[BL 42]".len()..])
+        );
+        assert!(!annotated.contains('\n'));
     }
 
     #[test]
