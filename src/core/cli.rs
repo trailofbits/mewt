@@ -34,6 +34,15 @@ pub enum Commands {
     /// Generate and save mutants for a target without running tests
     Mutate(MutateArgs),
 
+    /// Annotate saved mutants using TypeSafe (uploads source and mutation edits)
+    #[command(
+        after_help = "Requires TYPESAFE_API_KEY. Get a key at https://typesafe.ai/. Source windows and mutation edits are sent to TypeSafe; uncaught mutants also send Uncaught status. This may expose private code."
+    )]
+    Prioritize {
+        #[command(subcommand)]
+        command: PrioritizeArgs,
+    },
+
     /// Clean the database of stale targets
     Clean,
 
@@ -98,6 +107,45 @@ pub struct RunArgs {
     /// Stream stdout and stderr from baseline test to stdout
     #[arg(long)]
     pub verbose: bool,
+
+    /// Exclude saved mutants with a fresh pre-campaign score strictly below T (0..=4).
+    /// Experimental: validate missed useful signal before choosing T. Requires saved
+    /// mutants; no TypeSafe key or network is used here.
+    #[arg(long, value_parser = parse_priority_threshold)]
+    pub priority_threshold: Option<f64>,
+}
+
+fn parse_priority_threshold(raw: &str) -> Result<f64, String> {
+    let value: f64 = raw
+        .parse()
+        .map_err(|_| "expected a finite number from 0 to 4")?;
+    if !value.is_finite() || !(0.0..=4.0).contains(&value) {
+        return Err("expected a finite number from 0 to 4".into());
+    }
+    Ok(value)
+}
+
+/// Opt-in: source windows and mutation edits leave this machine for TypeSafe.
+/// Get a key at https://typesafe.ai/ and set TYPESAFE_API_KEY.
+#[derive(Subcommand, Debug)]
+pub enum PrioritizeArgs {
+    /// Judge execution value using source only (no test outcomes).
+    Mutants(PrioritizeOptions),
+    /// Judge test-goal value for current Uncaught mutants only.
+    Results(PrioritizeOptions),
+}
+
+#[derive(Parser, Debug)]
+#[command(
+    after_help = "Requires TYPESAFE_API_KEY. Get a key at https://typesafe.ai/. Source windows and mutation edits are sent to TypeSafe; uncaught mutants also send Uncaught status. This may expose private code."
+)]
+pub struct PrioritizeOptions {
+    /// Saved target path(s), directories or glob patterns; omit for all saved targets.
+    #[arg(value_name = "TARGET")]
+    pub targets: Vec<String>,
+    /// Re-query every eligible mutant, preserving old entries when a request fails.
+    #[arg(long)]
+    pub force: bool,
 }
 
 /// Arguments for the mutate command
@@ -193,7 +241,8 @@ pub struct ResultsArgs {
     #[arg(long)]
     pub target: Option<String>,
 
-    /// Show verbose output including test output and timing information
+    /// Show verbose output including test output, timing, and full test-goal priority details.
+    /// By default, annotated results show rounded priority as P=0..4; P means heuristic test-goal priority.
     #[arg(long, default_value = "false")]
     pub verbose: bool,
 
@@ -204,6 +253,11 @@ pub struct ResultsArgs {
     /// Show all outcomes instead of only uncaught ones
     #[arg(long, default_value = "false")]
     pub all: bool,
+
+    /// Show uncaught results with a test-goal priority score at least this value (0–4).
+    /// Run `mewt prioritize results` first.
+    #[arg(long, value_parser = parse_priority_threshold)]
+    pub priority: Option<f64>,
 
     /// Filter by status (e.g., Uncaught, TestFail, Skipped, Timeout)
     #[arg(long)]
@@ -265,6 +319,12 @@ pub struct PrintMutantsArgs {
     /// Show only untested mutants (those without outcomes)
     #[arg(long)]
     pub untested: bool,
+
+    /// Show full cached execution-priority score and distribution confidence.
+    /// Table output otherwise shows rounded P=0..4 beside the mutant ID.
+    /// P is a heuristic pre-campaign execution-value score, not a test result or probability.
+    #[arg(long)]
+    pub verbose: bool,
 
     /// Output format: "table" (default) or "ids" (just IDs, one per line)
     #[arg(long, default_value = "table")]

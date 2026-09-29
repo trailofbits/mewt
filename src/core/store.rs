@@ -15,11 +15,69 @@ pub struct SqlStore {
     pool: SqlitePool,
 }
 
+#[derive(Debug)]
+pub struct PriorityRow {
+    pub input_hash: String,
+    pub model: String,
+    pub payload_json: String,
+}
+
 impl SqlStore {
     pub async fn new(sqlite_connection_string: String) -> StoreResult<Self> {
         let pool = SqlitePool::connect(&sqlite_connection_string).await?;
         sqlx::migrate!("./migrations").run(&pool).await?;
         Ok(Self { pool })
+    }
+
+    pub async fn get_priority(
+        &self,
+        mutant_id: i64,
+        purpose: &str,
+    ) -> StoreResult<Option<PriorityRow>> {
+        let row = sqlx::query!(
+            "SELECT input_hash, model, payload_json FROM mutant_priorities WHERE mutant_id = ? AND purpose = ?",
+            mutant_id,
+            purpose
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|row| PriorityRow {
+            input_hash: row.input_hash,
+            model: row.model,
+            payload_json: row.payload_json,
+        }))
+    }
+
+    /// Replace a judgment only after its answer has been validated. A failed
+    /// refresh leaves the previous row in place.
+    pub async fn put_priority(
+        &self,
+        mutant_id: i64,
+        purpose: &str,
+        hash: &str,
+        model: &str,
+        payload: &str,
+    ) -> StoreResult<()> {
+        let created_at = Utc::now().to_rfc3339();
+        sqlx::query!(
+            r#"INSERT INTO mutant_priorities
+               (mutant_id, purpose, input_hash, model, created_at, payload_json)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(mutant_id, purpose) DO UPDATE SET
+               input_hash = excluded.input_hash,
+               model = excluded.model,
+               created_at = excluded.created_at,
+               payload_json = excluded.payload_json"#,
+            mutant_id,
+            purpose,
+            hash,
+            model,
+            created_at,
+            payload
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 
     pub async fn add_target(&self, target: Target) -> StoreResult<i64> {
@@ -875,6 +933,93 @@ mod tests {
 
     use super::*;
     use crate::LanguageRegistry;
+
+    #[tokio::test]
+    async fn priorities_migrate_existing_campaign_and_cascade_on_target_deletion() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("campaign.sqlite");
+        std::fs::File::create(&path).unwrap();
+        let uri = format!("sqlite:{}", path.display());
+        let legacy_pool = SqlitePool::connect(&uri).await.unwrap();
+        sqlx::raw_sql(include_str!("../../migrations/001_init.sql"))
+            .execute(&legacy_pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO targets (id, path, file_hash, text, language) VALUES (7, 'old.rs', ?, 'true', 'rust')")
+            .bind(Hash::digest("true".into()).to_hex())
+            .execute(&legacy_pool).await.unwrap();
+        sqlx::query("INSERT INTO mutants (id, target_id, byte_offset, line_offset, old_text, new_text, mutation_slug) VALUES (8, 7, 0, 0, 'true', 'false', 'BL')")
+            .execute(&legacy_pool).await.unwrap();
+        sqlx::query("INSERT INTO outcomes (mutant_id, status, output, time, duration_ms) VALUES (8, 'Uncaught', '', '2026-01-01T00:00:00Z', 1)")
+            .execute(&legacy_pool).await.unwrap();
+        legacy_pool.close().await;
+
+        let store = SqlStore::new(uri).await.unwrap();
+        assert_eq!(
+            store.get_target(7).await.unwrap().path,
+            PathBuf::from("old.rs")
+        );
+        assert_eq!(store.get_mutant(8).await.unwrap().target_id, 7);
+        assert_eq!(
+            store.get_outcome(8).await.unwrap().unwrap().status,
+            Status::Uncaught
+        );
+        assert!(store.get_priority(8, "pre").await.unwrap().is_none());
+        store
+            .put_priority(8, "pre", "hash-a", "model-a", "{}")
+            .await
+            .unwrap();
+        store
+            .put_priority(8, "post", "hash-b", "model-b", "{}")
+            .await
+            .unwrap();
+        store
+            .put_priority(8, "pre", "hash-c", "model-c", "{\"version\":1}")
+            .await
+            .unwrap();
+        assert_eq!(
+            store
+                .get_priority(8, "pre")
+                .await
+                .unwrap()
+                .unwrap()
+                .input_hash,
+            "hash-c"
+        );
+        assert_eq!(
+            store
+                .get_priority(8, "post")
+                .await
+                .unwrap()
+                .unwrap()
+                .input_hash,
+            "hash-b"
+        );
+        assert!(store.put_priority(9, "pre", "x", "m", "{}").await.is_err());
+        assert!(
+            store
+                .put_priority(8, "invalid", "x", "m", "{}")
+                .await
+                .is_err()
+        );
+        // A new process/pool sees the same migrated annotations and FK policy.
+        let reopened = SqlStore::new(format!("sqlite:{}", path.display()))
+            .await
+            .unwrap();
+        assert_eq!(
+            reopened
+                .get_priority(8, "post")
+                .await
+                .unwrap()
+                .unwrap()
+                .input_hash,
+            "hash-b"
+        );
+        reopened.remove_target(7).await.unwrap();
+        assert!(store.get_priority(8, "pre").await.unwrap().is_none());
+        assert!(store.get_priority(8, "post").await.unwrap().is_none());
+        assert!(store.get_outcome(8).await.unwrap().is_none());
+    }
 
     #[test]
     fn language_filter_variants_include_raw_query_for_legacy_rows() {

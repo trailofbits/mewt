@@ -44,6 +44,7 @@ thiserror = "2.0.18"
 tokio = { version = "1.52.3", features = ["full"] }
 toml = "1.1"
 tree-sitter = "0.26"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }

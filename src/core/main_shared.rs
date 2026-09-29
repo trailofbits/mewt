@@ -9,8 +9,11 @@ use log::{debug, warn};
 use crate::LanguageRegistry;
 use crate::core::cli::{Args, Commands, PrintArgs};
 use crate::core::cmds;
+use crate::core::cmds::prioritize;
 use crate::core::logging::init_logging;
 use crate::core::store::SqlStore;
+use crate::core::typesafe::Client;
+use crate::types::AppError;
 use crate::types::AppResult;
 use crate::types::config::{CliOverrides, config, init_with_overrides, set_namespace};
 
@@ -38,6 +41,15 @@ pub async fn run_main(
     let matches = cmd.get_matches();
     let args = Args::from_arg_matches(&matches)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e.to_string()))?;
+
+    // Consent/key check precedes even config and cache lookup, including an empty campaign.
+    let priority_client = if matches!(&args.command, Commands::Prioritize { .. }) {
+        Some(Client::from_env().map_err(|_| AppError::Custom(
+            "Set TYPESAFE_API_KEY (get a key at https://typesafe.ai/). Prioritizing uploads source windows and mutation edits to TypeSafe; uncaught mutants also send Uncaught status.".into()
+        ))?)
+    } else {
+        None
+    };
 
     // Handle config file path: either explicit via --config or auto-discovered
     let config_path = if let Some(config_path_arg) = args.config.as_ref() {
@@ -182,6 +194,15 @@ pub async fn run_main(
             .await?;
             0
         }
+        Commands::Prioritize { command } => {
+            prioritize::execute_prioritize(
+                &store,
+                priority_client.as_ref().expect("key checked"),
+                command,
+            )
+            .await?;
+            0
+        }
         Commands::Clean => {
             cmds::execute_clean(store).await?;
             0
@@ -219,6 +240,7 @@ pub async fn run_main(
                     id: args.id,
                     all: args.all,
                     status: args.status,
+                    priority: args.priority,
                     language: args.language,
                     mutation_types: args.mutation_types,
                     severity: args.severity,
@@ -270,6 +292,7 @@ pub async fn run_main(
                             severity: args.severity,
                             tested: args.tested,
                             untested: args.untested,
+                            verbose: args.verbose,
                             format: args.format,
                         }),
                         Some(store),

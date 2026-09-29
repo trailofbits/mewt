@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT input_hash, model, payload_json FROM mutant_priorities WHERE mutant_id = ? AND purpose = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "input_hash",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "model",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "payload_json",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ec2113a2c0f0e0ef0f983c62f487d1e12a8636aad7e5965bd20bf609c5975e42"
+}

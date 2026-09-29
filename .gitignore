@@ -4,6 +4,7 @@
 .env
 mewt.toml
 .todo/
+TODO.md
 
 # Cache
 .cargo

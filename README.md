@@ -1,15 +1,9 @@
 
 # Mewt
 
-Mewt is a mutation testing tool. Mutation testing works by making small
-changes (mutations) to your source code — like replacing `+` with `-` or
-swapping `true` for `false` — and then running your test suite against each
-change. If your tests still pass after a mutation, that's a gap: the mutant
-"survived," meaning your tests didn't catch the change.
+Mewt is a mutation testing tool. Mutation testing works by making small changes (mutations) to your source code — like replacing `+` with `-` or swapping `true` for `false` — and then running your test suite against each change. If your tests still pass after a mutation, the mutant is `Uncaught`: your tests didn't catch the change.
 
-This tells you something code coverage alone can't: not just whether your
-tests *execute* a line, but whether they'd actually *fail* if that line were
-wrong.
+This tells you something code coverage alone can't: not just whether your tests *execute* a line, but whether they'd actually *fail* if that line were wrong.
 
 **Supported languages:**
 - C++
@@ -21,12 +15,7 @@ wrong.
 - Solidity
 - Move (dialects: `sui`, `iota`, `aptos`; use `move`, `move/sui`, `move/iota`, or `move/aptos`)
 
-For details on how campaigns work under the hood, see
-[How it works](docs/how-it-works.md). For the language/dialect resolver contract,
-see [Language resolution contract](docs/language-resolution-contract.md).
-To add support for a new language, see [Adding a language](docs/adding-a-language.md).
-For mutation test suite structure and shared test helper conventions, see
-[`tests/README.md`](tests/README.md).
+For details on how campaigns work under the hood, see [How it works](docs/how-it-works.md). For the language/dialect resolver contract, see [Language resolution contract](docs/language-resolution-contract.md). To add support for a new language, see [Adding a language](docs/adding-a-language.md). For mutation test suite structure and shared test helper conventions, see [`tests/README.md`](tests/README.md).
 
 ## Installation
 
@@ -78,6 +67,19 @@ mewt print mutants --target path/to/contract.rs
 ```bash
 mewt results --target path/to/contract.rs
 ```
+
+- Optionally annotate saved mutants with TypeSafe's heuristic scores before and after testing:
+
+```bash
+mewt mutate path/to/contract.rs
+export TYPESAFE_API_KEY=... # get a key at https://typesafe.ai/
+mewt prioritize mutants
+mewt run --priority-threshold 2 --test.cmd 'your test command'
+mewt prioritize results
+mewt results
+```
+
+**Privacy:** `prioritize` sends source windows and mutation edits to TypeSafe (and `Uncaught` status when prioritizing uncaught mutants). Don't use for private code you don't want to share with TypeSafe. No other command needs an API key or contacts TypeSafe. Scores are experimental heuristics, not measured TCAP. See [Prioritization](docs/prioritization.md) for limits, cache, threshold semantics, and output formats.
 
 - Test all mutants even if more severe ones were uncaught (disable skip optimization):
 

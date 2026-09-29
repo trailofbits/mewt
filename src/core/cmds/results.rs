@@ -1,6 +1,8 @@
-use log::info;
+use log::{info, warn};
 use serde::Serialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+
+use crate::core::prioritize::{self, Annotation, Purpose};
 
 use crate::LanguageRegistry;
 use crate::SqlStore;
@@ -13,6 +15,7 @@ pub struct ResultsFilters {
     pub id: Option<i64>,
     pub all: bool,
     pub status: Option<String>,
+    pub priority: Option<f64>,
     pub language: Option<String>,
     pub mutation_types: Option<String>,
     pub severity: Option<String>,
@@ -26,6 +29,8 @@ struct JsonResult {
     mutant: Mutant,
     target: Target,
     outcome: Outcome,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    test_goal_priority: Option<Annotation>,
 }
 
 #[derive(Serialize)]
@@ -136,15 +141,58 @@ fn normalize_status(status_str: Option<String>) -> Option<String> {
 }
 
 // Print outcome details and verbose information if requested
-fn print_outcome(mutant: &Mutant, target: &Target, outcome: &Outcome, verbose: bool) {
+fn priority_display(priority: &Annotation, verbose: bool) -> String {
+    if verbose {
+        format!(
+            "Test-goal priority: {:.2}/4 (distribution confidence {:.2}, test focus: {}) [heuristic]",
+            priority.score,
+            priority.confidence,
+            priority
+                .category
+                .as_deref()
+                .unwrap_or("unclear")
+                .replace('_', " ")
+        )
+    } else {
+        format!("P={}", priority.score.round() as u8)
+    }
+}
+
+fn display_result_mutant(
+    mutant: &Mutant,
+    target: &Target,
+    priority: Option<&Annotation>,
+) -> String {
+    let display = mutant.display(target);
+    let Some(priority) = priority else {
+        return display;
+    };
+    let prefix = format!("[{} {}]", mutant.mutation_slug, mutant.id);
+    if let Some(rest) = display.strip_prefix(&prefix) {
+        format!("{prefix} ({}){rest}", priority_display(priority, false))
+    } else {
+        display
+    }
+}
+
+fn print_outcome(
+    mutant: &Mutant,
+    target: &Target,
+    outcome: &Outcome,
+    verbose: bool,
+    priority: Option<&Annotation>,
+) {
     info!(
         "  {:<9} | {}",
         outcome.status.display(),
-        mutant.display(target)
+        display_result_mutant(mutant, target, priority)
     );
 
     // Print output & timing info if verbose
     if verbose {
+        if let Some(priority) = priority {
+            info!("    {}", priority_display(priority, true));
+        }
         info!(
             "  Executed at: {}, Duration: {}ms",
             outcome.time, outcome.duration_ms
@@ -170,7 +218,54 @@ pub async fn execute_results(
     registry: &LanguageRegistry,
 ) -> AppResult<()> {
     // Get the data first
-    let data = get_results_data(&store, &filters, registry).await?;
+    let mut data = get_results_data(&store, &filters, registry).await?;
+    let mut priorities = HashMap::new();
+    // IDs and SARIF keep their exact existing output semantics unless filtering by priority.
+    if filters.priority.is_some()
+        || !matches!(filters.format.as_str(), "ids" | "sarif")
+            && data.iter().any(|(_, _, o)| o.status == Status::Uncaught)
+    {
+        let targets: BTreeMap<i64, &Target> = data
+            .iter()
+            .filter(|(_, _, o)| o.status == Status::Uncaught)
+            .map(|(_, t, _)| (t.id, t))
+            .collect();
+        for target in targets.values() {
+            match prioritize::prepare(&store, target, Purpose::Post).await {
+                Ok(plan) => match prioritize::annotations(&store, target, &plan).await {
+                    Ok(found) => priorities.extend(found),
+                    Err(e) => {
+                        warn!("Cannot read test-goal annotations: {e}; showing unannotated results")
+                    }
+                },
+                Err(e) => {
+                    warn!("Cannot prepare test-goal annotations: {e}; showing unannotated results")
+                }
+            }
+        }
+    }
+
+    if let Some(threshold) = filters.priority {
+        let eligible: Vec<_> = data
+            .iter()
+            .filter(|(_, _, outcome)| outcome.status == Status::Uncaught)
+            .collect();
+        if eligible.is_empty()
+            || eligible
+                .iter()
+                .any(|(mutant, _, _)| !priorities.contains_key(&mutant.id))
+        {
+            return Err(crate::types::AppError::Custom(
+                "Result priorities are unavailable or incomplete; run 'mewt prioritize results' first".into(),
+            ));
+        }
+        data.retain(|(mutant, _, outcome)| {
+            outcome.status == Status::Uncaught
+                && priorities
+                    .get(&mutant.id)
+                    .is_some_and(|priority| priority.score >= threshold)
+        });
+    }
 
     // Handle different output formats
     match filters.format.as_str() {
@@ -179,6 +274,11 @@ pub async fn execute_results(
                 results: data
                     .iter()
                     .map(|(mutant, target, outcome)| JsonResult {
+                        test_goal_priority: if outcome.status == Status::Uncaught {
+                            priorities.get(&mutant.id).cloned()
+                        } else {
+                            None
+                        },
                         mutant: mutant.clone(),
                         target: target.clone(),
                         outcome: Outcome {
@@ -247,7 +347,7 @@ pub async fn execute_results(
         }
         _ => {
             // Default table format
-            print_table_format(&data, &filters, registry).await?;
+            print_table_format(&data, &filters, registry, &priorities).await?;
         }
     }
 
@@ -339,6 +439,7 @@ async fn print_table_format(
     data: &[(Mutant, Target, Outcome)],
     filters: &ResultsFilters,
     registry: &LanguageRegistry,
+    priorities: &HashMap<i64, Annotation>,
 ) -> AppResult<()> {
     // If mutant_id is provided, special handling
     if let Some(id) = filters.id {
@@ -347,7 +448,13 @@ async fn print_table_format(
         } else {
             let (mutant, target, outcome) = &data[0];
             info!("Target: {}", target.display());
-            print_outcome(mutant, target, outcome, filters.verbose);
+            print_outcome(
+                mutant,
+                target,
+                outcome,
+                filters.verbose,
+                priorities.get(&mutant.id),
+            );
         }
         return Ok(());
     }
@@ -383,7 +490,13 @@ async fn print_table_format(
             info!("Target: {}", target.display());
 
             for (mutant, target, outcome) in entries {
-                print_outcome(mutant, target, outcome, filters.verbose);
+                print_outcome(
+                    mutant,
+                    target,
+                    outcome,
+                    filters.verbose,
+                    priorities.get(&mutant.id),
+                );
             }
             info!(""); // Empty line between targets
         }
@@ -439,7 +552,13 @@ async fn print_table_format(
             };
 
             has_outcomes = true;
-            print_outcome(mutant, target, outcome, filters.verbose);
+            print_outcome(
+                mutant,
+                target,
+                outcome,
+                filters.verbose,
+                priorities.get(&mutant.id),
+            );
         }
 
         if !has_outcomes {
@@ -474,4 +593,118 @@ async fn print_table_format(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod priority_tests {
+    use super::*;
+    use crate::types::Hash;
+    use chrono::Utc;
+    use std::path::PathBuf;
+
+    #[test]
+    fn compact_priority_rounds_to_nearest_integer_and_verbose_keeps_details() {
+        let annotation = Annotation {
+            score: 3.31,
+            confidence: 0.42,
+            category: Some("branch".into()),
+        };
+        assert_eq!(priority_display(&annotation, false), "P=3");
+        assert_eq!(
+            priority_display(&annotation, true),
+            "Test-goal priority: 3.31/4 (distribution confidence 0.42, test focus: branch) [heuristic]"
+        );
+    }
+
+    #[test]
+    fn compact_priority_sits_beside_mutant_id() {
+        let source = "fn f() -> bool { true }";
+        let target = Target {
+            id: 1,
+            path: PathBuf::from("example.rs"),
+            file_hash: Hash::digest(source.into()),
+            text: source.into(),
+            language: "rust".parse().unwrap(),
+        };
+        let mutant = Mutant {
+            id: 42,
+            target_id: 1,
+            mutation_slug: "BL".into(),
+            byte_offset: 16,
+            line_offset: 0,
+            old_text: "true".into(),
+            new_text: "false".into(),
+        };
+        let priority = Annotation {
+            score: 3.31,
+            confidence: 0.42,
+            category: None,
+        };
+        let plain = display_result_mutant(&mutant, &target, None);
+        assert_eq!(plain, mutant.display(&target));
+        let annotated = display_result_mutant(&mutant, &target, Some(&priority));
+        assert_eq!(
+            annotated,
+            format!("[BL 42] (P=3){}", &plain["[BL 42]".len()..])
+        );
+        assert!(!annotated.contains('\n'));
+    }
+
+    #[test]
+    fn json_adds_optional_test_goal_priority_without_changing_existing_fields() {
+        let source = "fn value() -> bool { true }";
+        let target = Target {
+            id: 4,
+            path: PathBuf::from("example.rs"),
+            file_hash: Hash::digest(source.into()),
+            text: source.into(),
+            language: "rust".parse().unwrap(),
+        };
+        let mutant = Mutant {
+            id: 5,
+            target_id: 4,
+            mutation_slug: "BL".into(),
+            byte_offset: 21,
+            line_offset: 0,
+            old_text: "true".into(),
+            new_text: "false".into(),
+        };
+        let outcome = Outcome {
+            mutant_id: 5,
+            status: Status::Uncaught,
+            output: String::new(),
+            time: Utc::now(),
+            duration_ms: 10,
+        };
+        let plain = serde_json::to_value(JsonResult {
+            mutant: mutant.clone(),
+            target: target.clone(),
+            outcome: Outcome {
+                mutant_id: outcome.mutant_id,
+                status: Status::Uncaught,
+                output: outcome.output.clone(),
+                time: outcome.time,
+                duration_ms: outcome.duration_ms,
+            },
+            test_goal_priority: None,
+        })
+        .unwrap();
+        assert!(plain.get("test_goal_priority").is_none());
+        let annotated = serde_json::to_value(JsonResult {
+            mutant,
+            target,
+            outcome,
+            test_goal_priority: Some(Annotation {
+                score: 2.5,
+                confidence: 0.4,
+                category: Some("unclear".into()),
+            }),
+        })
+        .unwrap();
+        assert_eq!(plain["mutant"], annotated["mutant"]);
+        assert_eq!(plain["target"], annotated["target"]);
+        assert_eq!(plain["outcome"], annotated["outcome"]);
+        assert_eq!(annotated["test_goal_priority"]["score"], 2.5);
+        assert_eq!(annotated["test_goal_priority"]["category"], "unclear");
+    }
 }
