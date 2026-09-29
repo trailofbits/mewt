@@ -254,6 +254,11 @@ pub struct ResultsArgs {
     #[arg(long, default_value = "false")]
     pub all: bool,
 
+    /// Show uncaught results with a test-goal priority score at least this value (0–4).
+    /// Run `mewt prioritize results` first.
+    #[arg(long, value_parser = parse_priority_threshold)]
+    pub priority: Option<f64>,
+
     /// Filter by status (e.g., Uncaught, TestFail, Skipped, Timeout)
     #[arg(long)]
     pub status: Option<String>,

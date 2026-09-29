@@ -15,6 +15,7 @@ pub struct ResultsFilters {
     pub id: Option<i64>,
     pub all: bool,
     pub status: Option<String>,
+    pub priority: Option<f64>,
     pub language: Option<String>,
     pub mutation_types: Option<String>,
     pub severity: Option<String>,
@@ -201,11 +202,12 @@ pub async fn execute_results(
     registry: &LanguageRegistry,
 ) -> AppResult<()> {
     // Get the data first
-    let data = get_results_data(&store, &filters, registry).await?;
+    let mut data = get_results_data(&store, &filters, registry).await?;
     let mut priorities = HashMap::new();
-    // IDs and SARIF keep their exact existing output semantics.
-    if !matches!(filters.format.as_str(), "ids" | "sarif")
-        && data.iter().any(|(_, _, o)| o.status == Status::Uncaught)
+    // IDs and SARIF keep their exact existing output semantics unless filtering by priority.
+    if filters.priority.is_some()
+        || !matches!(filters.format.as_str(), "ids" | "sarif")
+            && data.iter().any(|(_, _, o)| o.status == Status::Uncaught)
     {
         let targets: BTreeMap<i64, &Target> = data
             .iter()
@@ -225,6 +227,28 @@ pub async fn execute_results(
                 }
             }
         }
+    }
+
+    if let Some(threshold) = filters.priority {
+        let eligible: Vec<_> = data
+            .iter()
+            .filter(|(_, _, outcome)| outcome.status == Status::Uncaught)
+            .collect();
+        if eligible.is_empty()
+            || eligible
+                .iter()
+                .any(|(mutant, _, _)| !priorities.contains_key(&mutant.id))
+        {
+            return Err(crate::types::AppError::Custom(
+                "Result priorities are unavailable or incomplete; run 'mewt prioritize results' first".into(),
+            ));
+        }
+        data.retain(|(mutant, _, outcome)| {
+            outcome.status == Status::Uncaught
+                && priorities
+                    .get(&mutant.id)
+                    .is_some_and(|priority| priority.score >= threshold)
+        });
     }
 
     // Handle different output formats

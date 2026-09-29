@@ -240,6 +240,7 @@ pub async fn run_main(
                     id: args.id,
                     all: args.all,
                     status: args.status,
+                    priority: args.priority,
                     language: args.language,
                     mutation_types: args.mutation_types,
                     severity: args.severity,
