@@ -459,9 +459,6 @@ fn return_default_value_mutants(root: Node, source: &str) -> Vec<PartialMutant> 
 /// Generate RCI (Require Condition Inversion) mutants for Solidity.
 /// Finds `require(condition)` and `assert(condition)` calls and inverts the
 /// condition: `condition` → `!(condition)`.
-///
-/// Skips conditions that are already negated (`!expr`) to avoid generating
-/// duplicates with the NR (Negation Removal) mutator.
 fn require_condition_inversion_mutants(root: Node, source: &str) -> Vec<PartialMutant> {
     let mut mutants = Vec::new();
     let mut cursor = root.walk();
@@ -506,8 +503,7 @@ fn require_condition_inversion_mutants(root: Node, source: &str) -> Vec<PartialM
         // Skip if already negated — NR handles that case
         if inner.kind() == "unary_expression" {
             let mut uc = inner.walk();
-            let first_child = inner.children(&mut uc).next();
-            if let Some(op) = first_child {
+            if let Some(op) = inner.children(&mut uc).next() {
                 if node_text(&op, source) == "!" {
                     return;
                 }

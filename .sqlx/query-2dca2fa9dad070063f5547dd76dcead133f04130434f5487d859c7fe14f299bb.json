@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT slug\n            FROM mutant_slugs\n            WHERE mutant_id = ?\n            ORDER BY is_primary DESC, slug\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "slug",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2dca2fa9dad070063f5547dd76dcead133f04130434f5487d859c7fe14f299bb"
+}
